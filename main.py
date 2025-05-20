@@ -22,13 +22,17 @@ class Natsumin(commands.Bot):
 		print(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 		self.anicord = self.get_guild(994071728017899600)
 
-	async def get_contract_user(self, *, id: int = None, username: str = None) -> discord.User | None:
+	async def get_contract_user(self, *, id: int = None, username: str = None, season: str = BOT_CONFIG.active_season) -> discord.User | None:
 		if id:
 			discord_user = (self.anicord.get_member(id) or await self.anicord.fetch_member(id)) if self.anicord else await self.get_or_fetch_user(id)
 			return discord_user
 		elif username:
-			if d := await utils.find_madfigs_user(search_name=username):
+			season_db = await contracts.get_season_db(season)
+			if u := await season_db.fetch_user(username=username):
+				id = u.discord_id if u.discord_id else None
+			elif d := await utils.find_madfigs_user(search_name=username):
 				id = d["user_id"]
+			if id:
 				return (self.anicord.get_member(id) or await self.anicord.fetch_member(id)) if self.anicord else await self.get_or_fetch_user(id)
 
 			for member in self.get_all_members():

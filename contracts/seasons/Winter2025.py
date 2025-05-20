@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from ..classes import Contract, User, SeasonDB, SeasonSyncContext, ContractKind, ContractType, ContractStatus, UserStatus
+from ..classes import Contract, User, SeasonDB, SeasonSyncContext, ContractKind, ContractType, ContractStatus, UserStatus, UserKind
 from async_lru import alru_cache
 import utils
 import aiohttp
@@ -106,8 +106,8 @@ async def _sync_dashboard_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncCo
 			discord_id = None
 			if d := await utils.find_madfigs_user(search_name=username):
 				discord_id = d["user_id"]
-			await db.create_user(username=username, status=user_status, discord_id=discord_id)
-			ctx.users[username] = User(username=username, status=user_status)
+			await db.create_user(username=username, status=user_status, kind=UserKind.NORMAL, discord_id=discord_id)
+			ctx.users[username] = User(username=username, status=user_status, kind=UserKind.NORMAL, discord_id=discord_id)
 
 		for i, contract_name in enumerate(contract_names):
 			contract_type = DASHBOARD_ROW_NAMES[i]
@@ -356,10 +356,11 @@ async def _sync_aids_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncContext
 					discord_id = d["user_id"]
 				await db.create_user(
 					username=username,
-					status=UserStatus.AIDS_NEWCOMER,
+					status=UserStatus.PENDING,
+					kind=UserKind.AID,
 					rep="AIDS",
 					discord_id=discord_id,
-					contractor="the cow lord",
+					contractor="Cow Lord",
 					list_url="https://discord.com/channels/994071728017899600/1008810171876773978/1374143929787613375",
 					veto_used=False,
 					accepting_manhwa=False,
@@ -369,10 +370,11 @@ async def _sync_aids_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncContext
 				)
 				ctx.users[username] = User(
 					username=username,
-					status=UserStatus.AIDS_NEWCOMER,
+					status=UserStatus.PENDING,
+					kind=UserKind.AID,
 					rep="AIDS",
 					discord_id=discord_id,
-					contractor="the cow lord",
+					contractor="Cow Lord",
 					list_url="https://discord.com/channels/994071728017899600/1008810171876773978/1374143929787613375",
 					veto_used=False,
 					accepting_manhwa=False,

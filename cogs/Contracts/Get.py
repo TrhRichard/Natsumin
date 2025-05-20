@@ -42,14 +42,15 @@ async def create_embed(user: contracts.User, target: discord.Member, season: str
 			line += f"[{contract.name}]({contract.review_url})" if contract.review_url else contract.name
 			embed.description += "\n" + line
 
-	if user.status == "PASSED":
-		embed.description += "\n\n This user has **passed** the season."
-	elif user.status == "LATE PASS":
-		embed.description += "\n\n This user has **passed** the season **late**."
+	if user.status == contracts.UserStatus.PASSED:
+		embed.description += f"\n\n This user has **passed** {season}."
+	elif user.status == contracts.UserStatus.LATE_PASS:
+		embed.description += f"\n\n This user has **passed** {season} **late**."
 
 	passed = len([c for c in user_contracts if c.status == contracts.ContractStatus.PASSED])
 	total = len(user_contracts)
-	embed.title = f"Contracts ({passed}/{total})"
+	if total != 0:
+		embed.title = f"Contracts ({passed}/{total})"
 
 	return embed
 

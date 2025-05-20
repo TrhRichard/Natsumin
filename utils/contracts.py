@@ -53,7 +53,7 @@ async def _get_contract_user(season_db: contracts.SeasonDB, username: str) -> co
 
 
 async def get_target(
-	bot: "Natsumin", ctx_user: discord.Member, username: str | None, season: str = config.BOT_CONFIG.active_season
+	bot: "Natsumin", ctx_user: discord.Member, username: str | None = None, season: str = config.BOT_CONFIG.active_season
 ) -> tuple[discord.User | discord.Member | None, str | None]:
 	season_db = await contracts.get_season_db(season)
 	if not username:

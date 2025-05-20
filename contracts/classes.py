@@ -5,11 +5,30 @@ import os
 import aiosqlite
 from async_lru import alru_cache
 
-__all__ = ["ContractType", "UserStatus", "ContractStatus", "ContractKind", "Contract", "User", "SeasonDB", "SeasonSyncContext"]
+__all__ = ["UserStatus", "UserKind", "ContractType", "ContractStatus", "ContractKind", "Contract", "User", "SeasonDB", "SeasonSyncContext"]
 
 with open("contracts/Season.sql") as f:
 	season_script = f.read()
 CACHE_DURATION_MINUTES = 3
+
+
+class UserStatus(Enum):
+	PENDING = 0
+	PASSED = 1
+	FAILED = 2
+	LATE_PASS = 3
+	INCOMPLETE = 4
+
+
+class UserKind(Enum):
+	"""
+	NORMAL - A normal user that is in the current season
+
+	AID - A user that isn't in the current season and is in aids
+	"""
+
+	NORMAL = 0
+	AID = 1
 
 
 class ContractType(StrEnum):
@@ -27,15 +46,6 @@ class ContractType(StrEnum):
 	MYSTERY_SPECIAL = "Mystery Special"
 	AID_CONTRACT_1 = "Aid Contract 1"
 	AID_CONTRACT_2 = "Aid Contract 2"
-
-
-class UserStatus(Enum):
-	PENDING = 0
-	PASSED = 1
-	FAILED = 2
-	LATE_PASS = 3
-	INCOMPLETE = 4
-	AIDS_NEWCOMER = 5
 
 
 class ContractStatus(Enum):
@@ -78,6 +88,7 @@ class Contract:
 class User:
 	username: str
 	status: UserStatus
+	kind: UserKind
 	discord_id: int = field(default=None, repr=False)
 	rep: str = field(default="")
 	contractor: str = field(default="", repr=False)
@@ -101,15 +112,16 @@ def _construct_user(row: list) -> User:
 	return User(
 		username=row[0],
 		status=UserStatus(row[1]),
-		discord_id=row[2],
-		rep=row[3],
-		contractor=row[4],
-		list_url=row[5],
-		veto_used=bool(row[6]),
-		accepting_manhwa=bool(row[7]),
-		accepting_ln=bool(row[8]),
-		preferences=row[9],
-		bans=row[10],
+		kind=UserKind(row[2]),
+		discord_id=row[3],
+		rep=row[4],
+		contractor=row[5],
+		list_url=row[6],
+		veto_used=bool(row[7]),
+		accepting_manhwa=bool(row[8]),
+		accepting_ln=bool(row[9]),
+		preferences=row[10],
+		bans=row[11],
 	)
 
 
@@ -130,6 +142,32 @@ def _construct_contract(row: list) -> Contract:
 	)
 
 
+def _build_query_conditions(kwargs: dict[str]) -> tuple[str, dict]:
+	query_conditions = []
+	params = {}
+	param_counter = 0
+
+	for key, value in kwargs.items():
+		if isinstance(value, tuple):
+			placeholders = []
+			operator = "NOT IN" if key.startswith("not_") else "IN"
+			actual_key = key[4:] if key.startswith("not_") else key
+			for v in value:
+				param_key = f"{actual_key}_{param_counter}"
+				param_counter += 1
+				placeholders.append(f":{param_key}")
+				params[param_key] = v.value if isinstance(v, Enum) else v
+			query_conditions.append(f"{actual_key} {operator} ({', '.join(placeholders)})")
+		else:
+			operator = "!=" if key.startswith("not_") else "="
+			actual_key = key[4:] if key.startswith("not_") else key
+			params[key] = value.value if isinstance(value, Enum) else value
+			query_conditions.append(f"{actual_key} {operator} :{key}")
+
+	where_clause = " AND ".join(query_conditions) if query_conditions else ""
+	return where_clause, params
+
+
 class SeasonDB:
 	def __init__(self, name: str, path: str):
 		self.name = name
@@ -146,9 +184,9 @@ class SeasonDB:
 			await db.executescript(season_script)
 			await db.commit()
 
-	async def create_user(self, username: str, status: UserStatus, **kwargs):
-		columns = ["username", "status"]
-		values = {"username": username, "status": status.value}
+	async def create_user(self, username: str, status: UserStatus, kind: UserKind, **kwargs):
+		columns = ["username", "status", "kind"]
+		values = {"username": username, "status": status.value, "kind": kind.value}
 
 		for key, value in kwargs.items():
 			columns.append(key)
@@ -189,26 +227,10 @@ class SeasonDB:
 
 	@alru_cache(ttl=CACHE_DURATION_MINUTES * 60)
 	async def fetch_user(self, **kwargs) -> User | None:
-		query_conditions = []
-		params = {}
-		param_counter = 0
-		for key, value in kwargs.items():
-			if isinstance(value, tuple):
-				placeholders = []
-				for v in value:
-					param_key = f"{key}_{param_counter}"
-					param_counter += 1
-					placeholders.append(f":{param_key}")
-					params[param_key] = v.value if isinstance(v, Enum) else v
-				query_conditions.append(f"{key} IN ({', '.join(placeholders)})")
-			else:
-				if isinstance(value, Enum):
-					value = value.value
-				query_conditions.append(f"{key} = :{key}")
-				params[key] = value
+		where_clause, params = _build_query_conditions(kwargs)
 		query = "SELECT * FROM users"
-		if query_conditions:
-			query += " WHERE " + " AND ".join(query_conditions)
+		if where_clause:
+			query += f" WHERE {where_clause}"
 		query += " LIMIT 1"
 
 		async with self.connect() as db:
@@ -220,26 +242,10 @@ class SeasonDB:
 
 	@alru_cache(ttl=CACHE_DURATION_MINUTES * 60)
 	async def fetch_contract(self, **kwargs) -> Contract | None:
-		query_conditions = []
-		params = {}
-		param_counter = 0
-		for key, value in kwargs.items():
-			if isinstance(value, tuple):
-				placeholders = []
-				for v in value:
-					param_key = f"{key}_{param_counter}"
-					param_counter += 1
-					placeholders.append(f":{param_key}")
-					params[param_key] = v.value if isinstance(v, Enum) else v
-				query_conditions.append(f"{key} IN ({', '.join(placeholders)})")
-			else:
-				if isinstance(value, Enum):
-					value = value.value
-				query_conditions.append(f"{key} = :{key}")
-				params[key] = value
+		where_clause, params = _build_query_conditions(kwargs)
 		query = "SELECT * FROM contracts"
-		if query_conditions:
-			query += " WHERE " + " AND ".join(query_conditions)
+		if where_clause:
+			query += f" WHERE {where_clause}"
 		query += " LIMIT 1"
 
 		async with self.connect() as db:
@@ -251,26 +257,10 @@ class SeasonDB:
 
 	@alru_cache(ttl=CACHE_DURATION_MINUTES * 60)
 	async def fetch_users(self, limit: int = None, **kwargs) -> list[User]:
-		query_conditions = []
-		params = {}
-		param_counter = 0
-		for key, value in kwargs.items():
-			if isinstance(value, tuple):
-				placeholders = []
-				for v in value:
-					param_key = f"{key}_{param_counter}"
-					param_counter += 1
-					placeholders.append(f":{param_key}")
-					params[param_key] = v.value if isinstance(v, Enum) else v
-				query_conditions.append(f"{key} IN ({', '.join(placeholders)})")
-			else:
-				if isinstance(value, Enum):
-					value = value.value
-				query_conditions.append(f"{key} = :{key}")
-				params[key] = value
+		where_clause, params = _build_query_conditions(kwargs)
 		query = "SELECT * FROM users"
-		if query_conditions:
-			query += " WHERE " + " AND ".join(query_conditions)
+		if where_clause:
+			query += f" WHERE {where_clause}"
 		if limit is not None:
 			query += f" LIMIT {limit}"
 
@@ -281,26 +271,10 @@ class SeasonDB:
 
 	@alru_cache(ttl=CACHE_DURATION_MINUTES * 60)
 	async def fetch_contracts(self, limit: int = None, **kwargs) -> list[Contract]:
-		query_conditions = []
-		params = {}
-		param_counter = 0
-		for key, value in kwargs.items():
-			if isinstance(value, tuple):
-				placeholders = []
-				for v in value:
-					param_key = f"{key}_{param_counter}"
-					param_counter += 1
-					placeholders.append(f":{param_key}")
-					params[param_key] = v.value if isinstance(v, Enum) else v
-				query_conditions.append(f"{key} IN ({', '.join(placeholders)})")
-			else:
-				if isinstance(value, Enum):
-					value = value.value
-				query_conditions.append(f"{key} = :{key}")
-				params[key] = value
+		where_clause, params = _build_query_conditions(kwargs)
 		query = "SELECT * FROM contracts"
-		if query_conditions:
-			query += " WHERE " + " AND ".join(query_conditions)
+		if where_clause:
+			query += f" WHERE {where_clause}"
 		if limit is not None:
 			query += f" LIMIT {limit}"
 
@@ -311,26 +285,10 @@ class SeasonDB:
 
 	@alru_cache(ttl=CACHE_DURATION_MINUTES * 60)
 	async def count_users(self, **kwargs) -> int:
-		query_conditions = []
-		params = {}
-		param_counter = 0
-		for key, value in kwargs.items():
-			if isinstance(value, tuple):
-				placeholders = []
-				for v in value:
-					param_key = f"{key}_{param_counter}"
-					param_counter += 1
-					placeholders.append(f":{param_key}")
-					params[param_key] = v.value if isinstance(v, Enum) else v
-				query_conditions.append(f"{key} IN ({', '.join(placeholders)})")
-			else:
-				if isinstance(value, Enum):
-					value = value.value
-				query_conditions.append(f"{key} = :{key}")
-				params[key] = value
+		where_clause, params = _build_query_conditions(kwargs)
 		query = "SELECT COUNT(*) FROM users"
-		if query_conditions:
-			query += " WHERE " + " AND ".join(query_conditions)
+		if where_clause:
+			query += f" WHERE {where_clause}"
 
 		async with self.connect() as db:
 			async with db.execute(query, params) as cursor:
@@ -339,26 +297,10 @@ class SeasonDB:
 
 	@alru_cache(ttl=CACHE_DURATION_MINUTES * 60)
 	async def count_contracts(self, **kwargs) -> int:
-		query_conditions = []
-		params = {}
-		param_counter = 0
-		for key, value in kwargs.items():
-			if isinstance(value, tuple):
-				placeholders = []
-				for v in value:
-					param_key = f"{key}_{param_counter}"
-					param_counter += 1
-					placeholders.append(f":{param_key}")
-					params[param_key] = v.value if isinstance(v, Enum) else v
-				query_conditions.append(f"{key} IN ({', '.join(placeholders)})")
-			else:
-				if isinstance(value, Enum):
-					value = value.value
-				query_conditions.append(f"{key} = :{key}")
-				params[key] = value
+		where_clause, params = _build_query_conditions(kwargs)
 		query = "SELECT COUNT(*) FROM contracts"
-		if query_conditions:
-			query += " WHERE " + " AND ".join(query_conditions)
+		if where_clause:
+			query += f" WHERE {where_clause}"
 
 		async with self.connect() as db:
 			async with db.execute(query, params) as cursor:

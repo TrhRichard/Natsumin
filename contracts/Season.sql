@@ -3,6 +3,7 @@ PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS users (
 	username TEXT PRIMARY KEY NOT NULL UNIQUE,
 	status INTEGER NOT NULL,
+	kind INTEGER NOT NULL,
 	discord_id INTEGER,
 	rep TEXT,
 	contractor TEXT,

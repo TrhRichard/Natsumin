@@ -28,8 +28,8 @@ class Contracts(commands.Cog):
 	@tasks.loop(minutes=30)
 	async def change_user_status(self):
 		season_db = await contracts.get_season_db()
-		users_passed = await season_db.count_users(status=contracts.UserStatus.PASSED)
-		users_total = await season_db.count_users()
+		users_passed = await season_db.count_users(kind=contracts.UserKind.NORMAL, status=contracts.UserStatus.PASSED)
+		users_total = await season_db.count_users(kind=contracts.UserKind.NORMAL)
 		await self.bot.change_presence(
 			status=discord.Status.online, activity=discord.CustomActivity(name=f"{users_passed}/{users_total} users passed | %help")
 		)

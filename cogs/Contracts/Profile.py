@@ -15,6 +15,10 @@ async def create_embed(bot: "Natsumin", user: contracts.User, target: discord.Me
 	season_db = await contracts.get_season_db(season)
 
 	embed = get_common_embed(user, target, season)
+	if user.kind == contracts.UserKind.AID:
+		embed.description = "No profile available for AID users."
+		return embed
+
 	embed.description = f"> **Rep**: {user.rep}"
 
 	contractor: discord.User = await bot.get_contract_user(username=user.contractor)

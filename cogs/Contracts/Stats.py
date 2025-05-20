@@ -18,16 +18,8 @@ async def create_embed(rep: str | None, season: str = config.BOT_CONFIG.active_s
 	rep_users: list[contracts.User] = []
 
 	if not rep:
-		users_passed = await season_db.count_users(status=contracts.UserStatus.PASSED)
-		users_total = await season_db.count_users(
-			status=(
-				contracts.UserStatus.PASSED,
-				contracts.UserStatus.FAILED,
-				contracts.UserStatus.INCOMPLETE,
-				contracts.UserStatus.LATE_PASS,
-				contracts.UserStatus.PENDING,
-			)
-		)
+		users_passed = await season_db.count_users(status=contracts.UserStatus.PASSED, kind=contracts.ContractKind.NORMAL)
+		users_total = await season_db.count_users(kind=contracts.ContractKind.NORMAL)
 		contracts_passed = await season_db.count_contracts(status=contracts.ContractStatus.PASSED, kind=contracts.ContractKind.NORMAL)
 		contracts_total = await season_db.count_contracts(kind=contracts.ContractKind.NORMAL)
 		contract_types: dict[contracts.ContractType, list[int]] = {}
@@ -38,16 +30,7 @@ async def create_embed(rep: str | None, season: str = config.BOT_CONFIG.active_s
 			if contract.status == contracts.ContractStatus.PASSED:
 				type_status[0] += 1
 	else:
-		users_passed = await season_db.count_users(
-			rep=rep,
-			status=(
-				contracts.UserStatus.PASSED,
-				contracts.UserStatus.FAILED,
-				contracts.UserStatus.INCOMPLETE,
-				contracts.UserStatus.LATE_PASS,
-				contracts.UserStatus.PENDING,
-			),
-		)
+		users_passed = await season_db.count_users(rep=rep, status=contracts.UserStatus.PASSED, kind=contracts.ContractKind.NORMAL)
 		users_total = await season_db.count_users(rep=rep)
 		contracts_passed = contracts_total = 0
 
