@@ -29,7 +29,7 @@ async def _get_sheet_data() -> dict:
 					"Extreme Special!A2:G95",
 					"Buddying!A2:N68",
 					"Odds!A1:B49",
-					"Aid Contracts!A5:H80",
+					"Aid Contracts!A5:H81",
 				],
 				"key": os.getenv("GOOGLE_API_KEY"),
 			},

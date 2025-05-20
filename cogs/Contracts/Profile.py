@@ -15,20 +15,18 @@ async def create_embed(bot: "Natsumin", user: contracts.User, target: discord.Me
 	season_db = await contracts.get_season_db(season)
 
 	embed = get_common_embed(user, target, season)
-	if user.kind == contracts.UserKind.AID:
-		embed.description = "No profile available for AID users."
-		return embed
-
 	embed.description = f"> **Rep**: {user.rep}"
 
 	contractor: discord.User = await bot.get_contract_user(username=user.contractor)
-	contractees: list[str] = []
-	for contractee in await season_db.fetch_users(contractor=user.username):
-		member = await bot.get_contract_user(id=contractee.discord_id, username=contractee.username)
-		contractees.append(f"{member.mention} ({member.name})" if member else contractee.username)
-
 	embed.description += f"\n> **Contractor**: {contractor.mention if contractor else user.contractor} {f'({contractor.name})' if contractor else ''}"
-	embed.description += f"\n> **Contractee**: {', '.join(contractees)}"
+
+	if user.kind == contracts.UserKind.NORMAL:
+		contractees: list[str] = []
+		for contractee in await season_db.fetch_users(contractor=user.username):
+			member = await bot.get_contract_user(id=contractee.discord_id, username=contractee.username)
+			contractees.append(f"{member.mention} ({member.name})" if member else contractee.username)
+		embed.description += f"\n> **Contractee**: {', '.join(contractees)}"
+
 	if url := user.list_url:
 		url_lower = url.lower()
 		list_username = url.rstrip("/").split("/")[-1]
@@ -38,7 +36,6 @@ async def create_embed(bot: "Natsumin", user: contracts.User, target: discord.Me
 			embed.description += f"\n> **AniList**: [{list_username}]({url})"
 		else:
 			embed.description += f"\n> **List**: {url}"
-
 	embed.description += f"\n> **Preferences**: {user.preferences}"
 	embed.description += f"\n> **Bans**: {user.bans}"
 	return embed
