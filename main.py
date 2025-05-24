@@ -52,8 +52,7 @@ class Natsumin(commands.Bot):
 
 	@tasks.loop(minutes=10)
 	async def sync_to_sheet(self):
-		duration = await contracts.sync_season_db()
-		print(f"Synced {BOT_CONFIG.active_season} in {duration:.2f} seconds.")
+		await contracts.sync_season_db()
 
 	@sync_to_sheet.before_loop
 	async def before_sync(self):
