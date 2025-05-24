@@ -43,7 +43,15 @@ class Natsumin(commands.Bot):
 			elif d := await utils.find_madfigs_user(search_name=username):
 				id = d["user_id"]
 			if id:
-				return (self.anicord.get_member(id) or await self.anicord.fetch_member(id)) if self.anicord else await self.get_or_fetch_user(id)
+				if self.anicord:
+					if member := self.anicord.get_member(id):
+						return member
+
+				for member in self.get_all_members():
+					if member.id == id:
+						return member
+
+				return await self.get_or_fetch_user(id)
 
 			for member in self.get_all_members():
 				if member.name == username:
