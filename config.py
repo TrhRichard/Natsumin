@@ -14,6 +14,7 @@ class Config:
 	repository_link: str
 	DEADLINE: str
 	active_season: str
+	deadline_footer: str
 
 
 with open("config.yaml", "r") as file:

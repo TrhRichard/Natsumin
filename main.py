@@ -1,4 +1,5 @@
 from typing import Mapping, Optional
+from async_lru import alru_cache
 from config import BOT_CONFIG, BASE_EMBED_COLOR
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
@@ -22,9 +23,18 @@ class Natsumin(commands.Bot):
 		print(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 		self.anicord = self.get_guild(994071728017899600)
 
+	@alru_cache(maxsize=512, ttl=4 * 60 * 60)
 	async def get_contract_user(self, *, id: int = None, username: str = None, season: str = BOT_CONFIG.active_season) -> discord.User | None:
 		if id:
-			discord_user = (self.anicord.get_member(id) or await self.anicord.fetch_member(id)) if self.anicord else await self.get_or_fetch_user(id)
+			if self.anicord:
+				if member := self.anicord.get_member(id):
+					return member
+
+			for member in self.get_all_members():
+				if member.id == id:
+					return member
+
+			discord_user = await self.get_or_fetch_user(id)
 			return discord_user
 		elif username:
 			season_db = await contracts.get_season_db(season)
@@ -42,7 +52,8 @@ class Natsumin(commands.Bot):
 
 	@tasks.loop(minutes=10)
 	async def sync_to_sheet(self):
-		await contracts.sync_season_db()
+		duration = await contracts.sync_season_db()
+		print(f"Synced {BOT_CONFIG.active_season} in {duration:.2f} seconds.")
 
 	@sync_to_sheet.before_loop
 	async def before_sync(self):
@@ -69,23 +80,17 @@ def recursive_load_cogs(path: str):
 
 class Help(commands.HelpCommand):
 	def get_command_signature(self, command: commands.Command):
-		return "**%s%s**%s%s" % (
-			self.context.clean_prefix,
-			command.qualified_name,
-			(f" {command.signature}" if command.signature else ""),
-			(": " + command.help) if command.help else "",
-		)
+		return "**%s%s**%s" % (self.context.clean_prefix, command.qualified_name, (f" {command.signature}" if command.signature else ""))
 
 	async def send_bot_help(self, mapping: Mapping[Optional[commands.Cog], list[commands.Command]]):
-		embed = discord.Embed(color=BASE_EMBED_COLOR)
+		embed = discord.Embed(color=BASE_EMBED_COLOR, description="")
 
 		for cog, cog_commands in mapping.items():
 			filtered: list[commands.Command] = await self.filter_commands(cog_commands, sort=True)
-			command_signatures = [self.get_command_signature(c) for c in filtered]
+			command_signatures = [f"{self.get_command_signature(c)}\n  - {c.help}" for c in filtered]
 
 			if command_signatures:
-				cog_name = getattr(cog, "qualified_name", "No Category")
-				embed.add_field(name=cog_name, value="\n".join([f"> {s}" for s in command_signatures]), inline=False)
+				embed.description += "".join([f"\n- {s}" for s in command_signatures])
 
 		channel = self.get_destination()
 		await channel.send(embed=embed)
@@ -120,4 +125,4 @@ class Help(commands.HelpCommand):
 bot.help_command = Help()
 
 recursive_load_cogs("cogs")
-bot.run(os.getenv("DEV_DISCORD_TOKEN"))
+bot.run(os.getenv("DISCORD_TOKEN"))

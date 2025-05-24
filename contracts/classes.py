@@ -256,13 +256,15 @@ class SeasonDB:
 				return None
 
 	@alru_cache(ttl=CACHE_DURATION_MINUTES * 60)
-	async def fetch_users(self, limit: int = None, **kwargs) -> list[User]:
+	async def fetch_users(self, offset: int = None, limit: int = None, **kwargs) -> list[User]:
 		where_clause, params = _build_query_conditions(kwargs)
 		query = "SELECT * FROM users"
 		if where_clause:
 			query += f" WHERE {where_clause}"
 		if limit is not None:
 			query += f" LIMIT {limit}"
+		if offset is not None:
+			query += f" OFFSET {offset}"
 
 		async with self.connect() as db:
 			async with db.execute(query, params) as cursor:
@@ -270,13 +272,15 @@ class SeasonDB:
 				return [_construct_user(row) for row in rows]
 
 	@alru_cache(ttl=CACHE_DURATION_MINUTES * 60)
-	async def fetch_contracts(self, limit: int = None, **kwargs) -> list[Contract]:
+	async def fetch_contracts(self, offset: int = None, limit: int = None, **kwargs) -> list[Contract]:
 		where_clause, params = _build_query_conditions(kwargs)
 		query = "SELECT * FROM contracts"
 		if where_clause:
 			query += f" WHERE {where_clause}"
 		if limit is not None:
 			query += f" LIMIT {limit}"
+		if offset is not None:
+			query += f" OFFSET {offset}"
 
 		async with self.connect() as db:
 			async with db.execute(query, params) as cursor:

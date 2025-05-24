@@ -1,7 +1,8 @@
-guild_ids: [974344703266938911, 1272945842319261746, 994071728017899600]
+guild_ids: [974344703266938911, 1272945842319261746, 994071728017899600] # 1281898369236602903] #,
 prefix: "%"
 owner_ids: [546659584727580692]
 contributor_ids: [961063229168164864]
 repository_link: "https://github.com/TrhRichard/Natsumin"
 DEADLINE: "June 09, 2025 at 23:00" # UTC time; and in this exact format.
 active_season: "Winter 2025"
+deadline_footer: "Aids deadline in {days} days, {hours} hours, and {minutes} minutes."

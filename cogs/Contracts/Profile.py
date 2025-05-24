@@ -18,13 +18,13 @@ async def create_embed(bot: "Natsumin", user: contracts.User, target: discord.Me
 	embed.description = f"> **Rep**: {user.rep}"
 
 	contractor: discord.User = await bot.get_contract_user(username=user.contractor)
-	embed.description += f"\n> **Contractor**: {contractor.mention if contractor else user.contractor} {f'({contractor.name})' if contractor else ''}"
+	embed.description += f"\n> **Contractor**: {contractor.mention if contractor else user.contractor} {f'({contractor.name.replace("_", "\\_")})' if contractor else ''}"
 
 	if user.kind == contracts.UserKind.NORMAL:
 		contractees: list[str] = []
 		for contractee in await season_db.fetch_users(contractor=user.username):
 			member = await bot.get_contract_user(id=contractee.discord_id, username=contractee.username)
-			contractees.append(f"{member.mention} ({member.name})" if member else contractee.username)
+			contractees.append(f"{member.mention} ({member.name.replace('_', '\\_')})" if member else contractee.username.replace("_", "\\_"))
 		embed.description += f"\n> **Contractee**: {', '.join(contractees)}"
 
 	if url := user.list_url:

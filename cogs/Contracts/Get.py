@@ -34,18 +34,23 @@ async def create_embed(user: contracts.User, target: discord.Member, season: str
 		line += f"[{contract_name}]({contract.review_url})" if contract.review_url else contract_name
 		embed.description += "\n" + line
 
-	if aid_contracts := await season_db.fetch_contracts(contractee=user.username, kind=contracts.ContractKind.AID):
+	aid_contracts = await season_db.fetch_contracts(contractee=user.username, kind=contracts.ContractKind.AID)
+	if aid_contracts:
 		embed.description += f"\n### Aids ({len([a for a in aid_contracts if a.status == contracts.ContractStatus.PASSED])}/{len(aid_contracts)})"
 		for contract in aid_contracts:
 			symbol = "✅" if contract.status == contracts.ContractStatus.PASSED else "❌"
 			line = f"> {symbol} **{contract.type.value}**: "
 			line += f"[{contract.name}]({contract.review_url})" if contract.review_url else contract.name
 			embed.description += "\n" + line
+	embed.description += "\n\n"
 
 	if user.status == contracts.UserStatus.PASSED:
-		embed.description += f"\n\n This user has **passed** {season}."
+		embed.description += f"This user has **passed** {season}."
 	elif user.status == contracts.UserStatus.LATE_PASS:
-		embed.description += f"\n\n This user has **passed** {season} **late**."
+		embed.description += f"This user has **passed** {season} **late**."
+
+	if aid_contracts and len([a for a in aid_contracts if a.status == contracts.ContractStatus.PASSED]) == len(aid_contracts):
+		embed.description += f"\nThis user has **passed** {season} **aids**."
 
 	passed = len([c for c in user_contracts if c.status == contracts.ContractStatus.PASSED])
 	total = len(user_contracts)

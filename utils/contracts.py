@@ -135,9 +135,9 @@ def get_common_embed(
 		if difference_seconds > 0:
 			days, remainder = divmod(difference_seconds, 86400)
 			hours, remainder = divmod(remainder, 3600)
-			minutes, seconds = divmod(remainder, 60)
+			minutes, _ = divmod(remainder, 60)
 			embed.set_footer(
-				text=f"Deadline in {int(days)} days, {int(hours)} hours, and {int(minutes)} minutes.",
+				text=config.BOT_CONFIG.deadline_footer.format(days=int(days), hours=int(hours), minutes=int(minutes)),
 				icon_url="https://cdn.discordapp.com/emojis/998705274074435584.webp?size=4096",
 			)
 		else:
