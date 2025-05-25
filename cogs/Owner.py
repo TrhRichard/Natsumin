@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 import contracts
 import logging
 import discord
+import json
+import io
 
 if TYPE_CHECKING:
 	from main import Natsumin
@@ -61,6 +63,24 @@ class Owner(commands.Cog):
 
 		await message.delete()
 		await ctx.reply("Message deleted!", delete_after=3)
+
+	@commands.command(hidden=True, aliases=["season_json"])
+	@commands.is_owner()
+	async def get_season_file(self, ctx: commands.Context, season: str = BOT_CONFIG.active_season):
+		try:
+			season_db = await contracts.get_season_db(season)
+		except ValueError as e:
+			return await ctx.reply(embed=discord.Embed(description=f"❌ {e}", color=discord.Color.red()), mention_author=False)
+
+		all_users = await season_db.fetch_users()
+		all_contracts = await season_db.fetch_contracts()
+
+		users_json = [user.to_json() for user in all_users]
+		contracts_json = [contract.to_json() for contract in all_contracts]
+
+		discord_file = discord.File(io.BytesIO(json.dumps({"users": users_json, "contracts": contracts_json}, indent=4).encode("utf-8")))
+		discord_file.filename = f"{season}.json"
+		await ctx.reply(f"Here is {season} data:", file=discord_file)
 
 	@commands.command(hidden=True, aliases=["r", "reload"])
 	@commands.is_owner()

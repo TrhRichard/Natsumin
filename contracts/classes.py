@@ -83,6 +83,22 @@ class Contract:
 
 		return False
 
+	def to_json(self):
+		return {
+			"id": self.id,
+			"name": self.name,
+			"type": self.type.name,
+			"kind": self.kind.name,
+			"status": self.status.name,
+			"contractee": self.contractee,
+			"optional": self.optional,
+			"contractor": self.contractor,
+			"progress": self.progress,
+			"rating": self.rating,
+			"review_url": self.review_url,
+			"medium": self.medium,
+		}
+
 
 @dataclass(slots=True)
 class User:
@@ -106,6 +122,22 @@ class User:
 			return self.username == value
 
 		return False
+
+	def to_json(self):
+		return {
+			"username": self.username,
+			"status": self.status.name,
+			"kind": self.kind.name,
+			"discord_id": self.discord_id,
+			"rep": self.rep,
+			"contractor": self.contractor,
+			"list_url": self.list_url,
+			"veto_used": self.veto_used,
+			"accepting_manhwa": self.accepting_manhwa,
+			"accepting_ln": self.accepting_ln,
+			"preferences": self.preferences,
+			"bans": self.bans,
+		}
 
 
 def _construct_user(row: list) -> User:

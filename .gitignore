@@ -9,3 +9,4 @@ data/
 logs/
 *.db
 start.ps1
+/cogs/_secret
