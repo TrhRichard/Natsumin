@@ -27,7 +27,7 @@ def get_user_symbol(user: contracts.User) -> str:
 
 class UsersPaginator(pages.Paginator):
 	def __init__(self, *args, **kwargs):
-		super().__init__(*args, **kwargs, timeout=120, show_disabled=True, show_indicator=True)
+		super().__init__(*args, **kwargs, timeout=120, show_disabled=True, show_indicator=True, author_check=False)
 
 
 async def create_embed(
@@ -46,7 +46,7 @@ async def create_embed(
 	if rep != "ALL":
 		query_params["rep"] = rep
 
-	users = await season_db.fetch_users(limit=25, offset=offset, **query_params, kind=contracts.UserKind.NORMAL)
+	users = await season_db.fetch_users(limit=25, offset=offset, sort=("status",), **query_params, kind=contracts.UserKind.NORMAL)
 
 	status_name = (f"{status.name}" if status else "All").capitalize().replace("_", " ")
 	embed = get_common_embed(season=season)
