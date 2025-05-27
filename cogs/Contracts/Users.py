@@ -25,9 +25,58 @@ def get_user_symbol(user: contracts.User) -> str:
 	return symbol
 
 
+class ChangePageModal(discord.ui.Modal):
+	def __init__(self, paginator: "UsersPaginator"):
+		super().__init__(title="Change Page", timeout=60)
+		self.paginator = paginator
+		self.page_input = discord.ui.InputText(
+			label="Page Number",
+			placeholder=f"Enter a page number (1-{len(paginator.pages)})",
+			required=True,
+			max_length=3,
+			min_length=1,
+			style=discord.InputTextStyle.short,
+		)
+		self.add_item(self.page_input)
+
+	async def callback(self, interaction: discord.Interaction):
+		try:
+			page_number = int(self.page_input.value) - 1
+			if 0 <= page_number < len(self.paginator.pages):
+				await self.paginator.goto_page(page_number)
+				await interaction.respond(
+					embed=discord.Embed(description=":white_check_mark: Page changed!", color=config.BASE_EMBED_COLOR), ephemeral=True
+				)
+
+			else:
+				await interaction.response.send_message(
+					embed=discord.Embed(description=":x: Invalid page number!", color=discord.Color.red()), ephemeral=True
+				)
+		except ValueError:
+			await interaction.response.send_message(
+				embed=discord.Embed(description=":x: Please enter a valid number!", color=discord.Color.red()), ephemeral=True
+			)
+
+
 class UsersPaginator(pages.Paginator):
 	def __init__(self, *args, **kwargs):
-		super().__init__(*args, **kwargs, timeout=120, show_disabled=True, show_indicator=True, author_check=False)
+		super().__init__(*args, **kwargs, timeout=600, show_disabled=True, show_indicator=True, author_check=True, use_default_buttons=False)
+		self.add_button(pages.PaginatorButton("prev", label="Previous", style=discord.ButtonStyle.primary))
+
+		page_indicator = pages.PaginatorButton("page_indicator", custom_id="page_indicator", style=discord.ButtonStyle.secondary, disabled=True)
+		if len(self.pages) > 1:
+			page_indicator.disabled = False
+			page_indicator.callback = self.page_indicator_callback
+		self.add_button(page_indicator)
+
+		self.add_button(pages.PaginatorButton("next", label="Next", style=discord.ButtonStyle.primary))
+
+	async def page_indicator_callback(self, interaction: discord.Interaction):
+		if not self.pages:
+			return await interaction.response.send_message(
+				embed=discord.Embed(description=":x: No pages to display.", color=discord.Color.red()), ephemeral=True
+			)
+		await interaction.response.send_modal(ChangePageModal(self))
 
 
 async def create_embed(
