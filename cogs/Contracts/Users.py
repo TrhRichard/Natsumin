@@ -59,12 +59,12 @@ class ChangePageModal(discord.ui.Modal):
 
 
 class UsersPaginator(pages.Paginator):
-	def __init__(self, *args, **kwargs):
+	def __init__(self, *args, ephemeral=False, **kwargs):
 		super().__init__(*args, **kwargs, timeout=600, show_disabled=True, show_indicator=True, author_check=True, use_default_buttons=False)
 		self.add_button(pages.PaginatorButton("prev", label="Previous", style=discord.ButtonStyle.primary))
 
 		page_indicator = pages.PaginatorButton("page_indicator", custom_id="page_indicator", style=discord.ButtonStyle.secondary, disabled=True)
-		if len(self.pages) > 1:
+		if len(self.pages) > 1 and not ephemeral:
 			page_indicator.disabled = False
 			page_indicator.callback = self.page_indicator_callback
 		self.add_button(page_indicator)
@@ -209,7 +209,7 @@ class ContractsUsers(commands.Cog):
 			return await ctx.respond(
 				embed=discord.Embed(description=":x: No users found for the specified criteria.", color=discord.Color.red()), ephemeral=hidden
 			)
-		paginator = UsersPaginator(pages=pages_list)
+		paginator = UsersPaginator(pages=pages_list, ephemeral=hidden)
 		await paginator.respond(ctx.interaction, ephemeral=hidden)
 
 	@commands.command(name="users", aliases=["u"], help="Get users")
