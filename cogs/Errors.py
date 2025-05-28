@@ -20,9 +20,8 @@ class Errors(commands.Cog):
 			self.logger.setLevel(logging.ERROR)
 
 	@commands.Cog.listener()
-	async def on_command_error(self, ctx: commands.Context, error):
-		error_type = "Unknown Error"
-		description = "An unexpected error occured."
+	async def on_command_error(self, ctx: commands.Context, error: Exception):
+		error_type, description = "", ""
 		if isinstance(error, commands.CommandNotFound):
 			return
 		elif isinstance(error, commands.NotOwner):
@@ -45,6 +44,9 @@ class Errors(commands.Cog):
 		elif isinstance(error, commands.CommandOnCooldown):
 			error_type = "Cooldown"
 			description = f"You may retry again in **{error.retry_after:.2f}** seconds."
+		else:
+			error_type = type(error).__name__
+			description = str(error)
 
 		embed = discord.Embed(description=error, color=discord.Color.red())
 		embed.description = f"{error_type}: {description}"
@@ -53,13 +55,29 @@ class Errors(commands.Cog):
 		self.logger.error(f"@{ctx.author.name} -> Command error in {ctx.command}: {error_type} - {error}")
 
 	@commands.Cog.listener()
-	async def on_application_command_error(self, ctx: discord.ApplicationContext, error: discord.DiscordException):
+	async def on_application_command_error(self, ctx: discord.ApplicationContext, error: Exception):
 		error = getattr(error, "original", error)
-		error_type = "Unknown Error"
-		description = "An unexpected error occured."
+		error_type, description = "", ""
 		if isinstance(error, commands.CommandOnCooldown):
 			error_type = "Cooldown"
 			description = f"You may retry again in **{error.retry_after:.2f}** seconds."
+		elif isinstance(error, commands.NotOwner):
+			error_type = "Owner-only command"
+			description = f"This command is restricted to {self.bot.user.name}'s owner."
+		elif isinstance(error, commands.MissingPermissions):
+			error_type = "Missing Permissions"
+			description = f"You do not have enough permissions to use this command.\nMissing permissions: {', '.join(error.missing_permissions)}"
+		elif isinstance(error, commands.BotMissingPermissions):
+			error_type = "Bot Missing Permissions"
+			description = (
+				f"The bot is missing the required permissions to perform this command.\nMissing permissions: {', '.join(error.missing_permissions)}"
+			)
+		elif isinstance(error, discord.HTTPException):
+			error_type = "HTTP Exception"
+			description = f'An HTTP error occured: "{error.text}" ({error.status})'
+		else:
+			error_type = type(error).__name__
+			description = str(error)
 
 		embed = discord.Embed(color=discord.Color.red())
 		embed.description = f"{error_type}: {description}"
