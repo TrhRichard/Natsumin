@@ -60,6 +60,7 @@ async def get_target(
 		if user := await _get_contract_user(season_db, ctx_user.name):
 			return ctx_user, user.username
 		return ctx_user, ctx_user.name
+	username = username.lower()
 
 	user_id: int = None
 	match = re.match(r"<@!?(\d+)>", username.lower())

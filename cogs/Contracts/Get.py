@@ -45,12 +45,12 @@ async def create_embed(user: contracts.User, target: discord.Member, season: str
 	embed.description += "\n\n"
 
 	if user.status == contracts.UserStatus.PASSED:
-		embed.description += f"This user has **passed** {season}."
+		embed.description += f"This user has **passed** {season}.\n"
 	elif user.status == contracts.UserStatus.LATE_PASS:
-		embed.description += f"This user has **passed** {season} **late**."
+		embed.description += f"This user has **passed** {season} **late**.\n"
 
 	if aid_contracts and len([a for a in aid_contracts if a.status == contracts.ContractStatus.PASSED]) == len(aid_contracts):
-		embed.description += f"\nThis user has **passed** {season} **aids**."
+		embed.description += f"This user has **passed** {season} **aids**.\n"
 
 	passed = len([c for c in user_contracts if c.status == contracts.ContractStatus.PASSED])
 	total = len(user_contracts)
