@@ -99,7 +99,7 @@ async def create_embed(
 
 	status_name = (f"{status.name}" if status else "All").capitalize().replace("_", " ")
 	embed = get_common_embed(season=season)
-	embed.title = f"Contracts {season} - **{rep}** - {len(users)} {status_name} Users"
+	embed.title = f"Contracts {season} - **{rep}** - {status_name} Users"
 	if len(users) > 0:
 		embed.description += "\n\n"
 		usernames_to_display: list[str] = []
