@@ -343,7 +343,6 @@ async def _sync_specials_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncCon
 async def _sync_aids_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncContext):
 	rows: list[list[str]] = sheet_data["valueRanges"][9]["values"]
 
-	aids_user_count: dict[str, int] = {}
 	for row in rows:
 		username = get_cell(row, 1).lower()
 
@@ -385,10 +384,7 @@ async def _sync_aids_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncContext
 
 		user_contracts = ctx.contracts.setdefault(username, {})
 
-		if username not in aids_user_count:
-			aids_user_count[username] = 0
-		aids_user_count[username] += 1
-		contract_type = ContractType(f"Aid Contract {aids_user_count[username]}")
+		contract_type = ContractType.AID_CONTRACT
 
 		aid_name = get_cell(row, 4).replace("\n", "")
 

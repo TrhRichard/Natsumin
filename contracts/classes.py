@@ -44,8 +44,8 @@ class ContractType(StrEnum):
 	TRASH_SPECIAL = "Trash Special"
 	COMMUNITY_SPECIAL = "Community Special"
 	MYSTERY_SPECIAL = "Mystery Special"
-	AID_CONTRACT_1 = "Aid Contract 1"
-	AID_CONTRACT_2 = "Aid Contract 2"
+	AID_CONTRACT = "Aid Contract"
+	UNKNOWN_CONTRACT = "Unknown"
 
 
 class ContractStatus(Enum):
