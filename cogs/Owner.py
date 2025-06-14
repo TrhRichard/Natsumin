@@ -1,4 +1,4 @@
-from config import CONSOLE_LOGGING_FORMATTER, FILE_LOGGING_FORMATTER, BASE_EMBED_COLOR, BOT_CONFIG
+from config import CONSOLE_LOGGING_FORMATTER, FILE_LOGGING_FORMATTER, BASE_EMBED_COLOR, BOT_CONFIG, sync_config_to_local
 from discord.ext import commands
 from typing import TYPE_CHECKING
 import contracts
@@ -107,6 +107,12 @@ class Owner(commands.Cog):
 		embed = discord.Embed(color=BASE_EMBED_COLOR)
 		embed.description = "✅ Successfully synced bot application commands."
 		await ctx.reply(embed=embed, mention_author=False)
+
+	@commands.command(hidden=True, aliases=["rbc"])
+	@commands.is_owner()
+	async def reload_bot_config(self, ctx: commands.Context):
+		sync_config_to_local()
+		await ctx.reply("Config has been updated to the latest version available on the system.")
 
 
 def setup(bot):
