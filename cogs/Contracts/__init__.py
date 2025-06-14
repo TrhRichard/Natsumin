@@ -25,6 +25,10 @@ class Contracts(commands.Cog):
 
 		self.change_user_status.start()
 
+	@commands.command(name="deadline", help="Get the current deadline in ur local time")
+	async def deadline(self, ctx: commands.Context):
+		await ctx.reply(f"The current deadline is <t:{config.DEADLINE_TIMESTAMP_INT}:f> (<t:{config.DEADLINE_TIMESTAMP_INT}:R>)")
+
 	@tasks.loop(minutes=30)
 	async def change_user_status(self):
 		season_db = await contracts.get_season_db()
