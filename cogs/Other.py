@@ -3,15 +3,23 @@ from typing import TYPE_CHECKING
 import logging
 import discord
 import config
+import random
 
 if TYPE_CHECKING:
 	from main import Natsumin
+
+FISH_STICKER_ID = 1073965395595235358
+FISH_EMOTE_ID = 1101799865098457088
 
 
 class Other(commands.Cog):
 	def __init__(self, bot: "Natsumin"):
 		self.bot = bot
 		self.logger = logging.getLogger("bot.other")
+
+		self.fish_emote = self.bot.get_emoji(FISH_EMOTE_ID)
+		self.fish_sticker: discord.GuildSticker = self.bot.get_sticker(FISH_STICKER_ID)
+		self.fish_messages_since_last: int = 0
 
 		if not self.logger.handlers:
 			file_handler = logging.FileHandler("logs/other.log", encoding="utf-8")
@@ -89,6 +97,38 @@ class Other(commands.Cog):
     - For each of the options above you can add a username before to check for that user, for example: ``frazzle_dazzle[contractee]``
 """
 		await ctx.reply(embed=embed)
+
+	@commands.Cog.listener()
+	async def on_message(self, message: discord.Message):
+		if not message.guild or message.guild.id != 994071728017899600:
+			return
+		if message.author.id != 551441930773331978:
+			return
+
+		self.fish_messages_since_last += 1
+
+		bot_perms_in_channel = message.channel.permissions_for(message.guild.me)
+		if not bot_perms_in_channel.send_messages or not bot_perms_in_channel.add_reactions:
+			return
+
+		if not self.fish_sticker:
+			self.fish_sticker = await self.bot.fetch_sticker(FISH_STICKER_ID)
+
+		if random.randint(1, 10000) != 15:
+			return
+
+		self.logger.info(f"A fish event has been triggered in #{message.channel.name} after {self.fish_messages_since_last} messages")
+		self.fish_messages_since_last = 0
+
+		match random.randint(1, 2):
+			case 1:  # Reaction
+				await message.add_reaction(self.fish_emote)
+			case 2:  # Sticker
+				await message.reply(None, stickers=[self.fish_sticker])
+
+	@commands.command(hidden=True)
+	async def fish_count(self, ctx: commands.Context):
+		await ctx.reply(f"Current fish messages count since bot startup and last chisato: {self.fish_messages_since_last}")
 
 
 def setup(bot):
