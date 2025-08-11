@@ -114,8 +114,12 @@ class Other(commands.Cog):
 		if not self.fish_sticker:
 			self.fish_sticker = await self.bot.fetch_sticker(FISH_STICKER_ID)
 
-		if random.randint(1, 10000) != 15:
-			return
+		if self.fish_messages_since_last >= 1000:
+			if random.randint(1, 100) != 15:
+				return
+		else:
+			if random.randint(1, 10000) != 15:
+				return
 
 		self.logger.info(f"A fish event has been triggered in #{message.channel.name} after {self.fish_messages_since_last} messages")
 		self.fish_messages_since_last = 0
