@@ -97,12 +97,14 @@ def shorten(text: str, max_len: int = 32) -> str:
 
 
 async def get_user_reminders(ctx: discord.AutocompleteContext):
-	reminder_db: ReminderDB = ctx.cog.db
-	user_reminders = await reminder_db.get_reminders(user_id=ctx.interaction.user.id)
+	db: ReminderDB = ctx.cog.db
+	if not db:
+		return []
+	user_reminders = await db.get_reminders(user_id=ctx.interaction.user.id)
 
 	return [
 		discord.OptionChoice(
-			name=f"[{diff_to_str(datetime.datetime.now(datetime.UTC), reminder.remind_at)}] {shorten(reminder.message, 24)}", value=reminder.id
+			name=f"{shorten(reminder.message, 24)} (in {diff_to_str(datetime.datetime.now(datetime.UTC), reminder.remind_at)})", value=reminder.id
 		)
 		for reminder in user_reminders
 	]
@@ -132,8 +134,8 @@ class ReminderCog(commands.Cog):
 
 	@reminder_group.command(description="Create a new reminder.")
 	@discord.option("when", str, required=True, parameter_name="remind_in", description="Example: 1d24h60m or 1 day 24 hours 60 minutes")
-	@discord.option("message", str, default="", description="Message to display when the reminder is due")
-	@discord.option("hidden", description="Optionally make the response only visible to you", default=False)
+	@discord.option("message", str, default="", description="Optionally include a message to display when the reminder is due")
+	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
 	async def create(self, ctx: discord.ApplicationContext, remind_in: str, message: str, hidden: bool):
 		try:
 			delta = parse_duration_str(remind_in)
@@ -145,11 +147,11 @@ class ReminderCog(commands.Cog):
 		new_reminder = await self.db.create_reminder(ctx.user.id, ctx.channel.id, remind_at, message, hidden)
 
 		time_diff_str = diff_to_str(new_reminder.created_at, new_reminder.remind_at)
-		response = f"Alright, reminding in {time_diff_str}: `{new_reminder.message}`"
+		response = f"Done! Reminding in {time_diff_str}: `{new_reminder.message}`"
 		if not new_reminder.message.strip():
-			response = f"Alright, reminding in {time_diff_str}"
+			response = f"Done! Reminding in {time_diff_str}"
 
-		self.logger.info(f"Created reminder {new_reminder.id} ({shorten(new_reminder.message, 24)}) by {ctx.user} triggering in {time_diff_str}")
+		self.logger.info(f"@{ctx.user.name} created reminder id={new_reminder.id} message={new_reminder.message}, due in {time_diff_str}.")
 
 		await ctx.respond(response, ephemeral=hidden)
 
@@ -157,7 +159,7 @@ class ReminderCog(commands.Cog):
 	@discord.option(
 		"id", int, required=True, autocomplete=get_user_reminders, description="ID of the reminder, should get autocompleted if not skill issue"
 	)
-	@discord.option("hidden", description="Optionally make the response visible to you", default=False)
+	@discord.option("hidden", bool, description="Optionally make the response visible to you", default=False)
 	async def delete(self, ctx: discord.ApplicationContext, id: int, hidden: bool):
 		user_reminders = await self.db.get_reminders(user_id=ctx.user.id)
 
@@ -166,17 +168,16 @@ class ReminderCog(commands.Cog):
 		if not has_reminder_with_id:
 			return await ctx.respond(f"Could not find any reminder with id {id}", ephemeral=True)
 
-		deleted_reminder = await self.db.get_reminder(id)
-
+		deleted_reminder = [r for r in user_reminders if r.id == id][0]
 		await self.db.delete_reminder(id)
 
-		self.logger.info(f"Reminder {deleted_reminder.id} by {ctx.user} deleted.")
-
-		time_till_delete_str = {diff_to_str(datetime.datetime.now(datetime.UTC), deleted_reminder.remind_at)}
+		time_diff_str = diff_to_str(datetime.datetime.now(datetime.UTC), deleted_reminder.remind_at)
 		if deleted_reminder.message:
-			await ctx.respond(f"Deleted reminder `{deleted_reminder.message}` set to get triggered {time_till_delete_str}", ephemeral=hidden)
+			await ctx.respond(f"Deleted reminder `{deleted_reminder.message}` that's due in {time_diff_str}", ephemeral=hidden)
 		else:
-			await ctx.respond(f"Deleted reminder set to get triggered in {time_till_delete_str}", ephemeral=hidden)
+			await ctx.respond(f"Deleted reminder that's due in {time_diff_str}", ephemeral=hidden)
+
+		self.logger.info(f"@{ctx.user.name} deleted reminder id={deleted_reminder.id} message={deleted_reminder.message}, due in {time_diff_str}")
 
 	@tasks.loop(seconds=15)
 	async def reminder_loop(self):
