@@ -15,6 +15,7 @@ class Config:
 	DEADLINE: str
 	active_season: str
 	deadline_footer: str
+	mastersheet_spreadsheet_id: int
 
 
 BOT_CONFIG: Config = None
