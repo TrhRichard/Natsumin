@@ -79,14 +79,12 @@ bot = commands.Bot(
 
 @bot.event
 async def on_ready():
-	os.system("cls" if os.name == "nt" else "clear")
-	print(f"Logged in as {bot.user.name}#{bot.user.discriminator}!")
-
+	print(f"Bot online: {bot.user.name}#{bot.user.discriminator}")
 	try:
 		anicord = bot.get_guild(994071728017899600) or await bot.fetch_guild(994071728017899600)
 	except discord.HTTPException:
 		print("It seems the bot is not in Anicord, cannot continue to set the discord id on users.")
-		return await bot.close()  ## appears to not be a good idea to close it here for some reason
+		return await bot.close()  ## appears to not be a good idea to close it here for some reason whatever
 
 	print("Now requesting all guild members from anicord, this may take a while...")
 	guild_members = await anicord.fetch_members(limit=None).flatten()
@@ -120,7 +118,7 @@ async def on_ready():
 
 		await db.commit()
 
-	print("master.db Setup complete! You may now close the bot.")
+	print("master.db Setup complete!")
 	await bot.close()
 
 
@@ -285,5 +283,6 @@ async def main():
 	print("Finished the botless setup, starting discord bot...")
 
 
-asyncio.run(main())
-bot.run(os.getenv("DEV_DISCORD_TOKEN"))
+if __name__ == "__main__":
+	asyncio.run(main())
+	bot.run(os.getenv("DISCORD_TOKEN"))
