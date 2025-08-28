@@ -8,6 +8,7 @@ from typing import TypeVar, Callable
 from discord.ext import commands
 from dotenv import load_dotenv
 from async_lru import alru_cache
+from utils.rep import get_rep
 import aiosqlite
 import aiohttp
 import asyncio
@@ -172,8 +173,8 @@ async def main():
 			{
 				"username": name.strip().lower(),
 				"discord_id": None,
-				"rep": get_cell(row, 0, "UNKNOWN REP"),
-				"gen": get_cell(row, 1, -1, int),
+				"rep": get_rep(get_cell(row, 0, "UNKNOWN REP ALERT")),
+				"gen": get_cell(row, 1, None, int),
 				"exp": get_cell(row, 4, 0, int),
 				"id": None,
 			}
@@ -195,6 +196,7 @@ async def main():
 	aria_user_badges_sheet = value_ranges[4]
 
 	async with aiosqlite.connect("data/master.db") as db:
+		# CONTRACTS BADGES
 		for row in user_badges_sheet.get("values"):
 			name = get_cell(row, 1, None, str).strip().lower()
 			user = users_dict.get(name)
@@ -212,6 +214,7 @@ async def main():
 				if status.strip() == "COMPLETE":
 					await db.execute("INSERT INTO user_badges (user_id, badge_id) VALUES (?, ?)", (user_id, badge["id"]))
 
+		# ARIA BADGES
 		for row in aria_user_badges_sheet.get("values"):
 			name = get_cell(row, 0, None, str).strip().lower()
 			user = users_dict.get(name)
