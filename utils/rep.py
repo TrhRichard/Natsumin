@@ -108,6 +108,9 @@ def get_rep(
 def get_rep(
 	name: str, min_confidence: int = 80, *, only_include_reps: list[RepName] | None = None, include_confidence: bool = False
 ) -> Union[RepName | None, tuple[RepName | None, int | None]]:
+	if name is None:
+		return (None, None) if include_confidence else None
+
 	choices = rep_fuzzy_choices
 	if only_include_reps is not None:  # incase you only want to match the name from a specific list of reps instead of all
 		new_choices: dict[str, RepName] = {}

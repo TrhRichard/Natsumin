@@ -9,6 +9,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from async_lru import alru_cache
 from utils.rep import get_rep
+from thefuzz import process
 import aiosqlite
 import aiohttp
 import asyncio
@@ -85,21 +86,42 @@ async def on_ready():
 		anicord = bot.get_guild(994071728017899600) or await bot.fetch_guild(994071728017899600)
 	except discord.HTTPException:
 		print("It seems the bot is not in Anicord, cannot continue to set the discord id on users.")
-		return await bot.close()
+		return await bot.close()  ## appears to not be a good idea to close it here for some reason
 
+	print("Now requesting all guild members from anicord, this may take a while...")
 	guild_members = await anicord.fetch_members(limit=None).flatten()
+	print(f"Received {len(guild_members)} members!")
 	name_members: dict[str, discord.Member] = {m.name: m for m in guild_members}
+	member_names: dict[discord.Member, str] = {m: m.name for m in guild_members}  # let me cook
 
 	async with aiosqlite.connect("data/master.db") as db:
 		db.row_factory = aiosqlite.Row
-		async with db.execute("SELECT * FROM users") as cursor:
+		async with db.execute("SELECT * FROM users WHERE discord_id IS NULL") as cursor:
 			users = await cursor.fetchall()
 			for user in users:
-				if member := name_members.get(user["username"]):
-					print(member)
-					await db.execute("UPDATE users SET discord_id = ? WHERE username = ?", (member.id, user["username"]))
+				username: str = user["username"]
+				if member := name_members.get(username):
+					await db.execute("UPDATE OR IGNORE users SET discord_id = ? WHERE id = ?", (member.id, user["id"]))
+				else:
+					fuzzy_results: list[tuple[str, int, discord.Member]] = process.extract(username, member_names, limit=1)
+					if not fuzzy_results:
+						print(f"Could not find a discord id for {username}, skipping...")
+						continue
+
+					_, confidence, member = fuzzy_results[0]
+					if confidence >= 90:
+						if username == member.name:
+							await db.execute("UPDATE OR IGNORE users SET discord_id = ? WHERE id = ?", (member.id, user["id"]))
+						else:
+							print(f"It appears that {username}'s actual name is {member.name}, updating that as well")
+							await db.execute(
+								"UPDATE OR IGNORE users SET discord_id = ?, username = ? WHERE id = ?", (member.id, member.name, user["id"])
+							)
 
 		await db.commit()
+
+	print("master.db Setup complete! You may now close the bot.")
+	await bot.close()
 
 
 async def setup_database(delete_if_exists: bool = False):
@@ -114,6 +136,16 @@ async def setup_database(delete_if_exists: bool = False):
 		await c.commit()
 
 
+def fuzzy_search_user(user_list: list[dict[str]], name: str) -> dict[str] | None:
+	username_list = [u.get("username") for u in user_list]
+	fuzzy_results: list[tuple[str, int]] = process.extract(name.lower(), username_list, limit=1)
+	if fuzzy_results:
+		username_found, confidence = fuzzy_results[0]
+		if confidence >= 90:
+			return user_list[username_list.index(username_found)]
+	return None
+
+
 async def main():
 	await setup_database(True)
 
@@ -122,13 +154,13 @@ async def main():
 	value_ranges: list[dict] = sheet_data["valueRanges"]
 
 	badges_to_add: list[dict[str]] = []
-	contracts_badges: list[dict[str]] = []
-	aria_badges: list[dict[str]] = []
 
 	badges_sheet = value_ranges[1]
 	aria_badges_sheet = value_ranges[3]
 
-	for column in rows_to_columns(badges_sheet.get("values")):
+	print("Adding badges...")
+
+	for index, column in enumerate(rows_to_columns(badges_sheet.get("values"))):
 		split_name = get_cell(column, 0, "").split("\n", 1)
 		badge_data = {
 			"name": split_name[0].removesuffix("*").strip(),
@@ -137,20 +169,21 @@ async def main():
 			"url": "",
 			"type": "contracts",
 			"id": None,
+			"_index": index,
 		}
 		badges_to_add.append(badge_data)
-		contracts_badges.append(badge_data)
 
-	for column in rows_to_columns(aria_badges_sheet.get("values")):
+	for index, column in enumerate(rows_to_columns(aria_badges_sheet.get("values"))):
 		badge_data = {
 			"name": get_cell(column, 0, "").strip(),
 			"description": "",
 			"artist": get_cell(column, 2, "").strip(),
 			"url": "",
 			"type": "aria",
+			"id": None,
+			"_index": index,
 		}
 		badges_to_add.append(badge_data)
-		aria_badges.append(badge_data)
 
 	async with aiosqlite.connect("data/master.db") as db:
 		for badge in badges_to_add:
@@ -163,17 +196,21 @@ async def main():
 		await db.commit()
 
 	users_to_add: list[dict[str]] = []
+	usernames_found: set[str] = set()
+
+	print("Adding users...")
 
 	legacy_sheet = value_ranges[0]
 	for row in legacy_sheet.get("values"):
 		name: str = get_cell(row, 3, None)
-		if name is None:
+		if name is None or name.strip().lower() in usernames_found:
 			continue
+		usernames_found.add(name.strip().lower())
 		users_to_add.append(
 			{
 				"username": name.strip().lower(),
 				"discord_id": None,
-				"rep": get_rep(get_cell(row, 0, "UNKNOWN REP ALERT")),
+				"rep": get_rep(get_cell(row, 0, None)),
 				"gen": get_cell(row, 1, None, int),
 				"exp": get_cell(row, 4, 0, int),
 				"id": None,
@@ -181,16 +218,20 @@ async def main():
 		)
 
 	users_dict: dict[str, dict[str]] = {}
-
 	async with aiosqlite.connect("data/master.db") as db:
 		for user in users_to_add:
-			async with db.execute("INSERT INTO users (username, rep, gen) VALUES (?, ?, ?);", (user["username"], user["rep"], user["gen"])) as cursor:
-				user_id = cursor.lastrowid
-				user["id"] = user_id
-				users_dict[user["username"]] = user
-				await db.execute("INSERT INTO legacy_leaderboard (user_id, exp) VALUES (?, ?)", (user_id, user["exp"]))
+			async with db.execute(
+				"INSERT OR IGNORE INTO users (username, rep, gen) VALUES (?, ?, ?)", (user["username"], user["rep"], user["gen"])
+			) as cursor:
+				if cursor.lastrowid:
+					user_id = cursor.lastrowid
+					user["id"] = user_id
+					users_dict[user["username"]] = user
+					await db.execute("INSERT OR IGNORE INTO legacy_leaderboard (user_id, exp) VALUES (?, ?)", (user_id, user["exp"]))
 
 		await db.commit()
+
+	print("Adding badges to users...")
 
 	user_badges_sheet = value_ranges[2]
 	aria_user_badges_sheet = value_ranges[4]
@@ -201,16 +242,18 @@ async def main():
 			name = get_cell(row, 1, None, str).strip().lower()
 			user = users_dict.get(name)
 			user_id: int = None
-			if not user:
-				continue
-			else:
-				user_id = user["id"]
+			if user is None:
+				user = fuzzy_search_user(users_to_add, name)
+				if user is None:
+					continue
+
+			user_id = user["id"]
 
 			badges_status: list[str] = row[3:]
-			i = -1
-			for badge in contracts_badges:
-				i += 1
-				status = get_cell(badges_status, i, "")
+			for badge in badges_to_add:
+				if badge["type"] != "contracts":
+					continue
+				status = get_cell(badges_status, badge["_index"], "")
 				if status.strip() == "COMPLETE":
 					await db.execute("INSERT INTO user_badges (user_id, badge_id) VALUES (?, ?)", (user_id, badge["id"]))
 
@@ -219,28 +262,28 @@ async def main():
 			name = get_cell(row, 0, None, str).strip().lower()
 			user = users_dict.get(name)
 			user_id: int = None
-			if not user:
-				async with db.execute("INSERT INTO users (username) VALUES (?)", (name,)) as cursor:
-					user_id = cursor.lastrowid
-			else:
+			if user is None:
+				user = fuzzy_search_user(users_to_add, name)
+				if user is None:
+					async with db.execute("INSERT INTO users (username) VALUES (?)", (name,)) as cursor:
+						user_id = cursor.lastrowid
+						# print(f"Couldn't find user with name {name}, now created with id {user_id}")
+
+			if user_id is None:
 				user_id = user["id"]
 
 			badges_status: list[str] = row[1:]
-			i = -1
-			for badge in aria_badges:
-				i += 1
-				status = get_cell(badges_status, i, "")
+			for badge in badges_to_add:
+				if badge["type"] != "aria":
+					continue
+				status = get_cell(badges_status, badge["_index"], "")
 				if status.strip() in ["COMPLETE", "100%"]:
 					await db.execute("INSERT INTO user_badges (user_id, badge_id) VALUES (?, ?)", (user_id, badge["id"]))
 
 		await db.commit()
 
-	return
-
-	try:
-		await bot.start(os.getenv("DEV_DISCORD_TOKEN"))
-	except KeyboardInterrupt:
-		await bot.close()
+	print("Finished the botless setup, starting discord bot...")
 
 
 asyncio.run(main())
+bot.run(os.getenv("DEV_DISCORD_TOKEN"))

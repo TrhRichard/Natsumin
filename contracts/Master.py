@@ -2,10 +2,6 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Literal
 import aiosqlite
-import os
-
-with open("contracts/Master.sql") as f:
-	masterdb_schema = f.read()
 
 BadgeType = Literal["contracts", "aria"]
 
@@ -71,12 +67,6 @@ class MasterDB:
 		async with aiosqlite.connect(self.path) as db:
 			db.row_factory = aiosqlite.Row
 			yield db
-
-	async def setup(self):
-		os.makedirs(os.path.dirname(self.path), exist_ok=True)
-		async with self.connect() as db:
-			await db.executescript(masterdb_schema)
-			await db.commit()
 
 	async def fetch_user(self, id: int | None = None, discord_id: int | None = None, username: str | None = None) -> MasterUser | None:
 		async with self.connect() as db:
