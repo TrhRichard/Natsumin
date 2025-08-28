@@ -84,7 +84,7 @@ async def on_ready():
 	try:
 		anicord = bot.get_guild(994071728017899600) or await bot.fetch_guild(994071728017899600)
 	except discord.HTTPException:
-		print("Could not get AES guild, script ending.")
+		print("It seems the bot is not in Anicord, cannot continue to set the discord id on users.")
 		return await bot.close()
 
 	guild_members = await anicord.fetch_members(limit=None).flatten()
