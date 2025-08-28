@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
 	id         INTEGER PRIMARY KEY AUTOINCREMENT, 
 	discord_id INTEGER UNIQUE,    
 	username   TEXT NOT NULL,
-	rep        TEXT NOT NULL,
-	gen        INTEGER -- since we include aria badges theres a high chance some people in there might not be in contracts so no gen
+	rep        TEXT, -- since we include aria badges theres a high chance some people in there might not be in contracts so no rep
+	gen        INTEGER -- same as above
 );
 
 -- User aliases table, allows to find a user from a past username
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS legacy_leaderboard (
 
 -- Badge definitions, urls are done manually cause google sucks ass
 CREATE TABLE IF NOT EXISTS badges (
-	id          INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE,
+	id          INTEGER PRIMARY KEY AUTOINCREMENT,
 	name        TEXT NOT NULL,
 	description TEXT NOT NULL,
 	artist      TEXT NOT NULL,

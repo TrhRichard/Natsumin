@@ -1,17 +1,18 @@
-# This script will run a barebones version of the bot in order to populate the Master database.
-# This file is esential for the bot to function, without Master.db
+# This script will run a barebones version of the bot in order to create the initial version of the Master database.
+# The bot itself will update the master database every now and then but it cannot create it for my sanity since python stinks.
 # If there is already a Master.db in data/ it will be erased.
 
+# this entire script sucks ass ngl but it works kinda? so im not bothered to fix it
+
+from typing import TypeVar, Callable
 from discord.ext import commands
 from dotenv import load_dotenv
 from async_lru import alru_cache
-from typing import TypeVar
 import aiosqlite
 import aiohttp
 import asyncio
 import discord
 import config
-import json
 import os
 
 load_dotenv()
@@ -24,14 +25,19 @@ def rows_to_columns(rows: list[list]) -> list[list]:
 	return list(map(list, zip(*padded_rows)))
 
 
-R = TypeVar("R")
+T = TypeVar("T")
 
 
-def get_cell(row: list, index: int, default: R = None) -> R:
+def get_cell(row: list, index: int, default: T = None, return_type: Callable[[any], T] = None) -> T:
 	try:
 		value = row[index]
 		if value is None:
 			return default
+		if return_type is not None:
+			try:
+				return return_type(value)
+			except (ValueError, TypeError):
+				return default
 		return value
 	except IndexError:
 		return default
@@ -75,12 +81,24 @@ async def on_ready():
 	print(f"Logged in as {bot.user.name}#{bot.user.discriminator}!")
 
 	try:
-		_anicord = bot.get_guild(994071728017899600) or await bot.fetch_guild(994071728017899600)
+		anicord = bot.get_guild(994071728017899600) or await bot.fetch_guild(994071728017899600)
 	except discord.HTTPException:
 		print("Could not get AES guild, script ending.")
 		return await bot.close()
 
-	# guild_members = await anicord.fetch_members(limit=None).flatten()
+	guild_members = await anicord.fetch_members(limit=None).flatten()
+	name_members: dict[str, discord.Member] = {m.name: m for m in guild_members}
+
+	async with aiosqlite.connect("data/master.db") as db:
+		db.row_factory = aiosqlite.Row
+		async with db.execute("SELECT * FROM users") as cursor:
+			users = await cursor.fetchall()
+			for user in users:
+				if member := name_members.get(user["username"]):
+					print(member)
+					await db.execute("UPDATE users SET discord_id = ? WHERE username = ?", (member.id, user["username"]))
+
+		await db.commit()
 
 
 async def setup_database(delete_if_exists: bool = False):
@@ -103,38 +121,121 @@ async def main():
 	value_ranges: list[dict] = sheet_data["valueRanges"]
 
 	badges_to_add: list[dict[str]] = []
+	contracts_badges: list[dict[str]] = []
+	aria_badges: list[dict[str]] = []
 
 	badges_sheet = value_ranges[1]
 	aria_badges_sheet = value_ranges[3]
 
 	for column in rows_to_columns(badges_sheet.get("values")):
 		split_name = get_cell(column, 0, "").split("\n", 1)
-		badges_to_add.append(
+		badge_data = {
+			"name": split_name[0].removesuffix("*").strip(),
+			"description": split_name[1].strip(),
+			"artist": get_cell(column, 2, "").strip(),
+			"url": "",
+			"type": "contracts",
+			"id": None,
+		}
+		badges_to_add.append(badge_data)
+		contracts_badges.append(badge_data)
+
+	for column in rows_to_columns(aria_badges_sheet.get("values")):
+		badge_data = {
+			"name": get_cell(column, 0, "").strip(),
+			"description": "",
+			"artist": get_cell(column, 2, "").strip(),
+			"url": "",
+			"type": "aria",
+		}
+		badges_to_add.append(badge_data)
+		aria_badges.append(badge_data)
+
+	async with aiosqlite.connect("data/master.db") as db:
+		for badge in badges_to_add:
+			async with db.execute(
+				"INSERT INTO badges (name, description, artist, url, type) VALUES (?, ?, ?, ?, ?);",
+				(badge["name"], badge["description"], badge["artist"], badge["url"], badge["type"]),
+			) as cursor:
+				badge_id = cursor.lastrowid
+				badge["id"] = badge_id
+		await db.commit()
+
+	users_to_add: list[dict[str]] = []
+
+	legacy_sheet = value_ranges[0]
+	for row in legacy_sheet.get("values"):
+		name: str = get_cell(row, 3, None)
+		if name is None:
+			continue
+		users_to_add.append(
 			{
-				"name": split_name[0].removesuffix("*").strip(),
-				"description": split_name[1].strip(),
-				"artist": get_cell(column, 2, "").strip(),
-				"url": "",
-				"type": "contracts",
+				"username": name.strip().lower(),
+				"discord_id": None,
+				"rep": get_cell(row, 0, "UNKNOWN REP"),
+				"gen": get_cell(row, 1, -1, int),
+				"exp": get_cell(row, 4, 0, int),
+				"id": None,
 			}
 		)
 
-	for column in rows_to_columns(aria_badges_sheet.get("values")):
-		badges_to_add.append(
-			{"name": get_cell(column, 0, "").strip(), "description": "", "artist": get_cell(column, 2, "").strip(), "url": "", "type": "aria"}
-		)
+	users_dict: dict[str, dict[str]] = {}
 
-	async with aiosqlite.connect("data/master.db") as c:
-		await c.executemany(
-			"INSERT INTO badges (name, description, artist, url, type) VALUES (?, ?, ?, ?, ?);",
-			[(badge["name"], badge["description"], badge["artist"], badge["url"], badge["type"]) for badge in badges_to_add],
-		)
-		await c.commit()
+	async with aiosqlite.connect("data/master.db") as db:
+		for user in users_to_add:
+			async with db.execute("INSERT INTO users (username, rep, gen) VALUES (?, ?, ?);", (user["username"], user["rep"], user["gen"])) as cursor:
+				user_id = cursor.lastrowid
+				user["id"] = user_id
+				users_dict[user["username"]] = user
+				await db.execute("INSERT INTO legacy_leaderboard (user_id, exp) VALUES (?, ?)", (user_id, user["exp"]))
 
-	return  # disable bot for now
+		await db.commit()
+
+	user_badges_sheet = value_ranges[2]
+	aria_user_badges_sheet = value_ranges[4]
+
+	async with aiosqlite.connect("data/master.db") as db:
+		for row in user_badges_sheet.get("values"):
+			name = get_cell(row, 1, None, str).strip().lower()
+			user = users_dict.get(name)
+			user_id: int = None
+			if not user:
+				continue
+			else:
+				user_id = user["id"]
+
+			badges_status: list[str] = row[3:]
+			i = -1
+			for badge in contracts_badges:
+				i += 1
+				status = get_cell(badges_status, i, "")
+				if status.strip() == "COMPLETE":
+					await db.execute("INSERT INTO user_badges (user_id, badge_id) VALUES (?, ?)", (user_id, badge["id"]))
+
+		for row in aria_user_badges_sheet.get("values"):
+			name = get_cell(row, 0, None, str).strip().lower()
+			user = users_dict.get(name)
+			user_id: int = None
+			if not user:
+				async with db.execute("INSERT INTO users (username) VALUES (?)", (name,)) as cursor:
+					user_id = cursor.lastrowid
+			else:
+				user_id = user["id"]
+
+			badges_status: list[str] = row[1:]
+			i = -1
+			for badge in aria_badges:
+				i += 1
+				status = get_cell(badges_status, i, "")
+				if status.strip() in ["COMPLETE", "100%"]:
+					await db.execute("INSERT INTO user_badges (user_id, badge_id) VALUES (?, ?)", (user_id, badge["id"]))
+
+		await db.commit()
+
+	return
 
 	try:
-		await bot.start(os.getenv("DISCORD_TOKEN"))
+		await bot.start(os.getenv("DEV_DISCORD_TOKEN"))
 	except KeyboardInterrupt:
 		await bot.close()
 
