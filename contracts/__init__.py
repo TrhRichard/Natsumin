@@ -1,13 +1,14 @@
 import time
 from .classes import SeasonDB
 from .seasons import Winter2025
+from .master import MasterDB
 from .classes import *  # noqa: F403
-from config import BOT_CONFIG
+from utils import config
 
 AVAILABLE_SEASONS = ["Winter 2025"]
 
 
-async def get_season_db(season: str = BOT_CONFIG.active_season) -> SeasonDB:
+async def get_season_db(season: str = config.active_season) -> SeasonDB:
 	if season not in AVAILABLE_SEASONS:
 		raise ValueError(f"Invalid season: {season}")
 
@@ -16,7 +17,10 @@ async def get_season_db(season: str = BOT_CONFIG.active_season) -> SeasonDB:
 			return await Winter2025.get_database()
 
 
-async def sync_season_db(season: str = BOT_CONFIG.active_season) -> float:  # Returns duration of sync
+master_db: MasterDB = None
+
+
+async def sync_season_db(season: str = config.active_season) -> float:  # Returns duration of sync
 	if season not in AVAILABLE_SEASONS:
 		raise ValueError(f"Invalid season: {season}")
 

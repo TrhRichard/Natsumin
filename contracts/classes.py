@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from .Master import MasterDB, MasterUser
+from .master import MasterDB, MasterUser
 from async_lru import alru_cache
 from enum import Enum
 import os
@@ -9,7 +9,7 @@ import aiosqlite
 
 __all__ = ["UserStatus", "ContractStatus", "ContractKind", "Contract", "SeasonUser", "SeasonDB"]
 
-with open("contracts/Season.sql") as f:
+with open("assets/schemas/Season.sql") as f:
 	season_script = f.read()
 CACHE_DURATION = 3 * 60
 
@@ -140,6 +140,7 @@ class SeasonDB:
 	@asynccontextmanager
 	async def connect(self):
 		async with aiosqlite.connect(self.path) as db:
+			db.row_factory = aiosqlite.Row
 			yield db
 
 	async def setup(self):

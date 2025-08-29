@@ -10,11 +10,11 @@ from dotenv import load_dotenv
 from async_lru import alru_cache
 from utils.rep import get_rep
 from thefuzz import process
+from utils import config
 import aiosqlite
 import aiohttp
 import asyncio
 import discord
-import config
 import os
 
 load_dotenv()
@@ -49,7 +49,7 @@ def get_cell(row: list, index: int, default: T = None, return_type: Callable[[an
 async def fetch_sheet_data() -> dict:
 	async with aiohttp.ClientSession(headers={"Accept-Encoding": "gzip, deflate"}) as session:
 		async with session.get(
-			f"https://sheets.googleapis.com/v4/spreadsheets/{config.BOT_CONFIG.mastersheet_spreadsheet_id}/values:batchGet",
+			f"https://sheets.googleapis.com/v4/spreadsheets/{config.mastersheet_spreadsheet_id}/values:batchGet",
 			params={
 				"majorDimension": "ROWS",
 				"valueRenderOption": "FORMATTED_VALUE",
@@ -128,7 +128,7 @@ async def setup_database(delete_if_exists: bool = False):
 			os.remove("data/master.db")
 
 	async with aiosqlite.connect("data/master.db") as c:
-		with open("contracts/Master.sql", "r") as sql_file:
+		with open("assets/schemas/Master.sql", "r") as sql_file:
 			sql_script = sql_file.read()
 		await c.executescript(sql_script)
 		await c.commit()

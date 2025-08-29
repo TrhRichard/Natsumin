@@ -1,9 +1,13 @@
-guild_ids: [974344703266938911, 1272945842319261746, 994071728017899600] # 1281898369236602903] #,
+# Bot related
+guild_ids: [974344703266938911, 1272945842319261746, 994071728017899600]
 prefix: "%"
 owner_ids: [546659584727580692]
 contributor_ids: [961063229168164864]
 repository_link: "https://github.com/TrhRichard/Natsumin"
-DEADLINE: "August 23, 2025 at 04:00" # UTC time; and in this exact format.
+embed_color: [67, 79, 93] # RGB color
+
+# Contracts related
+deadline_timestamp: 0 # UTC Timestamp
+deadline_footer: "Season deadline in {days} days, {hours} hours, and {minutes} minutes."
 active_season: "Winter 2025"
-deadline_footer: "Off-season deadline in {days} days, {hours} hours, and {minutes} minutes."
 mastersheet_spreadsheet_id: "1MJM_AH1wJ8uQ3hDdnxZnT2AyMlq0NFFNYMhpLDdwK6w"

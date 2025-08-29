@@ -1,18 +1,17 @@
-from utils.contracts import get_common_embed, get_slash_reps, get_reps
-from utils import get_percentage
+from utils.contracts import get_common_embed, reps_autocomplete, get_reps
+from utils import get_percentage, config
 from discord.ext import commands
 from typing import TYPE_CHECKING
 from thefuzz import process
 import contracts
 import logging
 import discord
-import config
 
 if TYPE_CHECKING:
 	from main import Natsumin
 
 
-async def create_embed(rep: str | None, season: str = config.BOT_CONFIG.active_season) -> discord.Embed:
+async def create_embed(rep: str | None, season: str = config.active_season) -> discord.Embed:
 	season_db = await contracts.get_season_db(season)
 
 	rep_users: list[contracts.SeasonUser] = []
@@ -99,11 +98,9 @@ class ContractsStats(commands.Cog):
 			self.logger.addHandler(console_handler)
 			self.logger.setLevel(logging.INFO)
 
-	@commands.slash_command(name="stats", description="Check the season's stats", guilds_ids=config.BOT_CONFIG.guild_ids)
-	@discord.option("rep", description="Optionally check stats for a specific rep", default=None, autocomplete=get_slash_reps)
-	@discord.option(
-		"season", description="Optionally check in another season", default=config.BOT_CONFIG.active_season, choices=contracts.AVAILABLE_SEASONS
-	)
+	@commands.slash_command(name="stats", description="Check the season's stats", guilds_ids=config.guild_ids)
+	@discord.option("rep", description="Optionally check stats for a specific rep", default=None, autocomplete=reps_autocomplete)
+	@discord.option("season", description="Optionally check in another season", default=config.active_season, choices=contracts.AVAILABLE_SEASONS)
 	@discord.option("hidden", description="Optionally make the response only visible to you", default=False)
 	async def stats(self, ctx: discord.ApplicationContext, rep: str, season: str, hidden: bool):
 		season_db = await contracts.get_season_db(season)

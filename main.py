@@ -1,9 +1,8 @@
+from discord.ext import commands, tasks
 from typing import Mapping, Optional
 from async_lru import alru_cache
-from config import BOT_CONFIG, BASE_EMBED_COLOR
-from discord.ext import commands, tasks
 from dotenv import load_dotenv
-import utils
+from utils import config
 import contracts
 import discord
 import os
@@ -14,49 +13,14 @@ load_dotenv()
 class Natsumin(commands.Bot):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-
 		self.sync_to_sheet.start()
-		self.anicord: discord.Guild
+		self.anicord: discord.Guild = None
 
 	async def on_ready(self):
 		os.system("cls" if os.name == "nt" else "clear")
 		print(f"Logged in as {self.user.name}#{self.user.discriminator}!")
+
 		self.anicord = self.get_guild(994071728017899600)
-
-	@alru_cache(maxsize=512, ttl=4 * 60 * 60)
-	async def get_contract_user(self, *, id: int = None, username: str = None, season: str = BOT_CONFIG.active_season) -> discord.User | None:
-		if id:
-			if self.anicord:
-				if member := self.anicord.get_member(id):
-					return member
-
-			for member in self.get_all_members():
-				if member.id == id:
-					return member
-
-			discord_user = await self.get_or_fetch_user(id)
-			return discord_user
-		elif username:
-			season_db = await contracts.get_season_db(season)
-			if u := await season_db.fetch_user(username=username):
-				id = u.discord_id if u.discord_id else None
-			elif d := await utils.find_madfigs_user(search_name=username):
-				id = d["user_id"]
-			if id:
-				if self.anicord:
-					if member := self.anicord.get_member(id):
-						return member
-
-				for member in self.get_all_members():
-					if member.id == id:
-						return member
-
-				return await self.get_or_fetch_user(id)
-
-			for member in self.get_all_members():
-				if member.name == username:
-					return member
-		return None
 
 	@tasks.loop(minutes=10)
 	async def sync_to_sheet(self):
@@ -68,7 +32,7 @@ class Natsumin(commands.Bot):
 
 
 bot = Natsumin(
-	command_prefix=commands.when_mentioned_or(BOT_CONFIG.prefix),
+	command_prefix=commands.when_mentioned_or(config.prefix),
 	status=discord.Status.online,
 	intents=discord.Intents.all(),
 	case_insensitive=True,
@@ -90,7 +54,7 @@ class Help(commands.HelpCommand):
 		return "**%s%s**%s" % (self.context.clean_prefix, command.qualified_name, (f" {command.signature}" if command.signature else ""))
 
 	async def send_bot_help(self, mapping: Mapping[Optional[commands.Cog], list[commands.Command]]):
-		embed = discord.Embed(color=BASE_EMBED_COLOR, description="")
+		embed = discord.Embed(color=config.base_embed_color, description="")
 
 		for cog, cog_commands in mapping.items():
 			filtered: list[commands.Command] = await self.filter_commands(cog_commands, sort=True)
@@ -103,7 +67,7 @@ class Help(commands.HelpCommand):
 		await channel.send(embed=embed)
 
 	async def send_command_help(self, command: commands.Command):
-		embed = discord.Embed(color=BASE_EMBED_COLOR)
+		embed = discord.Embed(color=config.base_embed_color)
 
 		embed.description = f"{self.context.clean_prefix}{command.qualified_name} {command.signature}"
 		if len(command.aliases) > 0:
@@ -116,7 +80,7 @@ class Help(commands.HelpCommand):
 		await channel.send(embed=embed)
 
 	async def send_cog_help(self, cog: commands.Cog):
-		embed = discord.Embed(color=BASE_EMBED_COLOR)
+		embed = discord.Embed(color=config.base_embed_color)
 
 		filtered: list[commands.Command] = await self.filter_commands(cog.get_commands(), sort=True)
 		command_signatures = [self.get_command_signature(c) for c in filtered]
@@ -131,5 +95,6 @@ class Help(commands.HelpCommand):
 
 bot.help_command = Help()
 
+contracts.master_db = contracts.MasterDB()
 recursive_load_cogs("cogs")
-bot.run(os.getenv("DISCORD_TOKEN"))
+bot.run(os.getenv("DEV_DISCORD_TOKEN"))

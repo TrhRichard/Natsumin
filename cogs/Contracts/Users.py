@@ -1,11 +1,12 @@
-from utils.contracts import get_common_embed, get_slash_reps, get_reps
+from utils.contracts import get_common_embed, reps_autocomplete, get_reps
 from discord.ext import commands, pages
 from typing import TYPE_CHECKING
 from thefuzz import process
+from utils import config
 import contracts
 import logging
 import discord
-import config
+
 
 if TYPE_CHECKING:
 	from main import Natsumin
@@ -45,7 +46,7 @@ class ChangePageModal(discord.ui.Modal):
 			if 0 <= page_number < len(self.paginator.pages):
 				await self.paginator.goto_page(page_number)
 				await interaction.respond(
-					embed=discord.Embed(description=":white_check_mark: Page changed!", color=config.BASE_EMBED_COLOR), ephemeral=True
+					embed=discord.Embed(description=":white_check_mark: Page changed!", color=config.base_embed_color), ephemeral=True
 				)
 
 			else:
@@ -112,7 +113,7 @@ async def create_embed(
 	return embed
 
 
-async def get_embed_pages(bot: "Natsumin", raw_status: str, rep: str, season: str = config.BOT_CONFIG.active_season) -> list[discord.Embed] | None:
+async def get_embed_pages(bot: "Natsumin", raw_status: str, rep: str, season: str = config.active_season) -> list[discord.Embed] | None:
 	status = None
 	match raw_status:
 		case "all":
@@ -186,12 +187,10 @@ class ContractsUsers(commands.Cog):
 			self.logger.addHandler(console_handler)
 			self.logger.setLevel(logging.INFO)
 
-	@commands.slash_command(name="users", description="Get users", guilds_ids=config.BOT_CONFIG.guild_ids)
+	@commands.slash_command(name="users", description="Get users", guilds_ids=config.guild_ids)
 	@discord.option("status", description="Optionally get users of a specific status", default="all", choices=valid_statuses)
-	@discord.option("rep", description="Optionally get users of a specific rep", default="ALL", autocomplete=get_slash_reps)
-	@discord.option(
-		"season", description="Optionally check in another season", default=config.BOT_CONFIG.active_season, choices=contracts.AVAILABLE_SEASONS
-	)
+	@discord.option("rep", description="Optionally get users of a specific rep", default="ALL", autocomplete=reps_autocomplete)
+	@discord.option("season", description="Optionally check in another season", default=config.active_season, choices=contracts.AVAILABLE_SEASONS)
 	@discord.option("hidden", description="Optionally make the response only visible to you", default=False)
 	async def users(self, ctx: discord.ApplicationContext, status: str, rep: str, season: str, hidden: bool):
 		status = status.lower()

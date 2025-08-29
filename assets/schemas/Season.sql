@@ -4,7 +4,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS users (
 	user_id          INTEGER PRIMARY KEY, -- User id from master.db
 	status           INTEGER NOT NULL,
-	rep              TEXT, -- the rep in the specific season
+	rep              TEXT, -- the rep in the specific season, if none it means they aren't in the season
 	contractor       TEXT,
 	list_url         TEXT,
 	veto_used        BOOLEAN NOT NULL DEFAULT FALSE,

@@ -1,4 +1,4 @@
-from utils.contracts import get_common_embed, get_slash_usernames, get_usernames, get_target
+from utils.contracts import get_common_embed, usernames_autocomplete, get_usernames, get_target
 from discord.ext import commands
 from typing import TYPE_CHECKING
 from thefuzz import process
@@ -90,7 +90,7 @@ class ContractsGet(commands.Cog):
 			self.logger.setLevel(logging.INFO)
 
 	@commands.slash_command(name="get", description="Get the state of someone's contracts", guilds_ids=config.BOT_CONFIG.guild_ids)
-	@discord.option("username", description="Optionally check for another user", default=None, autocomplete=get_slash_usernames)
+	@discord.option("username", description="Optionally check for another user", default=None, autocomplete=usernames_autocomplete)
 	@discord.option(
 		"season", description="Optionally check in another season", default=config.BOT_CONFIG.active_season, choices=contracts.AVAILABLE_SEASONS
 	)

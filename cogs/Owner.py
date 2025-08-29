@@ -1,4 +1,4 @@
-from config import CONSOLE_LOGGING_FORMATTER, FILE_LOGGING_FORMATTER, BASE_EMBED_COLOR, BOT_CONFIG, sync_config_to_local
+from utils import CONSOLE_LOGGING_FORMATTER, FILE_LOGGING_FORMATTER, config
 from discord.ext import commands
 from typing import TYPE_CHECKING
 import contracts
@@ -28,13 +28,13 @@ class Owner(commands.Cog):
 
 	@commands.command(hidden=True, aliases=["purge_cache", "clear_cache"])
 	@commands.is_owner()
-	async def sync_season(self, ctx: commands.Context, *, season: str = BOT_CONFIG.active_season):
+	async def sync_season(self, ctx: commands.Context, *, season: str = config.active_season):
 		async with ctx.typing():
 			try:
 				duration = await contracts.sync_season_db(season)
 				self.logger.info(f"{season} has been manually synced by {ctx.author.name} in {duration:.2f} seconds")
 				await ctx.reply(
-					embed=discord.Embed(description=f"✅ **{season}** has been synced in {duration:.2f} seconds!", color=BASE_EMBED_COLOR)
+					embed=discord.Embed(description=f"✅ **{season}** has been synced in {duration:.2f} seconds!", color=config.base_embed_color)
 				)
 			except Exception as e:
 				self.logger.error(f"Failed to sync season '{season}' manually by {ctx.author.name}: {e}")
@@ -66,7 +66,7 @@ class Owner(commands.Cog):
 
 	@commands.command(hidden=True, aliases=["season_json"])
 	@commands.is_owner()
-	async def get_season_file(self, ctx: commands.Context, season: str = BOT_CONFIG.active_season):
+	async def get_season_file(self, ctx: commands.Context, season: str = config.active_season):
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError as e:
@@ -97,21 +97,22 @@ class Owner(commands.Cog):
 			embed = discord.Embed(color=discord.Color.red(), description=error_message)
 			await ctx.reply(embed=embed, mention_author=False)
 		else:
-			embed = discord.Embed(color=BASE_EMBED_COLOR, description="✅ Successfully reloaded all cogs.")
+			embed = discord.Embed(color=config.base_embed_color, description="✅ Successfully reloaded all cogs.")
 			await ctx.reply(embed=embed, mention_author=False)
 
 	@commands.command(hidden=True, aliases=["rsc"])
 	@commands.is_owner()
 	async def reload_slash_command(self, ctx: commands.Context):
 		await self.bot.sync_commands()
-		embed = discord.Embed(color=BASE_EMBED_COLOR)
+		embed = discord.Embed(color=config.base_embed_color)
 		embed.description = "✅ Successfully synced bot application commands."
 		await ctx.reply(embed=embed, mention_author=False)
 
 	@commands.command(hidden=True, aliases=["rbc"])
 	@commands.is_owner()
 	async def reload_bot_config(self, ctx: commands.Context):
-		sync_config_to_local()
+		await config.update_from_file()
+
 		await ctx.reply("Config has been updated to the latest version available on the system.")
 
 

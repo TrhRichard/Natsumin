@@ -85,8 +85,7 @@ class Badge:
 
 
 class MasterDB:
-	def __init__(self, name: str, path: str = "data/master.db"):
-		self.name = name
+	def __init__(self, path: str = "data/master.db"):
 		self.path = path
 
 	@asynccontextmanager
