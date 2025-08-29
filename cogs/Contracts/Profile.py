@@ -11,7 +11,9 @@ if TYPE_CHECKING:
 	from main import Natsumin
 
 
-async def create_embed(bot: "Natsumin", user: contracts.User, target: discord.Member, season: str = config.BOT_CONFIG.active_season) -> discord.Embed:
+async def create_embed(
+	bot: "Natsumin", user: contracts.SeasonUser, target: discord.Member, season: str = config.BOT_CONFIG.active_season
+) -> discord.Embed:
 	season_db = await contracts.get_season_db(season)
 
 	embed = get_common_embed(user, target, season)

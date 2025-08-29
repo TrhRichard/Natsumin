@@ -1,16 +1,67 @@
 from typing import TYPE_CHECKING
-
 from async_lru import alru_cache
+from enum import StrEnum
+import contracts
 import aiosqlite
 import datetime
 import discord
 import config
-import contracts
 import re
 import os
 
 if TYPE_CHECKING:
 	from main import Natsumin
+
+
+class LegacyRank(StrEnum):
+	QUARTZ = "Quartz"
+	CITRINE = "Citrine"
+	AMETHYST = "Amethyst"
+	AQUAMARINE = "Aquamarine"
+	JADE = "Jade"
+	TOPAZ = "Topaz"
+	MORGANITE = "Morganite"
+	SPINEL = "Spinel"
+	EMERALD = "Emerald"
+	SAPPHIRE = "Sapphire"
+	RUBY = "Ruby"
+	DIAMOND = "Diamond"
+	ALEXANDRITE = "Alexandrite"
+	PAINITE = "Painite"
+
+
+def get_legacy_rank(exp: int | None) -> LegacyRank | None:
+	if not exp:
+		return None
+
+	if exp >= 34000:
+		return LegacyRank.PAINITE
+	elif exp >= 29000:
+		return LegacyRank.ALEXANDRITE
+	elif exp >= 24400:
+		return LegacyRank.DIAMOND
+	elif exp >= 20200:
+		return LegacyRank.RUBY
+	elif exp >= 16400:
+		return LegacyRank.SAPPHIRE
+	elif exp >= 13000:
+		return LegacyRank.EMERALD
+	elif exp >= 10000:
+		return LegacyRank.SPINEL
+	elif exp >= 7400:
+		return LegacyRank.MORGANITE
+	elif exp >= 5200:
+		return LegacyRank.TOPAZ
+	elif exp >= 3400:
+		return LegacyRank.JADE
+	elif exp >= 2000:
+		return LegacyRank.AQUAMARINE
+	elif exp >= 1000:
+		return LegacyRank.AMETHYST
+	elif exp >= 150:
+		return LegacyRank.CITRINE
+	else:
+		return LegacyRank.QUARTZ
 
 
 @alru_cache

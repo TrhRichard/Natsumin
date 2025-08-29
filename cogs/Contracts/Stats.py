@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 async def create_embed(rep: str | None, season: str = config.BOT_CONFIG.active_season) -> discord.Embed:
 	season_db = await contracts.get_season_db(season)
 
-	rep_users: list[contracts.User] = []
+	rep_users: list[contracts.SeasonUser] = []
 
 	if not rep:
 		users_passed = await season_db.count_users(status=contracts.UserStatus.PASSED, kind=contracts.ContractKind.NORMAL)

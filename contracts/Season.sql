@@ -2,16 +2,16 @@ PRAGMA journal_mode=WAL;
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS users (
-	user_id            INTEGER PRIMARY KEY, -- User id from master.db
-	status             INTEGER NOT NULL,
-	rep                TEXT, -- the rep in the specific season
-	primary_contractor TEXT,
-	list_url           TEXT,
-	veto_used          BOOLEAN,
-	accepting_manhwa   BOOLEAN,
-	accepting_ln       BOOLEAN,
-	preferences        TEXT,
-	bans               TEXT
+	user_id          INTEGER PRIMARY KEY, -- User id from master.db
+	status           INTEGER NOT NULL,
+	rep              TEXT, -- the rep in the specific season
+	contractor       TEXT,
+	list_url         TEXT,
+	veto_used        BOOLEAN NOT NULL DEFAULT FALSE,
+	accepting_manhwa BOOLEAN NOT NULL DEFAULT FALSE,
+	accepting_ln     BOOLEAN NOT NULL DEFAULT FALSE,
+	preferences      TEXT,
+	bans             TEXT
 );
 
 CREATE TABLE IF NOT EXISTS contracts (
@@ -20,9 +20,9 @@ CREATE TABLE IF NOT EXISTS contracts (
 	type       TEXT NOT NULL,
 	kind       INTEGER NOT NULL,
 	status     INTEGER NOT NULL,
-	user_id    INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+	contractee INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
 	contractor TEXT NOT NULL,
-	optional   BOOLEAN DEFAULT FALSE,
+	optional   BOOLEAN NOT NULL DEFAULT FALSE,
 	progress   TEXT,
 	rating     TEXT,
 	review_url TEXT,

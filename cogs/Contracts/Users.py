@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 	from main import Natsumin
 
 
-def get_user_symbol(user: contracts.User) -> str:
+def get_user_symbol(user: contracts.SeasonUser) -> str:
 	symbol = ""
 	match user.status:
 		case contracts.UserStatus.FAILED:

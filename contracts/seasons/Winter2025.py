@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from ..classes import Contract, User, SeasonDB, SeasonSyncContext, ContractKind, ContractType, ContractStatus, UserStatus, UserKind
+from ..classes import Contract, SeasonUser, SeasonDB, SeasonSyncContext, ContractKind, ContractType, ContractStatus, UserStatus, UserKind
 from async_lru import alru_cache
 import utils
 import aiohttp
@@ -9,7 +9,7 @@ import os
 load_dotenv()
 
 SPREADSHEET_ID = "19aueoNx6BBU6amX7DhKGU8kHVauHWcSGiGKMzFSGkGc"
-DB_PATH = "contracts/seasons/Winter2025.db"
+DB_PATH = "data/seasons/Winter2025.db"
 
 
 async def _get_sheet_data() -> dict:
@@ -107,7 +107,7 @@ async def _sync_dashboard_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncCo
 			if d := await utils.find_madfigs_user(search_name=username):
 				discord_id = d["user_id"]
 			await db.create_user(username=username, status=user_status, kind=UserKind.NORMAL, discord_id=discord_id)
-			ctx.users[username] = User(username=username, status=user_status, kind=UserKind.NORMAL, discord_id=discord_id)
+			ctx.users[username] = SeasonUser(username=username, status=user_status, kind=UserKind.NORMAL, discord_id=discord_id)
 
 		for i, contract_name in enumerate(contract_names):
 			contract_type = DASHBOARD_ROW_NAMES[i]
@@ -368,7 +368,7 @@ async def _sync_aids_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncContext
 					preferences="Unknown",
 					bans="Unknown",
 				)
-				ctx.users[username] = User(
+				ctx.users[username] = SeasonUser(
 					username=username,
 					status=UserStatus.PENDING,
 					kind=UserKind.AID,
