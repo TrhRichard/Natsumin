@@ -16,7 +16,7 @@ idna==3.10
 mezmorize==0.28.2
 multidict==6.4.3
 propcache==0.3.1
-py-cord==2.6.1
+git+https://github.com/Pycord-Development/pycord.git@ff628ee # 2.7 comes out in 2030 i swear
 python-dotenv==1.1.0
 PyYAML==6.0.2
 RapidFuzz==3.13.0

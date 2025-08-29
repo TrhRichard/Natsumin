@@ -56,18 +56,18 @@ class RepName(StrEnum):
 	TENSURA = "TENSURA"
 	GBC = "GIRLS BAND CRY"
 	VIVY = "VIVY"
-	MADE_IN_ABYSS = "MADE IN ABYSS"
+	MADE_IN_ABYSS = "MADE IN ABYSS"  # unused
 	NGNL = "NO GAME NO LIFE"
-	KING_PROPOSAL = "KING'S PROPOSAL"
+	KING_PROPOSAL = "KING'S PROPOSAL"  # unused
 	MADOME = "AN ARCHDEMON'S DILEMMA"
 	TOKYO_REVENGERS = "TOKYO REVENGERS"
-	MANHWA = "MANHWA"
+	MANHWA = "MANHWA"  # unused
 
 
 ALTERNATIVE_NAMES: dict[RepName, list[str]] = {
 	RepName.BOCCHI: ["bocchi the rock"],
 	RepName.MUSHOKU: ["mushoku tensei"],
-	RepName.PRECURE: ["precord"],  # this and fairy tail (i think not that sure) are the only ones with actual server name, why??
+	RepName.PRECURE: ["precord"],
 	RepName.FT_EZ: ["fairy tail x eden zero (ft x ez)"],
 	RepName.MDUD: ["bisque"],
 	RepName.TEARMOON: ["tearmoon empire"],
