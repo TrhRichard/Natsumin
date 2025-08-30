@@ -2,7 +2,7 @@ PRAGMA journal_mode=WAL;
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS users (
-	user_id          INTEGER PRIMARY KEY, -- User id from master.db
+	id               INTEGER PRIMARY KEY, -- User id from master.db
 	status           INTEGER NOT NULL,
 	rep              TEXT, -- the rep in the specific season, if none it means they aren't in the season
 	contractor       TEXT,

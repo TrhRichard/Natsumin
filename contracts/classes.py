@@ -43,9 +43,9 @@ class ContractKind(Enum):
 	AID = 1
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, eq=False)
 class SeasonUser:
-	user_id: int
+	id: int
 	status: UserStatus
 	rep: str | None = None
 	contractor: str | None = field(default=None, repr=False)
@@ -57,21 +57,24 @@ class SeasonUser:
 	bans: str | None = field(default=None, repr=False)
 	_db: SeasonDB = None
 
+	def __hash__(self):
+		return hash(self.id)
+
 	def __eq__(self, value):
 		if isinstance(value, SeasonUser):
-			return self.user_id == value.user_id
+			return self.id == value.id
 		elif isinstance(value, int):
-			return self.user_id == value
+			return self.id == value
 
 		return False
 
 	async def get_master_data(self) -> MasterUser:
-		return await self._db.fetch_user_from_master(id=self.user_id)
+		return await self._db.fetch_user_from_master(id=self.id)
 
 	@alru_cache(ttl=CACHE_DURATION)
 	async def get_contracts(self) -> list[Contract]:
 		async with self._db.connect() as db:
-			async with db.execute("SELECT * FROM contracts WHERE contractee = ?", (self.user_id,)) as cursor:
+			async with db.execute("SELECT * FROM contracts WHERE contractee = ?", (self.id,)) as cursor:
 				rows = await cursor.fetchall()
 				return [Contract(**row, _db=self._db) for row in rows]
 
@@ -96,7 +99,7 @@ class SeasonUser:
 		}
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, eq=False)
 class Contract:
 	id: int
 	name: str
@@ -104,13 +107,16 @@ class Contract:
 	kind: ContractKind
 	status: ContractStatus
 	contractee: int
-	contractor: str
+	contractor: str | None = field(default=None)
 	optional: bool = field(default=False, repr=False)
 	progress: str | None = field(default=None, repr=False)
 	rating: str | None = field(default=None, repr=False)
 	review_url: str | None = field(default=None, repr=False)
 	medium: str | None = field(default=None, repr=False)
 	_db: "SeasonDB" = None
+
+	def __hash__(self):
+		return hash((self.name, self.type, self.contractee))
 
 	def __eq__(self, value):
 		if isinstance(value, Contract):
@@ -161,7 +167,7 @@ class SeasonDB:
 	@alru_cache(ttl=CACHE_DURATION)
 	async def fetch_user(self, user_id: int) -> SeasonUser | None:
 		async with self.connect() as db:
-			async with db.execute("SELECT * FROM users WHERE user_id = ? LIMIT 1", (user_id,)) as cursor:
+			async with db.execute("SELECT * FROM users WHERE id = ? LIMIT 1", (user_id,)) as cursor:
 				if user := await cursor.fetchone():
 					return SeasonUser(**user, _db=self)
 
@@ -171,6 +177,174 @@ class SeasonDB:
 			return None
 
 		return await self._master_db.fetch_user(id=id, username=username)
+
+
+class SeasonDBSyncContext:
+	def __init__(self, season_db: SeasonDB):
+		self.season_db: SeasonDB = season_db
+		self.master_db: MasterDB = MasterDB.get_database()
+
+		self.total_users: dict[int, SeasonUser] = {}
+		self.total_contracts: list[Contract] = []
+
+		self._changes_required: dict[Contract | SeasonUser, dict[str]] = {}
+		self._to_be_created: list[Contract | SeasonUser] = []
+
+		self._username_to_id: dict[str, int] = None
+		self._id_to_username: dict[int, str] = None
+
+	async def setup(self):
+		async with self.master_db.connect() as conn:
+			async with conn.execute("SELECT id, username FROM users") as cursor:
+				rows = await cursor.fetchall()
+				self._username_to_id = {row["username"]: row["id"] for row in rows}
+				self._id_to_username = {row["id"]: row["username"] for row in rows}
+
+		async with self.season_db.connect() as conn:
+			async with conn.execute("SELECT * FROM users") as cursor:
+				self.total_users = {row["id"]: SeasonUser(**row, _db=self.season_db) for row in await cursor.fetchall()}
+
+			async with conn.execute("SELECT * FROM contracts") as cursor:
+				self.total_contracts = [Contract(**row, _db=self.season_db) for row in await cursor.fetchall()]
+
+	def get_user_id(self, username: str) -> int | None:
+		if username in self._username_to_id:
+			return self._username_to_id.get(username)
+		else:
+			fuzzy_result = process.extractOne(username, self._id_to_username, score_cutoff=90)
+			if fuzzy_result:
+				return fuzzy_result[2]
+			else:
+				return None
+
+	def get_user(self, id: int) -> SeasonUser | None:
+		return self.total_users.get(id)
+
+	def get_or_create_user(self, user_id: int, **kwargs) -> tuple[SeasonUser, bool]:
+		"""Raises `ValueError` if there is no user with id in master.db"""
+
+		if user_id not in self._id_to_username:
+			raise ValueError("User does not exist.")
+
+		if found_user := self.get_user(user_id):
+			return found_user, True
+		else:
+			return self.create_user(id=user_id, **kwargs), False
+
+	def get_user_contracts(self, user_id: int, contract_type: str | None = None) -> list[Contract]:
+		contracts_found: list[Contract] = []
+
+		for contract in self.total_contracts:
+			if contract.contractee == user_id:
+				if contract_type is not None and contract.type != contract_type:
+					continue
+				contracts_found.append(contract)
+
+		return contracts_found
+
+	def update_user(self, user: SeasonUser, **kwargs):
+		if user in self._to_be_created:
+			for k, v in kwargs.items():
+				setattr(user, k, v)
+			return
+
+		for k, v in kwargs.items():
+			setattr(user, k, v)
+		if user in self._changes_required:
+			self._changes_required[user].update(kwargs)
+		else:
+			self._changes_required[user] = kwargs.copy()
+
+	def update_contract(self, contract: Contract, **kwargs):
+		if contract in self._to_be_created:
+			for k, v in kwargs.items():
+				setattr(contract, k, v)
+			return
+
+		for k, v in kwargs.items():
+			setattr(contract, k, v)
+		if contract in self._changes_required:
+			self._changes_required[contract].update(kwargs)
+		else:
+			self._changes_required[contract] = kwargs.copy()
+
+	def create_user(self, **kwargs) -> SeasonUser:
+		if "id" not in kwargs:
+			raise ValueError("ID required to create a user.")
+		user = SeasonUser(**kwargs, _db=self.season_db)
+		self.total_users[kwargs["id"]] = user
+		self._to_be_created.append(user)
+		return user
+
+	async def create_master_user(self, username: str) -> int:
+		username = username.strip().lower()
+		user_id = await self.master_db.create_user(username)
+		self._username_to_id[username] = user_id
+		self._id_to_username[user_id] = username
+		return user_id
+
+	def create_contract(self, **kwargs) -> Contract:
+		contract = Contract(id=-1, **kwargs, _db=self.season_db)
+		self.total_contracts.append(contract)
+		self._to_be_created.append(contract)
+		return contract
+
+	def _convert_value(self, value: any) -> any:
+		if isinstance(value, bool):
+			return int(value)
+		elif isinstance(value, Enum):
+			return value.value
+		else:
+			return value
+
+	async def commit(self):
+		user_cols = ["id", "status", "rep", "contractor", "list_url", "veto_used", "accepting_manhwa", "accepting_ln", "preferences", "bans"]
+		contract_cols = ["name", "type", "kind", "status", "contractee", "contractor", "optional", "progress", "rating", "review_url", "medium"]
+		try:
+			async with self.season_db.connect() as conn:
+				for obj, changes in self._changes_required.items():
+					if not changes:
+						continue
+
+					if isinstance(obj, SeasonUser):
+						table = "users"
+					elif isinstance(obj, Contract):
+						table = "contracts"
+					else:
+						continue
+
+					set_clause = ", ".join(f"{col} = ?" for col in changes.keys())
+					values = [self._convert_value(v) for v in changes.values()]
+					values.append(getattr(obj, "id"))
+
+					await conn.execute(f"UPDATE {table} SET {set_clause} WHERE id = ?", values)
+
+				user_values = [
+					[self._convert_value(getattr(obj, col)) for col in user_cols] for obj in self._to_be_created if isinstance(obj, SeasonUser)
+				]
+				if user_values:
+					placeholders = ", ".join("?" for _ in user_cols)
+					await conn.executemany(f"INSERT INTO users ({', '.join(user_cols)}) VALUES ({placeholders})", user_values)
+
+				contract_objs = [obj for obj in self._to_be_created if isinstance(obj, Contract)]
+				if contract_objs:
+					contract_values = [[self._convert_value(getattr(obj, col)) for col in contract_cols] for obj in contract_objs]
+					placeholders = ", ".join("?" for _ in contract_cols)
+					cursor = await conn.executemany(f"INSERT INTO contracts ({', '.join(contract_cols)}) VALUES ({placeholders})", contract_values)
+
+					if cursor.lastrowid is not None:
+						last_id = cursor.lastrowid
+						num_inserted = len(contract_objs)
+						for i, obj in enumerate(contract_objs):
+							real_id = last_id - num_inserted + 1 + i
+							obj.id = real_id
+
+				await conn.commit()
+		except Exception as e:
+			raise e
+		finally:
+			self._changes_required.clear()
+			self._to_be_created.clear()
 
 
 @dataclass(slots=True)
@@ -365,6 +539,20 @@ class MasterDB:
 					user_data = {k: row[k] for k in row.keys() if k in MasterUser.__annotations__}
 					result.append((MasterUser(**user_data, _db=self), row["exp"]))
 				return result
+
+	async def create_user(self, username: str, discord_id: int | None = None) -> int:
+		async with self.connect() as conn:
+			if discord_id is not None:
+				async with conn.execute("SELECT id FROM users WHERE discord_id = ? OR username = ?", (discord_id, username)) as cursor:
+					row = await cursor.fetchone()
+					if row:
+						return row["id"]
+
+			async with conn.execute("INSERT INTO users (discord_id, username) VALUES (?, ?)", (discord_id, username)) as cursor:
+				user_id = cursor.lastrowid
+
+			await conn.commit()
+			return user_id
 
 	async def to_dict(self) -> dict:
 		master_json = {"badges": [], "users": [], "leaderboards": {"legacy": []}}
