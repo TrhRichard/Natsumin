@@ -4,13 +4,13 @@
 
 # this entire script sucks ass ngl but it works kinda? so im not bothered to fix it
 
-from typing import TypeVar, Callable
 from discord.ext import commands
 from dotenv import load_dotenv
 from async_lru import alru_cache
 from utils.rep import get_rep
 from thefuzz import process
-from utils import config
+from utils import get_cell
+from common import config
 import aiosqlite
 import aiohttp
 import asyncio
@@ -25,24 +25,6 @@ def rows_to_columns(rows: list[list]) -> list[list]:
 	padded_rows = [row + [None] * (max_len - len(row)) for row in rows]
 
 	return list(map(list, zip(*padded_rows)))
-
-
-T = TypeVar("T")
-
-
-def get_cell(row: list, index: int, default: T = None, return_type: Callable[[any], T] = None) -> T:
-	try:
-		value = row[index]
-		if value is None:
-			return default
-		if return_type is not None:
-			try:
-				return return_type(value)
-			except (ValueError, TypeError):
-				return default
-		return value
-	except IndexError:
-		return default
 
 
 @alru_cache(ttl=60)

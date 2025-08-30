@@ -1,9 +1,9 @@
 from utils.contracts import get_common_embed, usernames_autocomplete, get_usernames, get_target
-from utils import config, FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER
+from utils import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER
 from discord.ext import commands
 from typing import TYPE_CHECKING
 from thefuzz import process
-
+from common import config
 import contracts
 import logging
 import discord

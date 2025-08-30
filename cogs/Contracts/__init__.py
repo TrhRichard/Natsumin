@@ -1,6 +1,6 @@
 from discord.ext import commands, tasks
 from typing import TYPE_CHECKING
-from utils import config
+from common import config
 import contracts
 import logging
 import discord

@@ -2,10 +2,11 @@ from utils.contracts import get_common_embed, reps_autocomplete, get_reps
 from discord.ext import commands, pages
 from typing import TYPE_CHECKING
 from thefuzz import process
-from utils import config
+from common import config
 import contracts
 import logging
 import discord
+import utils
 
 
 if TYPE_CHECKING:
@@ -81,13 +82,7 @@ class UsersPaginator(pages.Paginator):
 
 
 async def create_embed(
-	bot: "Natsumin",
-	status: contracts.UserStatus,
-	rep: str,
-	current_page: int,
-	total_pages: int,
-	offset: int = 0,
-	season: str = config.BOT_CONFIG.active_season,
+	bot: "Natsumin", status: contracts.UserStatus, rep: str, current_page: int, total_pages: int, offset: int = 0, season: str = config.active_season
 ) -> discord.Embed:
 	season_db = await contracts.get_season_db(season)
 	query_params = {}
@@ -180,9 +175,9 @@ class ContractsUsers(commands.Cog):
 
 		if not self.logger.handlers:
 			file_handler = logging.FileHandler("logs/contracts.log", encoding="utf-8")
-			file_handler.setFormatter(config.FILE_LOGGING_FORMATTER)
+			file_handler.setFormatter(utils.FILE_LOGGING_FORMATTER)
 			console_handler = logging.StreamHandler()
-			console_handler.setFormatter(config.CONSOLE_LOGGING_FORMATTER)
+			console_handler.setFormatter(utils.CONSOLE_LOGGING_FORMATTER)
 			self.logger.addHandler(file_handler)
 			self.logger.addHandler(console_handler)
 			self.logger.setLevel(logging.INFO)

@@ -1,6 +1,6 @@
 from discord.ext import commands
 from typing import TYPE_CHECKING
-from utils import config
+from common import config
 import logging
 import discord
 import utils
@@ -44,7 +44,7 @@ class Other(commands.Cog):
 
 		embed = discord.Embed(title=self.bot.user.name, color=config.base_embed_color, description="")
 		embed.set_thumbnail(url=self.bot.user.avatar.url)
-		embed.description += f"{self.bot.user.name} is a bot made for Anicord Event Server to assist with contracts related stuff. If you would like to contribute to it's development you can do it [here]({config.BOT_CONFIG.repository_link})."
+		embed.description += f"{self.bot.user.name} is a bot made for Anicord Event Server to assist with contracts related stuff. If you would like to contribute to it's development you can do it [here]({config.repository_link})."
 		embed.description += f"\n> **Ping**: {ping_ms}ms"
 		embed.description += f"\n> **Prefix**: {config.prefix}"
 		embed.description += f"\n> **Maintainers**: {', '.join(owner_names)}"
@@ -64,7 +64,7 @@ class Other(commands.Cog):
 
 		embed = discord.Embed(title=self.bot.user.name, color=config.base_embed_color, description="")
 		embed.set_thumbnail(url=self.bot.user.avatar.url)
-		embed.description += f"{self.bot.user.name} is a bot made for Anicord Event Server to assist with contracts related stuff. If you would like to contribute to it's development you can do it [here]({config.BOT_CONFIG.repository_link})."
+		embed.description += f"{self.bot.user.name} is a bot made for Anicord Event Server to assist with contracts related stuff. If you would like to contribute to it's development you can do it [here]({config.repository_link})."
 		embed.description += f"\n> **Ping**: {ping_ms}ms"
 		embed.description += f"\n> **Prefix**: {config.prefix}"
 		embed.description += f"\n> **Maintainers**: {', '.join(owner_names)}"

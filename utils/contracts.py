@@ -1,16 +1,13 @@
+from __future__ import annotations
 from typing import TYPE_CHECKING
 from async_lru import alru_cache
-from contracts import master_db
-from utils import config
+from common import config
 from enum import StrEnum
-import contracts
-import datetime
-import discord
 
 if TYPE_CHECKING:
-	from main import Natsumin  # noqa: F401
+	from contracts.classes import SeasonDB
 
-__all__ = ["LegacyRank", "get_legacy_rank", "get_usernames", "get_reps", "usernames_autocomplete", "reps_autocomplete", "get_time_till_season_ends"]
+__all__ = ["LegacyRank", "get_legacy_rank", "get_usernames", "get_reps", "get_time_till_season_ends"]
 
 
 class LegacyRank(StrEnum):
@@ -65,7 +62,10 @@ def get_legacy_rank(exp: int | None) -> LegacyRank | None:
 
 
 @alru_cache(ttl=12 * 60 * 60)
-async def get_usernames(season_db: contracts.SeasonDB, query: str = "", limit: int = None) -> list[str]:
+async def get_usernames(season_db: SeasonDB, query: str = "", limit: int = None) -> list[str]:
+	from contracts.classes import MasterDB
+
+	master_db = MasterDB.get_database()
 	async with master_db.connect() as db:
 		async with db.execute("SELECT id, username FROM users") as cursor:
 			id_usernames: dict[int, str] = {row["id"]: row["username"] for row in await cursor.fetchall()}
@@ -86,7 +86,7 @@ async def get_usernames(season_db: contracts.SeasonDB, query: str = "", limit: i
 
 
 @alru_cache(ttl=12 * 60 * 60)
-async def get_reps(season_db: contracts.SeasonDB, query: str = "", limit: int | None = None) -> list[str]:
+async def get_reps(season_db: SeasonDB, query: str = "", limit: int | None = None) -> list[str]:
 	async with season_db.connect() as db:
 		async with db.execute(
 			f"SELECT DISTINCT rep FROM users WHERE upper(rep) LIKE ? {f'LIMIT {limit}' if limit else ''}", (f"%{query.upper()}%",)
@@ -94,23 +94,14 @@ async def get_reps(season_db: contracts.SeasonDB, query: str = "", limit: int | 
 			return [row[0] for row in await cursor.fetchall()]
 
 
-async def usernames_autocomplete(ctx: discord.AutocompleteContext):
-	season_db = await contracts.get_season_db()
-	return await get_usernames(season_db, query=ctx.value.strip(), limit=25)
-
-
-async def reps_autocomplete(ctx: discord.AutocompleteContext):
-	season_db = await contracts.get_season_db()
-	return await get_reps(season_db, query=ctx.value.strip(), limit=25)
-
-
-def get_time_till_season_ends(season: str = config.active_season) -> tuple[int, int, int, int]:
+def get_time_till_season_ends(season: str = None) -> tuple[int, int, int, int]:
+	if season is None:
+		season = config.active_season
 	pass
 
 
-def get_common_embed(
-	user: contracts.User | None = None, member: discord.Member | None = None, season: str = config.BOT_CONFIG.active_season
-) -> discord.Embed:
+"""
+def get_common_embed(user: contracts.User | None = None, member: discord.Member | None = None, season: str = config.active_season) -> discord.Embed:
 	embed = discord.Embed(color=config.BASE_EMBED_COLOR, description="")
 	if user:
 		symbol = ""
@@ -124,7 +115,7 @@ def get_common_embed(
 			case contracts.UserStatus.INCOMPLETE:
 				symbol = "⛔"
 
-		if season != config.BOT_CONFIG.active_season:
+		if season != config.active_season:
 			symbol += f" ({season})" if symbol != "" else f"{(season)}"
 
 		embed.set_author(
@@ -133,9 +124,9 @@ def get_common_embed(
 			icon_url=member.display_avatar.url if member else None,
 		)
 
-	if season == config.BOT_CONFIG.active_season:
+	if season == config.active_season:
 		current_datetime = datetime.datetime.now(datetime.UTC)
-		difference = config.DEADLINE_TIMESTAMP - current_datetime
+		difference = config.deadline_datetime - current_datetime
 		difference_seconds = max(difference.total_seconds(), 0)
 
 		if difference_seconds > 0:
@@ -143,7 +134,7 @@ def get_common_embed(
 			hours, remainder = divmod(remainder, 3600)
 			minutes, _ = divmod(remainder, 60)
 			embed.set_footer(
-				text=config.BOT_CONFIG.deadline_footer.format(days=int(days), hours=int(hours), minutes=int(minutes)),
+				text=config.deadline_footer.format(days=int(days), hours=int(hours), minutes=int(minutes)),
 				icon_url="https://cdn.discordapp.com/emojis/998705274074435584.webp?size=4096",
 			)
 		else:
@@ -151,3 +142,5 @@ def get_common_embed(
 	else:
 		embed.set_footer(text=f"Data from {season}", icon_url="https://cdn.discordapp.com/emojis/998705274074435584.webp?size=4096")
 	return embed
+
+"""

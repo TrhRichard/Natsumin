@@ -2,16 +2,17 @@ from utils.contracts import get_common_embed, usernames_autocomplete, get_userna
 from discord.ext import commands
 from typing import TYPE_CHECKING
 from thefuzz import process
+from common import config
 import contracts
 import logging
 import discord
-import config
+import utils
 
 if TYPE_CHECKING:
 	from main import Natsumin
 
 
-async def create_embed(user: contracts.SeasonUser, target: discord.Member, season: str = config.BOT_CONFIG.active_season) -> discord.Embed:
+async def create_embed(user: contracts.SeasonUser, target: discord.Member, season: str = config.active_season) -> discord.Embed:
 	embed = get_common_embed(user, target, season)
 	season_db = await contracts.get_season_db(season)
 
@@ -82,18 +83,16 @@ class ContractsGet(commands.Cog):
 
 		if not self.logger.handlers:
 			file_handler = logging.FileHandler("logs/contracts.log", encoding="utf-8")
-			file_handler.setFormatter(config.FILE_LOGGING_FORMATTER)
+			file_handler.setFormatter(utils.FILE_LOGGING_FORMATTER)
 			console_handler = logging.StreamHandler()
-			console_handler.setFormatter(config.CONSOLE_LOGGING_FORMATTER)
+			console_handler.setFormatter(utils.CONSOLE_LOGGING_FORMATTER)
 			self.logger.addHandler(file_handler)
 			self.logger.addHandler(console_handler)
 			self.logger.setLevel(logging.INFO)
 
-	@commands.slash_command(name="get", description="Get the state of someone's contracts", guilds_ids=config.BOT_CONFIG.guild_ids)
+	@commands.slash_command(name="get", description="Get the state of someone's contracts", guilds_ids=config.guild_ids)
 	@discord.option("username", description="Optionally check for another user", default=None, autocomplete=usernames_autocomplete)
-	@discord.option(
-		"season", description="Optionally check in another season", default=config.BOT_CONFIG.active_season, choices=contracts.AVAILABLE_SEASONS
-	)
+	@discord.option("season", description="Optionally check in another season", default=config.active_season, choices=contracts.AVAILABLE_SEASONS)
 	@discord.option("hidden", description="Optionally make the response only visible to you", default=False)
 	async def get(self, ctx: discord.ApplicationContext, username: str, season: str, hidden: bool):
 		target_member, username = await get_target(self.bot, ctx.author, username, season)
@@ -104,7 +103,7 @@ class ContractsGet(commands.Cog):
 		else:
 			await ctx.respond(embed=await create_error_embed(season_db, username), ephemeral=hidden)
 
-	@discord.user_command(name="Get User Contracts", guild_ids=config.BOT_CONFIG.guild_ids)
+	@discord.user_command(name="Get User Contracts", guild_ids=config.guild_ids)
 	async def get_user_command(self, ctx: discord.ApplicationContext, user: discord.User):
 		target_member, username = await get_target(self.bot, user)
 		season_db = await contracts.get_season_db()

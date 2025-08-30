@@ -1,8 +1,7 @@
 from discord.ext import commands, tasks
 from typing import Mapping, Optional
-from async_lru import alru_cache
 from dotenv import load_dotenv
-from utils import config
+from common import config
 import contracts
 import discord
 import os
@@ -13,7 +12,7 @@ load_dotenv()
 class Natsumin(commands.Bot):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		self.sync_to_sheet.start()
+		# self.sync_to_sheet.start()
 		self.anicord: discord.Guild = None
 
 	async def on_ready(self):
@@ -24,7 +23,8 @@ class Natsumin(commands.Bot):
 
 	@tasks.loop(minutes=10)
 	async def sync_to_sheet(self):
-		await contracts.sync_season_db()
+		pass
+		# await contracts.sync_season_db()
 
 	@sync_to_sheet.before_loop
 	async def before_sync(self):
@@ -94,7 +94,5 @@ class Help(commands.HelpCommand):
 
 
 bot.help_command = Help()
-
-contracts.master_db = contracts.MasterDB()
 recursive_load_cogs("cogs")
 bot.run(os.getenv("DEV_DISCORD_TOKEN"))

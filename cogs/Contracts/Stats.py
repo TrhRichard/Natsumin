@@ -6,6 +6,7 @@ from thefuzz import process
 import contracts
 import logging
 import discord
+import utils
 
 if TYPE_CHECKING:
 	from main import Natsumin
@@ -91,9 +92,9 @@ class ContractsStats(commands.Cog):
 
 		if not self.logger.handlers:
 			file_handler = logging.FileHandler("logs/contracts.log", encoding="utf-8")
-			file_handler.setFormatter(config.FILE_LOGGING_FORMATTER)
+			file_handler.setFormatter(utils.FILE_LOGGING_FORMATTER)
 			console_handler = logging.StreamHandler()
-			console_handler.setFormatter(config.CONSOLE_LOGGING_FORMATTER)
+			console_handler.setFormatter(utils.CONSOLE_LOGGING_FORMATTER)
 			self.logger.addHandler(file_handler)
 			self.logger.addHandler(console_handler)
 			self.logger.setLevel(logging.INFO)
