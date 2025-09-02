@@ -13,6 +13,38 @@ FISH_STICKER_ID = 1073965395595235358
 FISH_EMOTE_ID = 1101799865098457088
 
 
+class BotInfoView(discord.ui.View):
+	def __init__(self, bot: "Natsumin"):
+		super().__init__()
+
+		ping_ms = round(bot.latency * 1000)
+
+		owner_names = []
+		for owner in config.owner_ids:
+			owner_names.append(f"**<@{owner}>**")
+		contributor_names = []
+		for contributor in config.contributor_ids:
+			contributor_names.append(f"**<@{contributor}>**")
+
+		container = discord.ui.Container(color=config.base_embed_color)
+		container.add_section(
+			discord.ui.TextDisplay(
+				f"## {bot.user.name}\n"
+				f"{bot.user.name} is a bot made for Anicord Event Server to assist with contracts related stuff. If you would like to contribute to it's development you can do it [here]({config.repository_link})."
+			),
+			accessory=discord.ui.Thumbnail(url=bot.user.avatar.url),
+		)
+		container.add_separator()
+		container.add_text(
+			f"**Ping**: {ping_ms}ms\n"
+			f"**Prefix**: `{config.prefix}`\n"
+			f"**Maintainers**: {','.join(owner_names)}\n"
+			f"**Contributors**: {','.join(contributor_names)}\n"
+		)
+
+		self.add_item(container)
+
+
 class Other(commands.Cog):
 	def __init__(self, bot: "Natsumin"):
 		self.bot = bot
@@ -33,43 +65,11 @@ class Other(commands.Cog):
 
 	@commands.command(help="Fetch information on the bot")
 	async def botinfo(self, ctx: commands.Context):
-		ping_ms = round(self.bot.latency * 1000)
-
-		owner_names = []
-		for owner in config.owner_ids:
-			owner_names.append(f"**<@{owner}>**")
-		contributor_names = []
-		for contributor in config.contributor_ids:
-			contributor_names.append(f"**<@{contributor}>**")
-
-		embed = discord.Embed(title=self.bot.user.name, color=config.base_embed_color, description="")
-		embed.set_thumbnail(url=self.bot.user.avatar.url)
-		embed.description += f"{self.bot.user.name} is a bot made for Anicord Event Server to assist with contracts related stuff. If you would like to contribute to it's development you can do it [here]({config.repository_link})."
-		embed.description += f"\n> **Ping**: {ping_ms}ms"
-		embed.description += f"\n> **Prefix**: {config.prefix}"
-		embed.description += f"\n> **Maintainers**: {', '.join(owner_names)}"
-		embed.description += f"\n> **Contributors**: {','.join(contributor_names)}"
-		await ctx.reply(embed=embed)
+		await ctx.reply(view=BotInfoView(self.bot))
 
 	@commands.slash_command(name="botinfo", description="Fetch information on the bot")
 	async def slash_botinfo(self, ctx: discord.ApplicationContext):
-		ping_ms = round(self.bot.latency * 1000)
-
-		owner_names = []
-		for owner in config.owner_ids:
-			owner_names.append(f"**<@{owner}>**")
-		contributor_names = []
-		for contributor in config.contributor_ids:
-			contributor_names.append(f"**<@{contributor}>**")
-
-		embed = discord.Embed(title=self.bot.user.name, color=config.base_embed_color, description="")
-		embed.set_thumbnail(url=self.bot.user.avatar.url)
-		embed.description += f"{self.bot.user.name} is a bot made for Anicord Event Server to assist with contracts related stuff. If you would like to contribute to it's development you can do it [here]({config.repository_link})."
-		embed.description += f"\n> **Ping**: {ping_ms}ms"
-		embed.description += f"\n> **Prefix**: {config.prefix}"
-		embed.description += f"\n> **Maintainers**: {', '.join(owner_names)}"
-		embed.description += f"\n> **Contributors**: {','.join(contributor_names)}"
-		await ctx.respond(embed=embed)
+		await ctx.respond(view=BotInfoView(self.bot))
 
 	@commands.command(help="Check the bot's latency", aliases=["latency"])
 	async def ping(self, ctx: commands.Context):

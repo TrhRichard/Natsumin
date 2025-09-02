@@ -74,6 +74,19 @@ class SeasonUser:
 
 		return False
 
+	@classmethod
+	def new(cls, **kwargs):
+		cls_types = get_type_hints(cls)
+		for k, v in kwargs.items():
+			if k in cls_types:
+				k_type = cls_types.get(k)
+				if issubclass(k_type, Enum):
+					v = k_type(v)
+
+				kwargs[k] = v
+
+		return cls(**kwargs)
+
 	async def get_master_data(self) -> MasterUser:
 		return await self._db.fetch_user_from_master(id=self.id)
 
@@ -124,6 +137,19 @@ class Contract:
 
 	def __hash__(self):
 		return hash((self.name, self.type, self.contractee))
+
+	@classmethod
+	def new(cls, **kwargs):
+		cls_types = get_type_hints(cls)
+		for k, v in kwargs.items():
+			if k in cls_types:
+				k_type = cls_types.get(k)
+				if issubclass(k_type, Enum):
+					v = k_type(v)
+
+				kwargs[k] = v
+
+		return cls(**kwargs)
 
 	def __eq__(self, value):
 		if isinstance(value, Contract):
@@ -382,6 +408,19 @@ class MasterUser:
 	def __hash__(self):
 		return hash((self.id))
 
+	@classmethod
+	def new(cls, **kwargs):
+		cls_types = get_type_hints(cls)
+		for k, v in kwargs.items():
+			if k in cls_types:
+				k_type = cls_types.get(k)
+				if issubclass(k_type, Enum):
+					v = k_type(v)
+
+				kwargs[k] = v
+
+		return cls(**kwargs)
+
 	@alru_cache(ttl=CACHE_DURATION)
 	async def get_legacy_exp(self) -> int | None:
 		async with self._db.connect() as db:
@@ -444,7 +483,7 @@ class Badge:
 		return hash((self.id))
 
 	@classmethod
-	def new(cls, **kwargs) -> Badge:
+	def new(cls, **kwargs):
 		cls_types = get_type_hints(cls)
 		for k, v in kwargs.items():
 			if k in cls_types:
