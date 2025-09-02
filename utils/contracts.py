@@ -28,7 +28,7 @@ class LegacyRank(StrEnum):
 
 
 def get_legacy_rank(exp: int | None) -> LegacyRank | None:
-	if not exp:
+	if exp is None:
 		return None
 
 	if exp >= 34000:

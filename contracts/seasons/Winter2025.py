@@ -1,4 +1,4 @@
-from ..classes import SeasonDB, ContractKind, ContractStatus, UserStatus, MasterDB, Contract, SeasonDBSyncContext
+from ..classes import SeasonDB, ContractKind, ContractStatus, UserStatus, UserKind, MasterDB, Contract, SeasonDBSyncContext
 from utils import get_cell, get_rep
 from async_lru import alru_cache
 import aiohttp
@@ -25,8 +25,8 @@ async def _get_sheet_data() -> dict:
 					"Indie Special!A2:H136",
 					"Extreme Special!A2:G95",
 					"Buddying!A2:N68",
-					# "Odds!A1:B49",
-					# "Aid Contracts!A5:H90",
+					"Odds!A1:B49",
+					"Aid Contracts!A5:H90",
 				],
 				"key": os.getenv("GOOGLE_API_KEY"),
 			},
@@ -88,13 +88,13 @@ async def _sync_dashboard_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 			case _:
 				user_status = UserStatus.PENDING
 
-		season_user, existed_already = ctx.get_or_create_user(user_id, status=user_status)
+		season_user, existed_already = ctx.get_or_create_user(user_id, kind=UserKind.NORMAL, status=user_status)
 
 		if existed_already:
 			if season_user.status != user_status:
 				ctx.update_user(season_user, status=user_status)
 
-		user_contracts: dict[str, Contract] = {contract.type: contract for contract in ctx.get_user_contracts(user_id)}
+		user_contracts = ctx.get_user_contracts(user_id, True)
 
 		for i, contract_name in enumerate(contract_names):
 			contract_type = DASHBOARD_ROW_NAMES[i]
@@ -151,7 +151,7 @@ async def _sync_basechallenge_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 				accepting_ln=get_cell(row, 19) == "Yes",
 			)
 
-		user_contracts: dict[str, Contract] = {contract.type: contract for contract in ctx.get_user_contracts(user_id)}
+		user_contracts = ctx.get_user_contracts(user_id, True)
 
 		base_contract = user_contracts.get("Base Contract")
 
@@ -368,59 +368,31 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 	await ctx.commit()
 
 
-"""
-
-async def _sync_aids_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncContext):
+async def _sync_aids_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 	rows: list[list[str]] = sheet_data["valueRanges"][9]["values"]
 
-	aids_user_count: dict[str, int] = {}
+	aids_user_count: dict[int, int] = {}
 	for row in rows:
-		username = get_cell(row, 1).lower()
+		username = get_cell(row, 1, "").strip().lower()
+		contractor = get_cell(row, 3, "").strip().lower()
 
-		if username == "":
+		if not username:
 			continue
-		elif username not in ctx.users:  # Either user didnt get cached properly or user wasn't in season, create it then
-			if not await db.has_user(username):
-				discord_id = None
-				if d := await utils.find_madfigs_user(search_name=username):
-					discord_id = d["user_id"]
-				await db.create_user(
-					username=username,
-					status=UserStatus.PENDING,
-					kind=UserKind.AID,
-					rep="AIDS",
-					discord_id=discord_id,
-					contractor="Cow Lord",
-					list_url="https://discord.com/channels/994071728017899600/1008810171876773978/1374143929787613375",
-					veto_used=False,
-					accepting_manhwa=False,
-					accepting_ln=False,
-					preferences="Unknown",
-					bans="Unknown",
-				)
-				ctx.users[username] = SeasonUser(
-					username=username,
-					status=UserStatus.PENDING,
-					kind=UserKind.AID,
-					rep="AIDS",
-					discord_id=discord_id,
-					contractor="Cow Lord",
-					list_url="https://discord.com/channels/994071728017899600/1008810171876773978/1374143929787613375",
-					veto_used=False,
-					accepting_manhwa=False,
-					accepting_ln=False,
-					preferences="Unknown",
-					bans="Unknown",
-				)
 
-		user_contracts = ctx.contracts.setdefault(username, {})
+		user_id = ctx.get_user_id(username)
+		if not user_id:
+			user_id = await ctx.create_master_user(username)
 
-		if username not in aids_user_count:
-			aids_user_count[username] = 0
-		aids_user_count[username] += 1
-		contract_type = ContractType(f"Aid Contract {aids_user_count[username]}")
+		_, _ = ctx.get_or_create_user(user_id, kind=UserKind.AID, status=UserStatus.PENDING)
 
-		aid_name = get_cell(row, 4).replace("\n", "")
+		user_contracts = ctx.get_user_contracts(user_id, True)
+
+		if user_id not in aids_user_count:
+			aids_user_count[user_id] = 0
+		aids_user_count[user_id] += 1
+		contract_type = f"Aid Contract {aids_user_count[user_id]}"
+
+		aid_name = get_cell(row, 6).replace("\n", "")
 
 		contract_status: ContractStatus
 		if get_cell(row, 0) == "PASSED":
@@ -430,51 +402,38 @@ async def _sync_aids_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncContext
 		else:
 			contract_status = ContractStatus.PENDING
 
-		if existing_contract := user_contracts.get(contract_type):
+		if e_contract := user_contracts.get(contract_type):
 			if (
-				existing_contract.name != aid_name
-				or existing_contract.progress != get_cell(row, 5)
-				or existing_contract.contractor != get_cell(row, 3).lower()
-				or existing_contract.rating != get_cell(row, 6)
-				or existing_contract.review_url != get_url(row, 7)
+				e_contract.name != aid_name
+				or e_contract.progress != get_cell(row, 5)
+				or e_contract.contractor != contractor
+				or e_contract.rating != get_cell(row, 4)
+				or e_contract.review_url != get_url(row, 7)
 			):
-				await db.update_contract(
-					existing_contract.id,
+				ctx.update_contract(
+					e_contract,
 					name=aid_name,
 					status=contract_status,
 					progress=get_cell(row, 5),
-					rating=get_cell(row, 6),
+					rating=get_cell(row, 4),
 					review_url=get_url(row, 7),
-					contractor=get_cell(row, 3).lower(),
+					contractor=contractor,
 				)
 		else:
-			id = await db.create_contract(
+			ctx.create_contract(
 				name=aid_name,
 				type=contract_type,
 				kind=ContractKind.AID,
 				status=contract_status,
-				contractee=username,
+				contractee=user_id,
 				progress=get_cell(row, 5),
-				rating=get_cell(row, 6),
-				review_url=get_cell(row, 7),
-				contractor=get_cell(row, 3).lower(),
-				optional=False,
-			)
-			ctx.contracts[username][contract_type] = Contract(
-				id=id,
-				name=aid_name,
-				type=contract_type,
-				kind=ContractKind.AID,
-				status=contract_status,
-				contractee=username,
-				progress=get_cell(row, 5),
-				rating=get_cell(row, 6),
-				review_url=get_cell(row, 7),
-				contractor=get_cell(row, 3).lower(),
+				rating=get_cell(row, 4),
+				review_url=get_url(row, 7),
+				contractor=contractor,
 				optional=False,
 			)
 
-"""
+	await ctx.commit()
 
 
 async def sync_to_latest(season_db: SeasonDB):
@@ -485,7 +444,7 @@ async def sync_to_latest(season_db: SeasonDB):
 	await _sync_dashboard_data(sheet_data, ctx)
 	await _sync_basechallenge_data(sheet_data, ctx)
 	await _sync_specials_data(sheet_data, ctx)
-	# await _sync_aids_data(sheet_data, db)
+	await _sync_aids_data(sheet_data, ctx)
 
 
 @alru_cache
