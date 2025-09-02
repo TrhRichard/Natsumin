@@ -48,8 +48,28 @@ class UserKind(Enum):
 	AID = 1
 
 
+class DBClass:
+	"""Root class for all database classes, mainly for `DBClass.new` class method"""
+
+	@classmethod
+	def new(cls, **kwargs):
+		cls_types = get_type_hints(cls)
+		for k, v in kwargs.items():
+			if k in cls_types:
+				k_type = cls_types.get(k)
+				try:  # TODO: Fix unions, for now uh no enums will have a union
+					if issubclass(k_type, Enum):
+						v = k_type(v)
+				except TypeError:
+					pass
+
+				kwargs[k] = v
+
+		return cls(**kwargs)
+
+
 @dataclass(slots=True, eq=False)
-class SeasonUser:
+class SeasonUser(DBClass):
 	id: int
 	status: UserStatus
 	kind: UserKind
@@ -74,19 +94,6 @@ class SeasonUser:
 
 		return False
 
-	@classmethod
-	def new(cls, **kwargs):
-		cls_types = get_type_hints(cls)
-		for k, v in kwargs.items():
-			if k in cls_types:
-				k_type = cls_types.get(k)
-				if issubclass(k_type, Enum):
-					v = k_type(v)
-
-				kwargs[k] = v
-
-		return cls(**kwargs)
-
 	async def get_master_data(self) -> MasterUser:
 		return await self._db.fetch_user_from_master(id=self.id)
 
@@ -95,7 +102,7 @@ class SeasonUser:
 		async with self._db.connect() as db:
 			async with db.execute("SELECT * FROM contracts WHERE contractee = ?", (self.id,)) as cursor:
 				rows = await cursor.fetchall()
-				return [Contract(**row, _db=self._db) for row in rows]
+				return [Contract.new(**row, _db=self._db) for row in rows]
 
 		return []
 
@@ -120,7 +127,7 @@ class SeasonUser:
 
 
 @dataclass(slots=True, eq=False)
-class Contract:
+class Contract(DBClass):
 	id: int
 	name: str
 	type: str
@@ -133,23 +140,10 @@ class Contract:
 	rating: str | None = field(default=None, repr=False)
 	review_url: str | None = field(default=None, repr=False)
 	medium: str | None = field(default=None, repr=False)
-	_db: "SeasonDB" = None
+	_db: SeasonDB = None
 
 	def __hash__(self):
 		return hash((self.name, self.type, self.contractee))
-
-	@classmethod
-	def new(cls, **kwargs):
-		cls_types = get_type_hints(cls)
-		for k, v in kwargs.items():
-			if k in cls_types:
-				k_type = cls_types.get(k)
-				if issubclass(k_type, Enum):
-					v = k_type(v)
-
-				kwargs[k] = v
-
-		return cls(**kwargs)
 
 	def __eq__(self, value):
 		if isinstance(value, Contract):
@@ -238,7 +232,7 @@ class SeasonDBSyncContext:
 				self.total_users = {row["id"]: SeasonUser(**row, _db=self.season_db) for row in await cursor.fetchall()}
 
 			async with conn.execute("SELECT * FROM contracts") as cursor:
-				self.total_contracts = [Contract(**row, _db=self.season_db) for row in await cursor.fetchall()]
+				self.total_contracts = [Contract.new(**row, _db=self.season_db) for row in await cursor.fetchall()]
 
 	def get_user_id(self, username: str) -> int | None:
 		if username in self._username_to_id:
@@ -329,7 +323,7 @@ class SeasonDBSyncContext:
 		return user_id
 
 	def create_contract(self, **kwargs) -> Contract:
-		contract = Contract(id=-1, **kwargs, _db=self.season_db)
+		contract = Contract.new(id=-1, **kwargs, _db=self.season_db)
 		self.total_contracts.append(contract)
 		self._to_be_created.append(contract)
 		return contract
@@ -397,7 +391,7 @@ class SeasonDBSyncContext:
 
 
 @dataclass(slots=True)
-class MasterUser:
+class MasterUser(DBClass):
 	id: int
 	discord_id: int | None
 	username: str
@@ -407,19 +401,6 @@ class MasterUser:
 
 	def __hash__(self):
 		return hash((self.id))
-
-	@classmethod
-	def new(cls, **kwargs):
-		cls_types = get_type_hints(cls)
-		for k, v in kwargs.items():
-			if k in cls_types:
-				k_type = cls_types.get(k)
-				if issubclass(k_type, Enum):
-					v = k_type(v)
-
-				kwargs[k] = v
-
-		return cls(**kwargs)
 
 	@alru_cache(ttl=CACHE_DURATION)
 	async def get_legacy_exp(self) -> int | None:
@@ -471,7 +452,7 @@ class MasterUser:
 
 
 @dataclass(slots=True)
-class Badge:
+class Badge(DBClass):
 	id: int
 	name: str
 	description: str
@@ -481,19 +462,6 @@ class Badge:
 
 	def __hash__(self):
 		return hash((self.id))
-
-	@classmethod
-	def new(cls, **kwargs):
-		cls_types = get_type_hints(cls)
-		for k, v in kwargs.items():
-			if k in cls_types:
-				k_type = cls_types.get(k)
-				if issubclass(k_type, Enum):
-					v = k_type(v)
-
-				kwargs[k] = v
-
-		return cls(**kwargs)
 
 	async def to_dict(self, *, minimal=False) -> dict:
 		return (

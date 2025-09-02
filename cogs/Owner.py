@@ -26,7 +26,7 @@ class Owner(commands.Cog):
 
 			self.logger.setLevel(logging.INFO)
 
-	@commands.command(hidden=True, aliases=["purge_cache", "clear_cache"])
+	@commands.command(hidden=True)
 	@commands.is_owner()
 	async def sync_season(self, ctx: commands.Context, *, season: str = config.active_season):
 		async with ctx.typing():
@@ -72,14 +72,16 @@ class Owner(commands.Cog):
 		except ValueError as e:
 			return await ctx.reply(embed=discord.Embed(description=f"❌ {e}", color=discord.Color.red()), mention_author=False)
 
-		all_users = await season_db.fetch_users()
-		all_contracts = await season_db.fetch_contracts()
+		async with ctx.typing():
+			async with season_db.connect() as conn:
+				async with conn.execute("SELECT * FROM users") as cursor:
+					all_users = [contracts.SeasonUser.new(**row, _db=season_db) for row in await cursor.fetchall()]
 
-		users_json = [user.to_json() for user in all_users]
-		contracts_json = [contract.to_json() for contract in all_contracts]
+				users_json = [await user.to_dict(include_contracts=True) for user in all_users]
 
-		discord_file = discord.File(io.BytesIO(json.dumps({"users": users_json, "contracts": contracts_json}, indent=4).encode("utf-8")))
-		discord_file.filename = f"{season}.json"
+				discord_file = discord.File(io.BytesIO(json.dumps({"users": users_json}, indent=4).encode("utf-8")))
+				discord_file.filename = f"{season}.json"
+
 		await ctx.reply(f"Here is {season} data:", file=discord_file)
 
 	@commands.command(hidden=True, aliases=["r", "reload"])
