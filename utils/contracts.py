@@ -1,8 +1,13 @@
+from typing import TYPE_CHECKING
 from async_lru import alru_cache
 from common import config, get_master_db
 from enum import StrEnum
+import fnmatch
 
-__all__ = ["LegacyRank", "get_rank_emoteid", "get_legacy_rank", "get_usernames", "get_reps", "get_time_till_season_ends"]
+if TYPE_CHECKING:
+	from contracts import ContractOrderCategory
+
+__all__ = ["LegacyRank", "get_rank_emoteid", "get_legacy_rank", "get_usernames", "get_reps", "get_contract_category"]
 
 
 class LegacyRank(StrEnum):
@@ -144,10 +149,20 @@ async def get_reps(query: str = "", limit: int | None = None, *, season: str = N
 				return [row[0] for row in await cursor.fetchall()]
 
 
-def get_time_till_season_ends(season: str = None) -> tuple[int, int, int, int]:
-	if season is None:
-		season = config.active_season
-	pass
+def get_contract_category(order_data: "list[ContractOrderCategory]", c_type: str) -> str:
+	c_type = c_type.lower()
+	for category in order_data:
+		for pattern in category["order"]:
+			pattern = pattern.lower()
+
+			if any(c in pattern for c in "*?[]"):
+				if fnmatch.fnmatch(c_type, pattern):
+					return category["name"]
+			else:
+				if c_type == pattern:
+					return category["name"]
+
+	return "Other"
 
 
 """

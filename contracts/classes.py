@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Literal, overload, get_type_hints
+from typing import Literal, overload, get_type_hints, TypedDict
 from utils.contracts import get_legacy_rank
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -8,6 +8,8 @@ from thefuzz import process
 from enum import StrEnum
 from enum import Enum
 import aiosqlite
+import aiofiles
+import json
 import os
 
 
@@ -22,6 +24,7 @@ __all__ = [
 	"MasterUser",
 	"Badge",
 	"BadgeType",
+	"ContractOrderCategory",
 	"CACHE_DURATION",
 ]
 
@@ -185,11 +188,17 @@ class Contract(DBClass):
 		}
 
 
+class ContractOrderCategory(TypedDict):
+	name: str
+	order: list[str]
+
+
 class SeasonDB:
 	def __init__(self, name: str, path: str, master_db: MasterDB | None = None):
 		self.name = name
 		self.path = path
 		self._master_db = master_db
+		self._order_data: list[ContractOrderCategory] | None = None
 
 	@asynccontextmanager
 	async def connect(self):
@@ -202,6 +211,19 @@ class SeasonDB:
 		async with self.connect() as db:
 			await db.executescript(season_script)
 			await db.commit()
+
+	async def get_order_data(self) -> list[ContractOrderCategory] | None:
+		if self._order_data is not None:
+			return self._order_data
+
+		file_path = f"assets/orders/{self.name}.json"
+		if not os.path.isfile(file_path):
+			return None
+
+		async with aiofiles.open(file_path, "r") as f:
+			self._order_data = json.loads(await f.read())
+
+		return self._order_data
 
 	@alru_cache(ttl=CACHE_DURATION)
 	async def fetch_user(self, user_id: int) -> SeasonUser | None:
