@@ -152,9 +152,7 @@ async def _sync_basechallenge_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 			)
 
 		if user_id in ctx.master_users_created:
-			async with ctx.master_db.connect() as conn:
-				await conn.execute("UPDATE users SET rep = ? WHERE id = ?", (season_user.rep, user_id))
-				await conn.commit()
+			await ctx.master_db.update_user(user_id, rep=season_user.rep)
 
 		user_contracts = ctx.get_user_contracts(user_id, True)
 

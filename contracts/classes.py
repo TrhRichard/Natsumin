@@ -507,9 +507,27 @@ class MasterDB:
 			db.row_factory = aiosqlite.Row
 			yield db
 
+	async def update_user(self, id: int, **kwargs):
+		async with self.connect() as conn:
+			for k, v in kwargs.items():
+				if isinstance(v, Enum):
+					kwargs[k] = v.value
+
+			set_clause = ", ".join(f"{k} = :{k}" for k in kwargs)
+			await conn.execute(f"UPDATE users SET {set_clause} WHERE id = :id", {**kwargs, "id": id})
+			await conn.commit()
+
+	async def add_user_alias(self, id: int, alias: str, *, force: bool = False):
+		async with self.connect() as conn:
+			await conn.execute(
+				f"{'INSERT' if force else 'INSERT OR IGNORE'} INTO user_aliases (username, user_id) VALUES (?, ?) {'ON CONFLICT(username) DO UPDATE SET user_id = excluded.user_id' if force else ''}",
+				(alias.strip().lower(), id),
+			)
+			await conn.commit()
+
 	@alru_cache(ttl=CACHE_DURATION)
 	async def fetch_user(self, id: int | None = None, discord_id: int | None = None, username: str | None = None) -> MasterUser | None:
-		async with self.connect() as db:
+		async with self.connect() as conn:
 			query_params = []
 			params = {}
 
@@ -526,13 +544,13 @@ class MasterDB:
 			if not query_params:
 				raise ValueError("No filter specified.")
 
-			async with db.execute(f"SELECT * FROM users WHERE {' OR '.join(query_params)} LIMIT 1", params) as cursor:
+			async with conn.execute(f"SELECT * FROM users WHERE {' OR '.join(query_params)} LIMIT 1", params) as cursor:
 				row = await cursor.fetchone()
 				if row:
 					return MasterUser(**row, _db=self)
 
 			if username is not None:
-				async with db.execute(
+				async with conn.execute(
 					"""
 					SELECT u.* FROM users u
 					JOIN user_aliases a ON u.user_id = a.user_id
@@ -549,20 +567,20 @@ class MasterDB:
 	@alru_cache(ttl=CACHE_DURATION)
 	async def fetch_user_fuzzy(self, username: str, min_confidence: int = 90) -> MasterUser | None:
 		"""Attempts to find the user by username, if that fails then performs a fuzzy search"""
-		async with self.connect() as db:
-			async with db.execute("SELECT * FROM users WHERE username = ? LIMIT 1", (username.lower(),)) as cursor:
+		async with self.connect() as conn:
+			async with conn.execute("SELECT * FROM users WHERE username = ? LIMIT 1", (username.lower(),)) as cursor:
 				row = await cursor.fetchone()
 				if row:
 					return MasterUser(**row, _db=self)
 
-			async with db.execute("SELECT id, username FROM users") as cursor:
+			async with conn.execute("SELECT id, username FROM users") as cursor:
 				id_username: dict[int, str] = {row["id"]: row["username"] for row in await cursor.fetchall()}
 
 			fuzzy_results: list[tuple[str, int, int]] = process.extract(username.lower(), id_username, limit=1)
 			if fuzzy_results:
 				_, confidence, id_found = fuzzy_results[0]
 				if confidence >= min_confidence:
-					async with db.execute("SELECT * FROM users WHERE id = ? LIMIT 1", (id_found,)) as cursor:
+					async with conn.execute("SELECT * FROM users WHERE id = ? LIMIT 1", (id_found,)) as cursor:
 						row = await cursor.fetchone()
 						return MasterUser(**row, _db=self)
 
@@ -570,7 +588,7 @@ class MasterDB:
 
 	@alru_cache(ttl=CACHE_DURATION)
 	async def fetch_badge(self, id: int | None = None, name: str | None = None, badge_type: BadgeType | None = None) -> Badge | None:
-		async with self.connect() as db:
+		async with self.connect() as conn:
 			query_params = []
 			params = {}
 
@@ -587,7 +605,7 @@ class MasterDB:
 			if not query_params:
 				raise ValueError("No filter specified.")
 
-			async with db.execute(f"SELECT * FROM badges WHERE {' AND '.join(query_params)} LIMIT 1", params) as cursor:
+			async with conn.execute(f"SELECT * FROM badges WHERE {' AND '.join(query_params)} LIMIT 1", params) as cursor:
 				if row := await cursor.fetchone():
 					return Badge(**row)
 				return None
@@ -595,8 +613,8 @@ class MasterDB:
 	@alru_cache(ttl=CACHE_DURATION)
 	async def fetch_legacy_leaderboard_users(self, ordering_by: Literal["ASCENDING", "DESCENDING"] = "DESCENDING") -> list[tuple[MasterUser, int]]:
 		order = "ASC" if ordering_by == "ASCENDING" else "DESC"
-		async with self.connect() as db:
-			async with db.execute(f"""
+		async with self.connect() as conn:
+			async with conn.execute(f"""
 			SELECT u.*, l.exp
 			FROM legacy_leaderboard l
 			JOIN users u ON u.id = l.user_id

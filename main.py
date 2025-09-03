@@ -14,7 +14,7 @@ load_dotenv()
 class Natsumin(commands.Bot):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		self.sync_to_sheet.start()
+		self.sync_databases.start()
 		self.anicord: discord.Guild = None
 		self.master_db = get_master_db()
 
@@ -23,6 +23,17 @@ class Natsumin(commands.Bot):
 		print(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 
 		self.anicord = self.get_guild(994071728017899600)
+
+	async def on_user_update(self, old: discord.User, new: discord.User):
+		if old.name == new.name:
+			return  # Username change
+
+		master_user = await self.get_master_user(old)
+		if not master_user:
+			return
+
+		await self.master_db.update_user(master_user.id, username=new.name)
+		await self.master_db.add_user_alias(master_user.id, old.name)
 
 	@alru_cache(ttl=contracts.CACHE_DURATION)
 	async def get_master_user(self, user: discord.Member | discord.User) -> contracts.MasterUser | None:
@@ -95,10 +106,10 @@ class Natsumin(commands.Bot):
 			return discord_user, season_user
 
 	@tasks.loop(minutes=10)
-	async def sync_to_sheet(self):
+	async def sync_databases(self):
 		await contracts.sync_season_db()
 
-	@sync_to_sheet.before_loop
+	@sync_databases.before_loop
 	async def before_sync(self):
 		await self.wait_until_ready()
 
@@ -157,5 +168,7 @@ class Help(commands.HelpCommand):
 
 
 bot.help_command = Help()
+os.makedirs("logs", exist_ok=True)
+os.makedirs("data", exist_ok=True)
 bot.load_extension("cogs", recursive=True)
 bot.run(os.getenv("DEV_DISCORD_TOKEN"))
