@@ -2,12 +2,13 @@ from typing import TYPE_CHECKING
 from async_lru import alru_cache
 from common import config, get_master_db
 from enum import StrEnum
+import datetime
 import fnmatch
 
 if TYPE_CHECKING:
 	from contracts import ContractOrderCategory
 
-__all__ = ["LegacyRank", "get_rank_emoteid", "get_legacy_rank", "get_usernames", "get_reps", "get_contract_category"]
+__all__ = ["LegacyRank", "get_rank_emoteid", "get_legacy_rank", "get_usernames", "get_reps", "get_contract_category", "get_deadline_footer"]
 
 
 class LegacyRank(StrEnum):
@@ -163,6 +164,26 @@ def get_contract_category(order_data: "list[ContractOrderCategory]", c_type: str
 					return category["name"]
 
 	return "Other"
+
+
+def get_deadline_footer(season: str = None) -> str:
+	if season is None:
+		season = config.active_season
+
+	if season == config.active_season:
+		current_datetime = datetime.datetime.now(datetime.UTC)
+		difference = config.deadline_datetime - current_datetime
+		difference_seconds = max(difference.total_seconds(), 0)
+
+		if difference_seconds > 0:
+			days, remainder = divmod(difference_seconds, 86400)
+			hours, remainder = divmod(remainder, 3600)
+			minutes, _ = divmod(remainder, 60)
+			return config.deadline_footer.format(days=int(days), hours=int(hours), minutes=int(minutes))
+		else:
+			return "This season has ended."
+	else:
+		return f"Data from {season}"
 
 
 """

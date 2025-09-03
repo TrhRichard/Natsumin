@@ -117,10 +117,13 @@ def get_rep(
 	if only_include_reps is not None:  # incase you only want to match the name from a specific list of reps instead of all
 		new_choices: dict[str, RepName] = {}
 		for rep in only_include_reps:
+			if isinstance(rep, str):
+				rep = RepName(rep)
 			new_choices[rep.value.lower()] = rep
 			new_choices[rep.name.lower()] = rep
 			for alt in ALTERNATIVE_NAMES.get(rep, []):
 				new_choices[alt.lower()] = rep
+		choices = new_choices
 
 	fuzzy_results: list[tuple[str, int]] = process.extract(name.lower(), [k for k in choices.keys()], limit=1)
 	if fuzzy_results:

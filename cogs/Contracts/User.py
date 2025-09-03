@@ -1,6 +1,5 @@
 from discord.ui import View, Container, TextDisplay, Separator, MediaGallery, Section, Thumbnail, Button
 from discord.ext import commands
-from discord.commands import SlashCommandGroup
 from typing import TYPE_CHECKING
 from common import config
 import contracts
@@ -15,13 +14,6 @@ if TYPE_CHECKING:
 def usernames_autocomplete(seasonal: bool = True):
 	async def callback(ctx: discord.AutocompleteContext) -> list[str]:
 		return await utils.contracts.get_usernames(query=ctx.value.strip(), limit=25, seasonal=seasonal)
-
-	return callback
-
-
-def reps_autocomplete(seasonal: bool = True):
-	async def callback(ctx: discord.AutocompleteContext):
-		return await utils.contracts.get_reps(query=ctx.value.strip(), limit=25, seasonal=seasonal)
 
 	return callback
 
@@ -138,7 +130,7 @@ class ContractsUser(commands.Cog):
 		self.bot = bot
 		self.logger = logging.getLogger("bot.contracts")
 
-	user_group = SlashCommandGroup("user", description="Various user related commands", guild_ids=config.guild_ids)
+	user_group = discord.commands.SlashCommandGroup("user", description="Various user related commands", guild_ids=config.guild_ids)
 
 	@user_group.command(description="Fetch the global profile of a user")
 	@discord.option(name="user", description="The user to get profile of", default=None, autocomplete=usernames_autocomplete(False))

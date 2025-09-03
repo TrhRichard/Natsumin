@@ -6,9 +6,24 @@ import datetime
 import logging
 import math
 
+T = TypeVar("T")
+
 
 def get_percentage(num: float, total: float) -> int:
 	return math.floor(100 * float(num) / float(total))
+
+
+def get_percentage_formatted(num: int | float, total: int | float) -> str:
+	return f"{num}/{total} ({get_percentage(num, total)}%)"
+
+
+def filter_list(to_filter: list[T], **kwargs) -> list[T]:
+	filtered = []
+	for item in to_filter:
+		if all(getattr(item, k, None) == v for k, v in kwargs.items()):
+			filtered.append(item)
+
+	return filtered
 
 
 def is_season_ongoing() -> bool:
@@ -16,9 +31,6 @@ def is_season_ongoing() -> bool:
 	difference = config.deadline_datetime - current_datetime
 	difference_seconds = max(difference.total_seconds(), 0)
 	return difference_seconds > 0
-
-
-T = TypeVar("T")
 
 
 @overload

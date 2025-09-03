@@ -15,6 +15,7 @@ import os
 
 __all__ = [
 	"UserStatus",
+	"UserKind",
 	"ContractStatus",
 	"ContractKind",
 	"Contract",
