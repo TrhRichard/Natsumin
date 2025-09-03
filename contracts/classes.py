@@ -11,7 +11,19 @@ import aiosqlite
 import os
 
 
-__all__ = ["UserStatus", "ContractStatus", "ContractKind", "Contract", "SeasonUser", "SeasonDB", "MasterDB", "MasterUser", "BadgeType"]
+__all__ = [
+	"UserStatus",
+	"ContractStatus",
+	"ContractKind",
+	"Contract",
+	"SeasonUser",
+	"SeasonDB",
+	"MasterDB",
+	"MasterUser",
+	"Badge",
+	"BadgeType",
+	"CACHE_DURATION",
+]
 
 with open("assets/schemas/Season.sql") as f:
 	season_script = f.read()
@@ -210,6 +222,7 @@ class SeasonDBSyncContext:
 	def __init__(self, season_db: SeasonDB):
 		self.season_db: SeasonDB = season_db
 		self.master_db: MasterDB = MasterDB.get_database()
+		self.master_users_created: list[int] = []
 
 		self.total_users: dict[int, SeasonUser] = {}
 		self.total_contracts: list[Contract] = []
@@ -320,6 +333,7 @@ class SeasonDBSyncContext:
 		user_id = await self.master_db.create_user(username)
 		self._username_to_id[username] = user_id
 		self._id_to_username[user_id] = username
+		self.master_users_created.append(user_id)
 		return user_id
 
 	def create_contract(self, **kwargs) -> Contract:
@@ -512,7 +526,7 @@ class MasterDB:
 			if not query_params:
 				raise ValueError("No filter specified.")
 
-			async with db.execute(f"SELECT * FROM users WHERE {' AND '.join(query_params)} LIMIT 1", params) as cursor:
+			async with db.execute(f"SELECT * FROM users WHERE {' OR '.join(query_params)} LIMIT 1", params) as cursor:
 				row = await cursor.fetchone()
 				if row:
 					return MasterUser(**row, _db=self)
