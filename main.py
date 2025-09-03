@@ -1,10 +1,12 @@
 from discord.ext import commands, tasks
-from typing import Mapping, Optional
+from typing import Mapping, Optional, overload, Literal
 from dotenv import load_dotenv
-from common import config
+from common import config, get_master_db
+from async_lru import alru_cache
 import contracts
 import discord
 import os
+import re
 
 load_dotenv()
 
@@ -12,8 +14,9 @@ load_dotenv()
 class Natsumin(commands.Bot):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		# self.sync_to_sheet.start()
+		self.sync_to_sheet.start()
 		self.anicord: discord.Guild = None
+		self.master_db = get_master_db()
 
 	async def on_ready(self):
 		os.system("cls" if os.name == "nt" else "clear")
@@ -21,10 +24,79 @@ class Natsumin(commands.Bot):
 
 		self.anicord = self.get_guild(994071728017899600)
 
+	@alru_cache(ttl=contracts.CACHE_DURATION)
+	async def get_master_user(self, user: discord.Member | discord.User) -> contracts.MasterUser | None:
+		return await self.master_db.fetch_user(discord_id=user.id, username=user.name)
+
+	@alru_cache(ttl=contracts.CACHE_DURATION)
+	async def get_season_user(self, user: discord.Member | discord.User, season: str = None) -> contracts.SeasonUser | None:
+		if season is None:
+			season = config.active_season
+
+		master_user = await self.get_master_user(user)
+		if not master_user:
+			return None
+
+		season_db = await contracts.get_season_db(season)
+		season_user = await season_db.fetch_user(master_user.id)
+
+		return season_user
+
+	@overload
+	async def get_targeted_user(
+		self, username: str | discord.User, *, season: str = ..., return_as_master: Literal[True]
+	) -> tuple[discord.User | None, contracts.MasterUser | None]: ...
+	@overload
+	async def get_targeted_user(
+		self, username: str | discord.User, *, season: str = ..., return_as_master: Literal[False] = ...
+	) -> tuple[discord.User | None, contracts.SeasonUser | None]: ...
+	async def get_targeted_user(self, username: str | discord.User, *, season: str = None, return_as_master: bool = False) -> tuple:
+		if season is None:
+			season = config.active_season
+
+		discord_user: discord.Member = None
+
+		if isinstance(username, str):
+			if match := re.match(r"<@!?(\d+)>", username):
+				discord_id = int(match.group(1))
+				if self.anicord:
+					discord_user = self.anicord.get_member(discord_id)
+					if not discord_user:
+						discord_user = await self.anicord.fetch_member(discord_id)
+				else:
+					discord_user = await self.get_or_fetch_user(discord_id)
+
+				if not discord_user:
+					return None, None
+
+				username = discord_user.name
+		elif isinstance(username, (discord.User, discord.Member)):
+			discord_user = username
+			username = discord_user.name
+
+		master_user = await self.master_db.fetch_user_fuzzy(username)
+		if master_user is None:
+			return None, None
+
+		if discord_user is None:
+			if master_user.discord_id and self.anicord:
+				discord_user = self.anicord.get_member(master_user.discord_id)
+				if not discord_user:
+					discord_user = await self.anicord.fetch_member(master_user.discord_id)
+
+			if not discord_user and master_user.discord_id:
+				discord_user = await self.get_or_fetch_user(master_user.discord_id)
+
+		if return_as_master:
+			return discord_user, master_user
+		else:
+			season_db = await contracts.get_season_db(season)
+			season_user = await season_db.fetch_user(master_user.id)
+			return discord_user, season_user
+
 	@tasks.loop(minutes=10)
 	async def sync_to_sheet(self):
-		pass
-		# await contracts.sync_season_db()
+		await contracts.sync_season_db()
 
 	@sync_to_sheet.before_loop
 	async def before_sync(self):
@@ -38,15 +110,6 @@ bot = Natsumin(
 	case_insensitive=True,
 	allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True, replied_user=False),
 )
-
-
-def recursive_load_cogs(path: str):
-	for root, _, files in os.walk(path):
-		for file in files:
-			if file.endswith(".py"):
-				relative_path = os.path.relpath(root, path).replace(os.sep, ".")
-				cog_name = f"{relative_path}.{file[:-3]}" if relative_path != "." else file[:-3]
-				bot.load_extension(f"{path}.{cog_name}")
 
 
 class Help(commands.HelpCommand):
@@ -94,5 +157,5 @@ class Help(commands.HelpCommand):
 
 
 bot.help_command = Help()
-recursive_load_cogs("cogs")
+bot.load_extension("cogs", recursive=True)
 bot.run(os.getenv("DEV_DISCORD_TOKEN"))

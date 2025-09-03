@@ -409,7 +409,7 @@ class MasterUser(DBClass):
 	id: int
 	discord_id: int | None
 	username: str
-	rep: str
+	rep: str | None
 	gen: int | None
 	_db: MasterDB = field(repr=False, default=None)
 

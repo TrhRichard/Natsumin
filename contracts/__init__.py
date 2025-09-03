@@ -3,8 +3,6 @@ from .seasons import Winter2025
 from .classes import *  # noqa: F403
 from common import config
 import time
-import discord
-import utils
 
 AVAILABLE_SEASONS = ["Winter 2025"]
 
@@ -36,13 +34,3 @@ async def sync_season_db(season: str = None) -> float:  # Returns duration of sy
 			await Winter2025.sync_to_latest(db)
 
 	return time.perf_counter() - start
-
-
-async def usernames_autocomplete(ctx: discord.AutocompleteContext):
-	season_db = await get_season_db()
-	return await utils.contracts.get_usernames(season_db, query=ctx.value.strip(), limit=25)
-
-
-async def reps_autocomplete(ctx: discord.AutocompleteContext):
-	season_db = await get_season_db()
-	return await utils.contracts.get_reps(season_db, query=ctx.value.strip(), limit=25)

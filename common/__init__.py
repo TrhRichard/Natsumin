@@ -50,3 +50,9 @@ class BotConfig:
 
 with open("config.yaml") as f:
 	config: BotConfig = BotConfig(**yaml.safe_load(f))
+
+
+def get_master_db():
+	from contracts import MasterDB
+
+	return MasterDB.get_database()

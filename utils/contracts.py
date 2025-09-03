@@ -1,13 +1,8 @@
-from __future__ import annotations
-from typing import TYPE_CHECKING
 from async_lru import alru_cache
-from common import config
+from common import config, get_master_db
 from enum import StrEnum
 
-if TYPE_CHECKING:
-	from contracts.classes import SeasonDB
-
-__all__ = ["LegacyRank", "get_legacy_rank", "get_usernames", "get_reps", "get_time_till_season_ends"]
+__all__ = ["LegacyRank", "get_rank_emoteid", "get_legacy_rank", "get_usernames", "get_reps", "get_time_till_season_ends"]
 
 
 class LegacyRank(StrEnum):
@@ -25,6 +20,40 @@ class LegacyRank(StrEnum):
 	DIAMOND = "Diamond"
 	ALEXANDRITE = "Alexandrite"
 	PAINITE = "Painite"
+
+
+def get_rank_emoteid(rank: LegacyRank | None = None) -> int | None:
+	match rank:
+		case LegacyRank.QUARTZ:
+			return 1370358752129187891
+		case LegacyRank.CITRINE:
+			return 1370358870370812015
+		case LegacyRank.AMETHYST:
+			return 1370359411465519196
+		case LegacyRank.AQUAMARINE:
+			return 1370359420269101196
+		case LegacyRank.JADE:
+			return 1370359433514848367
+		case LegacyRank.TOPAZ:
+			return 1370359441265786911
+		case LegacyRank.MORGANITE:
+			return 1370359449528565770
+		case LegacyRank.SPINEL:
+			return 1370908107861004419
+		case LegacyRank.EMERALD:
+			return 1370359457917308958
+		case LegacyRank.SAPPHIRE:
+			return 1370359466519826505
+		case LegacyRank.RUBY:
+			return 1370359475080400926
+		case LegacyRank.DIAMOND:
+			return 1370359483531919461
+		case LegacyRank.ALEXANDRITE:
+			return 1370359491438051328
+		case LegacyRank.PAINITE:
+			return 1370359499151638530
+		case _:
+			return None
 
 
 def get_legacy_rank(exp: int | None) -> LegacyRank | None:
@@ -62,19 +91,27 @@ def get_legacy_rank(exp: int | None) -> LegacyRank | None:
 
 
 @alru_cache(ttl=12 * 60 * 60)
-async def get_usernames(season_db: SeasonDB, query: str = "", limit: int = None) -> list[str]:
-	from contracts.classes import MasterDB
+async def get_usernames(query: str = "", limit: int = None, *, season: str = None, seasonal: bool = True) -> list[str]:
+	from contracts import get_season_db
 
-	master_db = MasterDB.get_database()
+	if season is None:
+		season = config.active_season
+
+	season_db = await get_season_db(season)
+
+	master_db = get_master_db()
 	async with master_db.connect() as db:
 		async with db.execute("SELECT id, username FROM users") as cursor:
 			id_usernames: dict[int, str] = {row["id"]: row["username"] for row in await cursor.fetchall()}
 
-	async with season_db.connect() as db:
-		async with db.execute("SELECT user_id FROM users") as cursor:
-			season_user_ids: list[int] = [row["user_id"] for row in await cursor.fetchall()]
+	if seasonal:
+		async with season_db.connect() as db:
+			async with db.execute("SELECT user_id FROM users") as cursor:
+				season_user_ids: list[int] = [row["user_id"] for row in await cursor.fetchall()]
 
-	usernames = [id_usernames[user_id] for user_id in season_user_ids if user_id in id_usernames]
+		usernames = [id_usernames[user_id] for user_id in season_user_ids if user_id in id_usernames]
+	else:
+		usernames = list(id_usernames.values())
 
 	if query:
 		usernames = [name for name in usernames if query.lower() in name.lower()]
@@ -86,7 +123,13 @@ async def get_usernames(season_db: SeasonDB, query: str = "", limit: int = None)
 
 
 @alru_cache(ttl=12 * 60 * 60)
-async def get_reps(season_db: SeasonDB, query: str = "", limit: int | None = None) -> list[str]:
+async def get_reps(query: str = "", limit: int | None = None, season: str = None) -> list[str]:
+	from contracts import get_season_db
+
+	if season is None:
+		season = config.active_season
+
+	season_db = await get_season_db(season)
 	async with season_db.connect() as db:
 		async with db.execute(
 			f"SELECT DISTINCT rep FROM users WHERE upper(rep) LIKE ? {f'LIMIT {limit}' if limit else ''}", (f"%{query.upper()}%",)
