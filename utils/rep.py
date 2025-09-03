@@ -62,6 +62,7 @@ class RepName(StrEnum):
 	MADOME = "AN ARCHDEMON'S DILEMMA"
 	TOKYO_REVENGERS = "TOKYO REVENGERS"
 	MANHWA = "MANHWA"  # unused
+	VISUAL_NOVEL = "VISUAL NOVEL"
 
 
 ALTERNATIVE_NAMES: dict[RepName, list[str]] = {
@@ -85,6 +86,7 @@ ALTERNATIVE_NAMES: dict[RepName, list[str]] = {
 	RepName.LYCORIS_RECOIL: ["lycoreco"],
 	RepName.VANITAS: ["vnc"],
 	RepName.KING_PROPOSAL: ["kp"],
+	RepName.VISUAL_NOVEL: ["vn"],
 }
 
 rep_fuzzy_choices: dict[str, RepName] = {}

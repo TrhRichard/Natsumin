@@ -10,7 +10,6 @@ if TYPE_CHECKING:
 	from main import Natsumin
 
 FISH_STICKER_ID = 1073965395595235358
-FISH_EMOTE_ID = 1101799865098457088
 
 
 class BotInfoView(discord.ui.View):
@@ -50,9 +49,9 @@ class Other(commands.Cog):
 		self.bot = bot
 		self.logger = logging.getLogger("bot.other")
 
-		self.fish_emote = self.bot.get_emoji(FISH_EMOTE_ID)
 		self.fish_sticker: discord.GuildSticker = self.bot.get_sticker(FISH_STICKER_ID)
 		self.fish_messages_since_last: int = 0
+		self.fish_event_forced = False
 
 		if not self.logger.handlers:
 			file_handler = logging.FileHandler("logs/other.log", encoding="utf-8")
@@ -109,27 +108,37 @@ class Other(commands.Cog):
 		self.fish_messages_since_last += 1
 
 		bot_perms_in_channel = message.channel.permissions_for(message.guild.me)
-		if not bot_perms_in_channel.send_messages or not bot_perms_in_channel.add_reactions:
+		if not bot_perms_in_channel.send_messages:
 			return
 
 		if not self.fish_sticker:
 			self.fish_sticker = await self.bot.fetch_sticker(FISH_STICKER_ID)
 
-		if random.randint(1, 10000) != 15:
-			return
+		if not self.fish_event_forced:
+			if self.fish_messages_since_last >= 1000:
+				if random.randint(1, 100) != 15:
+					return
+			else:
+				if random.randint(1, 10000) != 15:
+					return
 
 		self.logger.info(f"A fish event has been triggered in #{message.channel.name} after {self.fish_messages_since_last} messages")
 		self.fish_messages_since_last = 0
-
-		match random.randint(1, 2):
-			case 1:  # Reaction
-				await message.add_reaction(self.fish_emote)
-			case 2:  # Sticker
-				await message.reply(None, stickers=[self.fish_sticker])
+		self.fish_event_forced = False
+		try:
+			await message.reply(None, stickers=[self.fish_sticker])
+		except (discord.HTTPException, discord.Forbidden) as e:
+			self.logger.error(f"Could not send a fish event: {e}")
 
 	@commands.command(hidden=True)
 	async def fish_count(self, ctx: commands.Context):
 		await ctx.reply(f"Current fish messages count since bot startup and last chisato: {self.fish_messages_since_last}")
+
+	@commands.command(hidden=True)
+	@commands.is_owner()
+	async def force_fish(self, ctx: commands.Context):
+		self.fish_event_forced = True
+		await ctx.reply("Next fish message will forcefully be a fish event.")
 
 
 def setup(bot):

@@ -92,12 +92,8 @@ def get_legacy_rank(exp: int | None) -> LegacyRank | None:
 
 @alru_cache(ttl=12 * 60 * 60)
 async def get_usernames(query: str = "", limit: int = None, *, season: str = None, seasonal: bool = True) -> list[str]:
-	from contracts import get_season_db
-
 	if season is None:
 		season = config.active_season
-
-	season_db = await get_season_db(season)
 
 	master_db = get_master_db()
 	async with master_db.connect() as db:
@@ -105,6 +101,9 @@ async def get_usernames(query: str = "", limit: int = None, *, season: str = Non
 			id_usernames: dict[int, str] = {row["id"]: row["username"] for row in await cursor.fetchall()}
 
 	if seasonal:
+		from contracts import get_season_db
+
+		season_db = await get_season_db(season)
 		async with season_db.connect() as db:
 			async with db.execute("SELECT user_id FROM users") as cursor:
 				season_user_ids: list[int] = [row["user_id"] for row in await cursor.fetchall()]
@@ -123,18 +122,26 @@ async def get_usernames(query: str = "", limit: int = None, *, season: str = Non
 
 
 @alru_cache(ttl=12 * 60 * 60)
-async def get_reps(query: str = "", limit: int | None = None, season: str = None) -> list[str]:
-	from contracts import get_season_db
-
+async def get_reps(query: str = "", limit: int | None = None, *, season: str = None, seasonal: bool = True) -> list[str]:
 	if season is None:
 		season = config.active_season
 
-	season_db = await get_season_db(season)
-	async with season_db.connect() as db:
-		async with db.execute(
-			f"SELECT DISTINCT rep FROM users WHERE upper(rep) LIKE ? {f'LIMIT {limit}' if limit else ''}", (f"%{query.upper()}%",)
-		) as cursor:
-			return [row[0] for row in await cursor.fetchall()]
+	if seasonal:
+		from contracts import get_season_db
+
+		season_db = await get_season_db(season)
+		async with season_db.connect() as db:
+			async with db.execute(
+				f"SELECT DISTINCT rep FROM users WHERE upper(rep) LIKE ? {f'LIMIT {limit}' if limit else ''}", (f"%{query.upper()}%",)
+			) as cursor:
+				return [row[0] for row in await cursor.fetchall()]
+	else:
+		master_db = get_master_db()
+		async with master_db.connect() as db:
+			async with db.execute(
+				f"SELECT DISTINCT rep FROM users WHERE upper(rep) LIKE ? {f'LIMIT {limit}' if limit else ''}", (f"%{query.upper()}%",)
+			) as cursor:
+				return [row[0] for row in await cursor.fetchall()]
 
 
 def get_time_till_season_ends(season: str = None) -> tuple[int, int, int, int]:

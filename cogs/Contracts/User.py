@@ -19,8 +19,11 @@ def usernames_autocomplete(seasonal: bool = True):
 	return callback
 
 
-async def reps_autocomplete(ctx: discord.AutocompleteContext):
-	return await utils.contracts.get_reps(query=ctx.value.strip(), limit=25)
+def reps_autocomplete(seasonal: bool = True):
+	async def callback(ctx: discord.AutocompleteContext):
+		return await utils.contracts.get_reps(query=ctx.value.strip(), limit=25, seasonal=seasonal)
+
+	return callback
 
 
 class UserBadges(View):
@@ -52,7 +55,7 @@ class UserBadges(View):
 		badge_artist = TextDisplay(f"-# Artist: {badge.artist}" if badge.artist else "-# No artist")
 		if badge.url:
 			badge_art = MediaGallery()
-			badge_art.add_item(badge.url, badge.artist)
+			badge_art.add_item(badge.url, description=badge.artist)
 		else:
 			badge_art = TextDisplay("No image available.")
 
