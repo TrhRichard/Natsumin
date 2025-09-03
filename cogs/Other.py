@@ -12,38 +12,6 @@ if TYPE_CHECKING:
 FISH_STICKER_ID = 1073965395595235358
 
 
-class BotInfoView(discord.ui.View):
-	def __init__(self, bot: "Natsumin"):
-		super().__init__()
-
-		ping_ms = round(bot.latency * 1000)
-
-		owner_names = []
-		for owner in config.owner_ids:
-			owner_names.append(f"**<@{owner}>**")
-		contributor_names = []
-		for contributor in config.contributor_ids:
-			contributor_names.append(f"**<@{contributor}>**")
-
-		container = discord.ui.Container(color=config.base_embed_color)
-		container.add_section(
-			discord.ui.TextDisplay(
-				f"## {bot.user.name}\n"
-				f"{bot.user.name} is a bot made for Anicord Event Server to assist with contracts related stuff. If you would like to contribute to it's development you can do it [here]({config.repository_link})."
-			),
-			accessory=discord.ui.Thumbnail(url=bot.user.avatar.url),
-		)
-		container.add_separator()
-		container.add_text(
-			f"**Ping**: {ping_ms}ms\n"
-			f"**Prefix**: `{config.prefix}`\n"
-			f"**Maintainers**: {','.join(owner_names)}\n"
-			f"**Contributors**: {','.join(contributor_names)}\n"
-		)
-
-		self.add_item(container)
-
-
 class Other(commands.Cog):
 	def __init__(self, bot: "Natsumin"):
 		self.bot = bot
@@ -62,13 +30,41 @@ class Other(commands.Cog):
 			self.logger.addHandler(console_handler)
 			self.logger.setLevel(logging.INFO)
 
+	def get_bot_info_container(self) -> discord.ui.Container:
+		ping_ms = round(self.bot.latency * 1000)
+
+		owner_names = []
+		for owner in config.owner_ids:
+			owner_names.append(f"**<@{owner}>**")
+		contributor_names = []
+		for contributor in config.contributor_ids:
+			contributor_names.append(f"**<@{contributor}>**")
+
+		container = discord.ui.Container(color=config.base_embed_color)
+		container.add_section(
+			discord.ui.TextDisplay(
+				f"## {self.bot.user.name}\n"
+				f"{self.bot.user.name} is a bot made for Anicord Event Server to assist with contracts related stuff. If you would like to contribute to it's development you can do it [here]({config.repository_link})."
+			),
+			accessory=discord.ui.Thumbnail(url=self.bot.user.avatar.url),
+		)
+		container.add_separator()
+		container.add_text(
+			f"**Ping**: {ping_ms}ms\n"
+			f"**Prefix**: `{config.prefix}`\n"
+			f"**Maintainers**: {','.join(owner_names)}\n"
+			f"**Contributors**: {','.join(contributor_names)}\n"
+		)
+		container.add_item(discord.ui.Button(label="Repository", url=config.repository_link))
+		return container
+
 	@commands.command(help="Fetch information on the bot")
 	async def botinfo(self, ctx: commands.Context):
-		await ctx.reply(view=BotInfoView(self.bot))
+		await ctx.reply(view=discord.ui.View(self.get_bot_info_container()))
 
 	@commands.slash_command(name="botinfo", description="Fetch information on the bot")
 	async def slash_botinfo(self, ctx: discord.ApplicationContext):
-		await ctx.respond(view=BotInfoView(self.bot))
+		await ctx.respond(view=discord.ui.View(self.get_bot_info_container()))
 
 	@commands.command(help="Check the bot's latency", aliases=["latency"])
 	async def ping(self, ctx: commands.Context):
