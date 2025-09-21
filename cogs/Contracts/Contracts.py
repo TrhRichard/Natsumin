@@ -63,9 +63,11 @@ class StatsView(View):
 		stats_display = TextDisplay(
 			f"**Users passed**: {get_percentage_formatted(len(filter_list(total_users, status=UserStatus.PASSED)), len(total_users))}\n"
 			f"**Contracts passed**: {get_percentage_formatted(len(filter_list(normal_contracts, status=ContractStatus.PASSED)), len(normal_contracts))}\n"
-			f"**Aid Contracts passed**: {get_percentage_formatted(len(filter_list(aid_contracts, status=ContractStatus.PASSED)), len(aid_contracts))}"
-			if aid_contracts
-			else ""
+			+ (
+				f"**Aid Contracts passed**: {get_percentage_formatted(len(filter_list(aid_contracts, status=ContractStatus.PASSED)), len(aid_contracts))}"
+				if aid_contracts
+				else ""
+			)
 		)
 
 		category_text: str = ""
@@ -136,8 +138,6 @@ class ContractsContracts(commands.Cog):  # yeah
 
 		if rep_stats_wanted and rep is None:
 			return await ctx.respond(f"Rep {original_rep_query} cannot be found in {season}.")
-
-		print(rep)
 
 		await ctx.respond(
 			view=await StatsView.create(self.bot, ctx.author, rep, season),

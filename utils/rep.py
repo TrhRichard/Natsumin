@@ -63,6 +63,11 @@ class RepName(StrEnum):
 	TOKYO_REVENGERS = "TOKYO REVENGERS"
 	MANHWA = "MANHWA"  # unused
 	VISUAL_NOVEL = "VISUAL NOVEL"
+	ONE_PIECE = "ONE PIECE"
+	CALL_OF_THE_NIGHT = "CALL OF THE NIGHT"
+	GACHIAKUTA = "GACHIAKUTA"
+	ORV = "OMNISCIENT READERS VIEWPOINT"
+	ICHI_THE_WITCH = "ICHI THE WITCH"
 
 
 ALTERNATIVE_NAMES: dict[RepName, list[str]] = {
@@ -80,13 +85,16 @@ ALTERNATIVE_NAMES: dict[RepName, list[str]] = {
 	RepName.IRUMA: ["welcome to demon school! iruma-kun"],
 	RepName.KUMO: ["kumo desu ga, nani ka?", "so i'm a spider, so what?"],
 	RepName.HOUSEKI_NO_KUNI: ["land of the lustrous"],
-	RepName.TENSURA: ["slime", "that time i got reincarnated as a slime"],
+	RepName.TENSURA: ["slime", "that time i got reincarnated as a slime", "tensei slime"],
 	RepName.OTONARI: ["otonari no tenshi sama", "the angel next door spoils me rotten"],
 	RepName.GO_TOUBOUN: ["the quintessential quintuplets", "5tbn"],
 	RepName.LYCORIS_RECOIL: ["lycoreco"],
 	RepName.VANITAS: ["vnc"],
 	RepName.KING_PROPOSAL: ["kp"],
-	RepName.VISUAL_NOVEL: ["vn"],
+	RepName.VISUAL_NOVEL: ["vn", "visual novel fandom"],
+	RepName.CALL_OF_THE_NIGHT: ["yofukashi no uta"],
+	RepName.ORV: ["omniscient reader"],
+	RepName.KANOKARI: ["rent a girlfriend"],
 }
 
 rep_fuzzy_choices: dict[str, RepName] = {}
