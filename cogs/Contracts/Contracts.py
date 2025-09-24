@@ -1,4 +1,4 @@
-from discord.ui import View, Container, TextDisplay, Separator, Section, Button
+from discord.ui import View, Container, TextDisplay, Separator
 from contracts import UserStatus, ContractKind, ContractStatus
 from utils import get_percentage_formatted, filter_list
 from discord.ext import commands
@@ -97,7 +97,7 @@ class StatsView(View):
 
 			for c_type in sorted(type_contracts.keys()):
 				all_contracts_of_type = type_contracts.get(c_type, [])
-				category_text += f"**{c_type}**: {get_percentage_formatted(len(filter_list(all_contracts_of_type, status=ContractStatus.PASSED)), len(all_contracts_of_type))}\n"
+				category_text += f"> **{c_type}**: {get_percentage_formatted(len(filter_list(all_contracts_of_type, status=ContractStatus.PASSED)), len(all_contracts_of_type))}\n"
 
 		s_view.add_item(
 			Container(
@@ -123,8 +123,10 @@ class ContractsContracts(commands.Cog):  # yeah
 	contracts_group = discord.commands.SlashCommandGroup("contracts", description="Various contracts related commands", guild_ids=config.guild_ids)
 
 	@contracts_group.command(description="Fetch the stats of a season, optionally of a rep in that season")
-	@discord.option(name="rep", description="The rep to get stats of", default=None, autocomplete=reps_autocomplete(True))
-	@discord.option(name="season", description="Season to get stats from, defaults to current", default=None, choices=["Winter 2025"])
+	@discord.option(
+		name="rep", description="The rep to get stats of, only autocompletes from active season", default=None, autocomplete=reps_autocomplete(True)
+	)
+	@discord.option(name="season", description="Season to get stats from, defaults to active", default=None, choices=contracts.AVAILABLE_SEASONS)
 	async def stats(self, ctx: discord.ApplicationContext, rep: str = None, season: str = None):
 		if season is None:
 			season = config.active_season

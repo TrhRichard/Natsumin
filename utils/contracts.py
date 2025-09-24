@@ -111,8 +111,8 @@ async def get_usernames(query: str = "", limit: int = None, *, season: str = Non
 
 		season_db = await get_season_db(season)
 		async with season_db.connect() as db:
-			async with db.execute("SELECT user_id FROM users") as cursor:
-				season_user_ids: list[int] = [row["user_id"] for row in await cursor.fetchall()]
+			async with db.execute("SELECT id FROM users") as cursor:
+				season_user_ids: list[int] = [row["id"] for row in await cursor.fetchall()]
 
 		usernames = [id_usernames[user_id] for user_id in season_user_ids if user_id in id_usernames]
 	else:
