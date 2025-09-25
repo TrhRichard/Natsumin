@@ -122,6 +122,19 @@ class SeasonUser(DBClass):
 
 		return []
 
+	@alru_cache(ttl=CACHE_DURATION)
+	async def get_contractor(self) -> tuple[MasterUser | None, SeasonUser | None]:
+		if not self.contractor:
+			return None, None
+
+		master_db = self._db._master_db
+		contractor_md = await master_db.fetch_user_fuzzy(self.contractor)
+		if not contractor_md:
+			return None, None
+
+		contractor_sd = await self._db.fetch_user(contractor_md.id)
+		return contractor_md, contractor_sd
+
 	async def to_dict(self, *, include_contracts: bool = False):
 		master_user = await self.get_master_data()
 		return {

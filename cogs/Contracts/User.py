@@ -34,7 +34,7 @@ def get_status_emote(status: UserStatus | ContractStatus, is_optional: bool = Fa
 			return "❔"
 
 
-class ContractsGetFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
+class ExtraFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
 	season: str = commands.flag(aliases=["s"], default=config.active_season)
 
 
@@ -76,7 +76,7 @@ class UserBadges(View):
 			Button(
 				style=discord.ButtonStyle.primary,
 				label=f"{self.current_badge_selected + 1}/{len(self.badges)}",
-				disabled=True,
+				disabled=len(self.badges) == 1,
 				custom_id="change_page",
 			),
 			Button(style=discord.ButtonStyle.secondary, label="-->", disabled=True, custom_id="next"),
@@ -84,8 +84,6 @@ class UserBadges(View):
 
 		for button in page_buttons:
 			button.callback = self.button_callback
-			if button.custom_id != "change_page":
-				button.disabled = True if len(self.badges) == 1 else False
 
 		return Container(
 			TextDisplay(f"# {badge.name}\n{badge.description}"),
@@ -114,25 +112,33 @@ class MasterUserProfile(View):
 		self.user = user
 		self.master_user = master_user
 
-		top_section = Section(accessory=Thumbnail(user.display_avatar.url))
-
 		legacy_rank = utils.get_legacy_rank(legacy_exp)
+		username = f"<@{self.user.id}>" if user else master_user.username
 
-		top_section.add_text( 
-			f"# <@{user.id}>'s Profile\n" +
-			(f"- **Rep**: {master_user.rep}\n" if master_user.rep else "") +
-			(f"- **Generation**: {master_user.gen}\n" if master_user.gen else "") +
-			(
-				"### Legacy Leaderboard\n" +
-				f"- **Rank**: {legacy_rank} <a:{legacy_rank.value}:{utils.get_rank_emoteid(legacy_rank)}>\n" +
-				f"- **EXP**: {legacy_exp}"
-			) if legacy_exp else ""
-			
+		header_content = (
+			f"# {username}'s Profile\n"
+			+ (f"- **Rep**: {master_user.rep}\n" if master_user.rep else "")
+			+ (f"- **Generation**: {master_user.gen}\n" if master_user.gen else "")
+			+ (
+				"### Legacy Leaderboard\n"
+				+ f"- **Rank**: {legacy_rank} <a:{legacy_rank.value}:{utils.get_rank_emoteid(legacy_rank)}>\n"
+				+ f"- **EXP**: {legacy_exp}"
+			)
+			if legacy_exp
+			else ""
 		)  # fmt: skip
+
 		badges_button = Button(style=discord.ButtonStyle.secondary, label="Check badges", custom_id="check_badges")
 		badges_button.callback = self.button_callback
 
-		self.add_item(Container(top_section, Separator(), badges_button, color=config.base_embed_color))
+		self.add_item(
+			Container(
+				Section(TextDisplay(header_content), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(header_content),
+				Separator(),
+				badges_button,
+				color=config.base_embed_color,
+			)
+		)
 
 	async def button_callback(self, interaction: discord.Interaction):
 		if interaction.custom_id != "check_badges":
@@ -143,6 +149,101 @@ class MasterUserProfile(View):
 			return await interaction.respond("No badges found.", ephemeral=True)
 
 		await interaction.respond(view=UserBadges(self.bot, interaction.user, self.user, badges), ephemeral=True)
+
+
+class ContractsProfile(View):
+	def __init__(
+		self,
+		bot: "Natsumin",
+		invoker: discord.User,
+		user: discord.Member | discord.User,
+		master_user: contracts.MasterUser,
+		season_user: contracts.SeasonUser,
+		*,
+		season: str = config.active_season,
+	):
+		super().__init__(timeout=180, disable_on_timeout=True)
+		self.bot = bot
+		self.invoker = invoker
+		self.user = user
+		self.master_user = master_user
+		self.season_user = season_user
+		self.season = season
+
+		username = f"<@{self.user.id}>" if user else master_user.username
+		user_description = f"- **Status**: {get_status_emote(UserStatus(season_user.status))}\n"
+		if UserKind(season_user.kind) == UserKind.NORMAL:
+			user_description += f"- **Rep**: {season_user.rep or 'Unknown'}\n"
+			user_description += f"- **Contractor**: {season_user.contractor or 'None'}\n"
+			user_description += f"- **List**: {season_user.list_url or 'Unknown'}\n"
+			user_description += f"- **Preferences**: {(season_user.preferences or 'Unknown').replace('\n', ', ')}\n"
+			user_description += f"- **Bans**: {(season_user.bans or 'Unknown').replace('\n', ', ')}\n"
+			user_description += (
+				f"- **Accepting**: LN={'Yes' if season_user.accepting_ln else 'No'}; MANHWA={'Yes' if season_user.accepting_manhwa else 'No'}\n"
+			)
+			user_description += f"- **Veto used**: {'Yes' if season_user.veto_used else 'No'}\n"
+		else:
+			user_description += "-# Information limited for people that joined this season for aids."
+
+		header_content = f"## {username}'s Profile\n{user_description}"
+
+		buttons = (
+			Button(
+				style=discord.ButtonStyle.secondary,
+				label="Get Contractor",
+				disabled=self.season_user.contractor is None,
+				custom_id="get_contractor_profile",
+			),
+			# Button(style=discord.ButtonStyle.secondary, label="Get Contractee", disabled=True, custom_id="get_contractee_profile"),
+			Button(style=discord.ButtonStyle.secondary, label="Check Contracts", custom_id="get_contracts"),
+		)
+
+		for button in buttons:
+			button.callback = self.button_callback
+
+		self.add_item(
+			Container(
+				Section(TextDisplay(header_content), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(header_content),
+				Separator(),
+				*buttons,
+				TextDisplay(f"-# <:Kirburger:998705274074435584> {utils.get_deadline_footer(season)}"),
+				color=config.base_embed_color,
+			)
+		)
+
+	async def button_callback(self, interaction: discord.Interaction):
+		match interaction.custom_id:
+			case "get_contractor_profile":
+				if not self.season_user.contractor:
+					return await interaction.respond("This user does not have a contractor!", ephemeral=True)
+				user, master_user = await self.bot.get_targeted_user(self.season_user.contractor, return_as_master=True)
+				if not master_user:
+					return await interaction.respond("Could not find the contractor!", ephemeral=True)
+
+				season_user = await self.season_user._db.fetch_user(master_user.id)
+				if not season_user:
+					return await interaction.respond("Could not find the contractor!", ephemeral=True)
+
+				await interaction.respond(
+					view=ContractsProfile(self.bot, interaction.user, user, master_user, season_user, season=self.season),
+					ephemeral=True,
+					allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
+				)
+			case "get_contractee_profile":
+				await interaction.respond("Currenlty not implemented, how did you even reach this.", ephemeral=True)
+			case "get_contracts":
+				order_data = await self.season_user._db.get_order_data()
+				user_contracts = await self.season_user.get_contracts()
+
+				await interaction.respond(
+					view=UserContracts(
+						self.bot, interaction.user, self.user, self.season_user, self.master_user, self.season, user_contracts, order_data
+					),
+					ephemeral=True,
+					allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
+				)
+			case _:
+				return
 
 
 class UserContracts(View):
@@ -165,17 +266,15 @@ class UserContracts(View):
 		self.season = season
 		self.order_data = order_data
 
-		top_section = Section(accessory=Thumbnail(user.display_avatar.url))
-
 		username = f"<@{self.user.id}>" if user else master_user.username
 
 		footer_messages: list[str] = []
 
-		user_description = f"> **Status**: {get_status_emote(UserStatus(season_user.status))}\n"
+		user_description = f"- **Status**: {get_status_emote(UserStatus(season_user.status))}\n"
 		if UserKind(season_user.kind) == UserKind.NORMAL:
-			user_description += f"> **Contractor**: {season_user.contractor}"
+			user_description += f"- **Contractor**: {season_user.contractor}"
 
-		top_section.add_text(f"## {username}'s Contracts\n{user_description}")
+		header_content = f"## {username}'s Contracts\n{user_description}"
 
 		category_text: str = ""
 		if order_data is not None:
@@ -217,7 +316,12 @@ class UserContracts(View):
 				contract_name = f"[{contract.name}]({contract.review_url})" if contract.review_url else contract.name
 				category_text += f"> {get_status_emote(contract.status)} **{contract.type}**: {contract_name}\n"
 
-		container = Container(top_section, Separator(), TextDisplay(category_text), color=config.base_embed_color)
+		container = Container(
+			Section(TextDisplay(header_content), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(header_content),
+			Separator(),
+			TextDisplay(category_text),
+			color=config.base_embed_color,
+		)
 		if footer_messages:
 			container.add_text("\n".join([f"-# {msg}" for msg in footer_messages]))
 		container.add_separator()
@@ -234,9 +338,9 @@ class ContractsUser(commands.Cog):
 	user_group = discord.commands.SlashCommandGroup("user", description="Various user related commands", guild_ids=config.guild_ids)
 	contracts_subgroup = user_group.create_subgroup("contracts", description="Various user contracts related commands", guild_ids=config.guild_ids)
 
-	@user_group.command(description="Fetch the global profile of a user")
+	@user_group.command(name="profile", description="Fetch the global profile of a user")
 	@discord.option(name="user", description="The user to get profile of", default=None, autocomplete=usernames_autocomplete(False))
-	async def profile(self, ctx: discord.ApplicationContext, user: str = None):
+	async def globalprofile(self, ctx: discord.ApplicationContext, user: str = None):
 		if user is None:
 			user = ctx.author
 
@@ -270,7 +374,7 @@ class ContractsUser(commands.Cog):
 			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
 		)
 
-	@contracts_subgroup.command(name="get", description="Fetch the badges of a user")
+	@contracts_subgroup.command(name="get", description="Fetch the contracts of a user")
 	@discord.option(
 		name="user",
 		description="The user to see contracts of, only autocompletes from active season",
@@ -278,7 +382,7 @@ class ContractsUser(commands.Cog):
 		autocomplete=usernames_autocomplete(True),
 	)
 	@discord.option(name="season", description="Season to get data from, defaults to active", default=None, choices=contracts.AVAILABLE_SEASONS)
-	async def contracts(self, ctx: discord.ApplicationContext, user: str = None, season: str = None):
+	async def s_contracts(self, ctx: discord.ApplicationContext, user: str = None, season: str = None):
 		if user is None:
 			user = ctx.author
 		if season is None:
@@ -305,6 +409,38 @@ class ContractsUser(commands.Cog):
 			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
 		)
 
+	@contracts_subgroup.command(name="profile", description="Fetch the season profile of a user")
+	@discord.option(
+		name="user",
+		description="The user to see profile of, only autocompletes from active season",
+		default=None,
+		autocomplete=usernames_autocomplete(True),
+	)
+	@discord.option(name="season", description="Season to get data from, defaults to active", default=None, choices=contracts.AVAILABLE_SEASONS)
+	async def profile(self, ctx: discord.ApplicationContext, user: str = None, season: str = None):
+		if user is None:
+			user = ctx.author
+		if season is None:
+			season = config.active_season
+
+		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
+		if not m_user:
+			return await ctx.respond("User is currently not in the database.", ephemeral=True)
+
+		try:
+			season_db = await contracts.get_season_db(season)
+		except ValueError:
+			return await ctx.respond(f"There is no {season} in Ba Sing Se ||(No data for such season found)||", ephemeral=True)
+		s_user = await season_db.fetch_user(m_user.id)
+
+		if not s_user:
+			return await ctx.respond(f"User is not part of Contracts {season}!", ephemeral=True)
+
+		await ctx.respond(
+			view=ContractsProfile(self.bot, ctx.author, selected_user, m_user, s_user, season=season),
+			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
+		)
+
 	@commands.command("badges", aliases=["b"], help="Fetch the badges of a user")
 	async def text_badges(self, ctx: commands.Context, user: str = None):
 		if user is None:
@@ -324,7 +460,7 @@ class ContractsUser(commands.Cog):
 		)
 
 	@commands.command("globalprofile", aliases=["gp"], help="Fetch the global profile of a user")
-	async def text_profile(self, ctx: commands.Context, user: str = None):
+	async def text_globalprofile(self, ctx: commands.Context, user: str = None):
 		if user is None:
 			user = ctx.author
 
@@ -340,7 +476,7 @@ class ContractsUser(commands.Cog):
 		)
 
 	@commands.command("contracts", aliases=["c"], help="Fetch the status of your contracts")
-	async def text_contracts(self, ctx: commands.Context, user: str = None, *, flags: ContractsGetFlags):
+	async def text_contracts(self, ctx: commands.Context, user: str = None, *, flags: ExtraFlags):
 		season = flags.season
 		if user is None:
 			user = ctx.author
@@ -363,6 +499,30 @@ class ContractsUser(commands.Cog):
 
 		await ctx.reply(
 			view=UserContracts(self.bot, ctx.author, selected_user, s_user, m_user, season, user_contracts, order_data),
+			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
+		)
+
+	@commands.command("seasonprofile", aliases=["p", "profile"], help="Fetch the season profile of a user")
+	async def text_profile(self, ctx: commands.Context, user: str = None, *, flags: ExtraFlags):
+		season = flags.season
+		if user is None:
+			user = ctx.author
+
+		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
+		if not m_user:
+			return await ctx.reply("User is currently not in the database.")
+
+		try:
+			season_db = await contracts.get_season_db(season)
+		except ValueError:
+			return await ctx.reply(f"There is no {season} in Ba Sing Se ||(No data for such season found)||")
+		s_user = await season_db.fetch_user(m_user.id)
+
+		if not s_user:
+			return await ctx.reply(f"User is not part of Contracts {season}!")
+
+		await ctx.reply(
+			view=ContractsProfile(self.bot, ctx.author, selected_user, m_user, s_user, season=season),
 			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
 		)
 
