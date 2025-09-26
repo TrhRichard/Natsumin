@@ -11,12 +11,30 @@ import utils
 if TYPE_CHECKING:
 	from main import Natsumin
 
+NEED_TO_SELECT_STRINGS = ["PLEASE SELECT", "Undecided"]
+
 
 def usernames_autocomplete(seasonal: bool = True):
 	async def callback(ctx: discord.AutocompleteContext) -> list[str]:
 		return await utils.contracts.get_usernames(query=ctx.value.strip(), limit=25, seasonal=seasonal)
 
 	return callback
+
+
+def get_user_status_name(status: UserStatus) -> str:
+	match status:
+		case UserStatus.PASSED:
+			return "Passed"
+		case UserStatus.LATE_PASS:
+			return "Passed late"
+		case UserStatus.FAILED:
+			return "Failed"
+		case UserStatus.INCOMPLETE:
+			return "Incomplete"
+		case UserStatus.PENDING:
+			return "Pending"
+		case _:
+			return "N/A"
 
 
 def get_status_emote(status: UserStatus | ContractStatus, is_optional: bool = False) -> str:
@@ -171,13 +189,15 @@ class ContractsProfile(View):
 		self.season = season
 
 		username = f"<@{self.user.id}>" if user else master_user.username
-		user_description = f"- **Status**: {get_status_emote(UserStatus(season_user.status))}\n"
+		user_description = (
+			f"- **Status**: {get_user_status_name(UserStatus(season_user.status))} {get_status_emote(UserStatus(season_user.status))}\n"
+		)
 		if UserKind(season_user.kind) == UserKind.NORMAL:
 			user_description += f"- **Rep**: {season_user.rep or 'Unknown'}\n"
 			user_description += f"- **Contractor**: {season_user.contractor or 'None'}\n"
-			user_description += f"- **List**: {season_user.list_url or 'Unknown'}\n"
-			user_description += f"- **Preferences**: {(season_user.preferences or 'Unknown').replace('\n', ', ')}\n"
-			user_description += f"- **Bans**: {(season_user.bans or 'Unknown').replace('\n', ', ')}\n"
+			user_description += f"- **List**: {season_user.list_url or 'N/A'}\n"
+			user_description += f"- **Preferences**: {(season_user.preferences or 'N/A').replace('\n', ', ')}\n"
+			user_description += f"- **Bans**: {(season_user.bans or 'N/A').replace('\n', ', ')}\n"
 			user_description += (
 				f"- **Accepting**: LN={'Yes' if season_user.accepting_ln else 'No'}; MANHWA={'Yes' if season_user.accepting_manhwa else 'No'}\n"
 			)
@@ -270,7 +290,9 @@ class UserContracts(View):
 
 		footer_messages: list[str] = []
 
-		user_description = f"- **Status**: {get_status_emote(UserStatus(season_user.status))}\n"
+		user_description = (
+			f"- **Status**: {get_user_status_name(UserStatus(season_user.status))} {get_status_emote(UserStatus(season_user.status))}\n"
+		)
 		if UserKind(season_user.kind) == UserKind.NORMAL:
 			user_description += f"- **Contractor**: {season_user.contractor}"
 
@@ -297,12 +319,19 @@ class UserContracts(View):
 				text_contract_stats: list[str] = []
 				for contract in type_contracts.values():
 					contract_name = f"[{contract.name}]({contract.review_url})" if contract.review_url else contract.name
-					text_contract_stats.append(f"> {get_status_emote(contract.status, contract.optional)} **{contract.type}**: {contract_name}")
+
+					status_emote: str = None
+					if contract.name.strip() in NEED_TO_SELECT_STRINGS:
+						status_emote = "⚠️"
+						contract_name = f"**__{contract_name}__**"
+					else:
+						status_emote = get_status_emote(contract.status, contract.optional)
+
+					text_contract_stats.append(f"> {status_emote} **{contract.type}**: {contract_name}")
 
 				category_text += f"### {category_name} ({category_counts[category_name][1]}/{category_counts[category_name][0]})\n{'\n'.join(text_contract_stats)}\n"
 				if category_counts[category_name][1] == category_counts[category_name][0]:
 					footer_messages.append(f"This user has finished all **{category_name}**!")
-
 		else:
 			contracts_passed = len(utils.filter_list(user_contracts, status=ContractStatus.PASSED)) + len(
 				utils.filter_list(user_contracts, status=ContractStatus.LATE_PASS)
@@ -314,7 +343,15 @@ class UserContracts(View):
 
 			for contract in sorted(type_contracts.values()):
 				contract_name = f"[{contract.name}]({contract.review_url})" if contract.review_url else contract.name
-				category_text += f"> {get_status_emote(contract.status)} **{contract.type}**: {contract_name}\n"
+
+				status_emote: str = None
+				if contract.name.strip() in NEED_TO_SELECT_STRINGS:
+					status_emote = "⚠️"
+					contract_name = f"**__{contract_name}__**"
+				else:
+					status_emote = get_status_emote(contract.status, contract.optional)
+
+				category_text += f"> {status_emote} **{contract.type}**: {contract_name}\n"
 
 		container = Container(
 			Section(TextDisplay(header_content), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(header_content),

@@ -1,9 +1,11 @@
+from async_lru import alru_cache
 from utils import CONSOLE_LOGGING_FORMATTER, FILE_LOGGING_FORMATTER, config
 from discord.ext import commands
 from typing import TYPE_CHECKING
 import contracts
 import logging
 import discord
+import common
 import json
 import io
 
@@ -116,6 +118,67 @@ class Owner(commands.Cog):
 		await config.update_from_file()
 
 		await ctx.reply("Config has been updated to the latest version available on the system.")
+
+	@commands.command(hidden=True, aliases=["mui"])
+	@commands.is_owner()
+	async def master_user_info(self, ctx: commands.Context, username: str = None):
+		if username is None:
+			username = ctx.author.name
+		master_db = common.get_master_db()
+		master_user = await master_db.fetch_user_fuzzy(username)
+		if not master_user:
+			return await ctx.reply("User not found.")
+
+		return await ctx.reply(f"```json\n{json.dumps(await master_user.to_dict(include_badges=True, include_leaderboards=True), indent=4)}\n```")
+
+	@commands.command(hidden=True)
+	@commands.is_owner()
+	async def setalias(self, ctx: commands.Context, id: int, alias: str):
+		master_db = common.get_master_db()
+		master_user = await master_db.fetch_user(id)
+		if not master_user:
+			return await ctx.reply("User not found.")
+
+		await master_db.add_user_alias(id, alias, force=True)
+		await ctx.reply(f"Succesfully added alias `{alias}` to {master_user.username} ({master_user.id})")
+
+	@commands.command(hidden=True)
+	@commands.is_owner()
+	async def removealias(self, ctx: commands.Context, alias: str):
+		master_db = common.get_master_db()
+		async with master_db.connect() as conn:
+			async with conn.execute("SELECT 1 FROM user_aliases WHERE username = ?", (alias,)) as cursor:
+				row = await cursor.fetchone()
+
+			if row is None:
+				return await ctx.reply("Alias not found.")
+
+			await conn.execute("DELETE FROM user_aliases WHERE username = ?", (alias,))
+			await conn.commit()
+
+		await ctx.reply(f"Removed alias `{alias}`")
+
+	@alru_cache(ttl=contracts.CACHE_DURATION)
+	async def get_user_aliases(self, user_id: int = None) -> list[tuple[str, int]]:
+		master_db = common.get_master_db()
+		async with master_db.connect() as conn:
+			if user_id is None:
+				async with conn.execute("SELECT username, user_id FROM user_aliases") as cursor:
+					rows = await cursor.fetchall()
+			else:
+				async with conn.execute("SELECT username, user_id FROM user_aliases WHERE user_id = ?", (user_id,)) as cursor:
+					rows = await cursor.fetchall()
+
+		return [(row["username"], row["user_id"]) for row in rows]
+
+	@commands.command(hidden=True)
+	@commands.is_owner()
+	async def getaliases(self, ctx: commands.Context, id: int = None):
+		user_aliases = await self.get_user_aliases(id)
+		if not user_aliases:
+			return await ctx.reply("No aliases found.")
+
+		await ctx.reply(f"Aliases: {', '.join([f'`{alias}` ({u_id})' if id is None else f'`{alias}`' for alias, u_id in user_aliases])}")
 
 
 def setup(bot):

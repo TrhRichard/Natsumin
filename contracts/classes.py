@@ -589,7 +589,7 @@ class MasterDB:
 				async with conn.execute(
 					"""
 					SELECT u.* FROM users u
-					JOIN user_aliases a ON u.user_id = a.user_id
+					JOIN user_aliases a ON u.id = a.id
 					WHERE a.username = ?
 					LIMIT 1
 					""",
@@ -607,6 +607,18 @@ class MasterDB:
 			async with conn.execute("SELECT * FROM users WHERE username = ? LIMIT 1", (username.lower(),)) as cursor:
 				row = await cursor.fetchone()
 				if row:
+					return MasterUser(**row, _db=self)
+
+			async with conn.execute(
+				"""
+				SELECT u.* FROM users u
+				JOIN user_aliases a ON u.id = a.user_id
+				WHERE a.username = ?
+				LIMIT 1
+				""",
+				(username,),
+			) as cursor:
+				if row := await cursor.fetchone():
 					return MasterUser(**row, _db=self)
 
 			async with conn.execute("SELECT id, username FROM users") as cursor:
