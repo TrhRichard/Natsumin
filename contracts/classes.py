@@ -690,6 +690,18 @@ class MasterDB:
 			return user_id
 
 	@alru_cache(ttl=CACHE_DURATION)
+	async def get_user_aliases(self, user_id: int = None) -> list[tuple[str, int]]:
+		async with self.connect() as conn:
+			if user_id is None:
+				async with conn.execute("SELECT username, user_id FROM user_aliases") as cursor:
+					rows = await cursor.fetchall()
+			else:
+				async with conn.execute("SELECT username, user_id FROM user_aliases WHERE user_id = ?", (user_id,)) as cursor:
+					rows = await cursor.fetchall()
+
+		return [(row["username"], row["user_id"]) for row in rows]
+
+	@alru_cache(ttl=CACHE_DURATION)
 	async def to_dict(self, *, include_badges_in_users: bool = False, include_leaderboard_in_users: bool = False) -> dict:
 		master_dict = {"badges": [], "users": [], "aliases": {}, "leaderboards": {"legacy": []}}
 

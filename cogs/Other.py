@@ -136,6 +136,11 @@ class Other(commands.Cog):
 		self.fish_event_forced = True
 		await ctx.reply("Next fish message will forcefully be a fish event.")
 
+	@commands.command("richardpoggers", hidden=True, help="why", aliases=["richardpog"])
+	async def richard_poggers(self, ctx: commands.Context):
+		sticker = self.bot.get_sticker(1336790955281485845) or await self.bot.fetch_sticker(1336790955281485845)
+		await ctx.reply(None, stickers=[sticker])
+
 
 def setup(bot):
 	bot.add_cog(Other(bot))

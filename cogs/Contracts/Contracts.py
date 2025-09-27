@@ -131,15 +131,19 @@ class ContractsContracts(commands.Cog):  # yeah
 		if season is None:
 			season = config.active_season
 
-		rep_stats_wanted = rep is not None
+		try:
+			_ = await contracts.get_season_db(season)
+		except ValueError as e:
+			return await ctx.respond(str(e), ephemeral=True)
+
 		if rep is not None:
 			original_rep_query: str = rep
 			rep = utils.get_rep(rep, only_include_reps=await utils.get_reps(season=season))
 			if isinstance(rep, utils.RepName):
 				rep = rep.value
 
-		if rep_stats_wanted and rep is None:
-			return await ctx.respond(f"Rep {original_rep_query} cannot be found in {season}.")
+			if rep is None:
+				return await ctx.respond(f"Rep {original_rep_query} cannot be found in {season}.", ephemeral=True)
 
 		await ctx.respond(
 			view=await StatsView.create(self.bot, ctx.author, rep, season),
@@ -149,6 +153,11 @@ class ContractsContracts(commands.Cog):  # yeah
 	@commands.command("stats", aliases=["s"], help="Fetch the stats of a season, optionally of a rep in that season")
 	async def text_stats(self, ctx: commands.Context, *, rep: str = None):
 		season = config.active_season
+
+		try:
+			_ = await contracts.get_season_db(season)
+		except ValueError as e:
+			return await ctx.reply(str(e))
 
 		rep_stats_wanted = rep is not None
 		if rep is not None:

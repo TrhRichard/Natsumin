@@ -1,11 +1,10 @@
-from async_lru import alru_cache
 from utils import CONSOLE_LOGGING_FORMATTER, FILE_LOGGING_FORMATTER, config
 from discord.ext import commands
 from typing import TYPE_CHECKING
+from common import get_master_db
 import contracts
 import logging
 import discord
-import common
 import json
 import io
 
@@ -124,7 +123,7 @@ class Owner(commands.Cog):
 	async def master_user_info(self, ctx: commands.Context, username: str = None):
 		if username is None:
 			username = ctx.author.name
-		master_db = common.get_master_db()
+		master_db = get_master_db()
 		master_user = await master_db.fetch_user_fuzzy(username)
 		if not master_user:
 			return await ctx.reply("User not found.")
@@ -134,7 +133,7 @@ class Owner(commands.Cog):
 	@commands.command(hidden=True)
 	@commands.is_owner()
 	async def setalias(self, ctx: commands.Context, id: int, alias: str):
-		master_db = common.get_master_db()
+		master_db = get_master_db()
 		master_user = await master_db.fetch_user(id)
 		if not master_user:
 			return await ctx.reply("User not found.")
@@ -145,7 +144,7 @@ class Owner(commands.Cog):
 	@commands.command(hidden=True)
 	@commands.is_owner()
 	async def removealias(self, ctx: commands.Context, alias: str):
-		master_db = common.get_master_db()
+		master_db = get_master_db()
 		async with master_db.connect() as conn:
 			async with conn.execute("SELECT 1 FROM user_aliases WHERE username = ?", (alias,)) as cursor:
 				row = await cursor.fetchone()
@@ -158,23 +157,11 @@ class Owner(commands.Cog):
 
 		await ctx.reply(f"Removed alias `{alias}`")
 
-	@alru_cache(ttl=contracts.CACHE_DURATION)
-	async def get_user_aliases(self, user_id: int = None) -> list[tuple[str, int]]:
-		master_db = common.get_master_db()
-		async with master_db.connect() as conn:
-			if user_id is None:
-				async with conn.execute("SELECT username, user_id FROM user_aliases") as cursor:
-					rows = await cursor.fetchall()
-			else:
-				async with conn.execute("SELECT username, user_id FROM user_aliases WHERE user_id = ?", (user_id,)) as cursor:
-					rows = await cursor.fetchall()
-
-		return [(row["username"], row["user_id"]) for row in rows]
-
 	@commands.command(hidden=True)
 	@commands.is_owner()
 	async def getaliases(self, ctx: commands.Context, id: int = None):
-		user_aliases = await self.get_user_aliases(id)
+		master_db = get_master_db()
+		user_aliases = await master_db.get_user_aliases(id)
 		if not user_aliases:
 			return await ctx.reply("No aliases found.")
 

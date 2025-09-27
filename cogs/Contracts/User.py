@@ -89,16 +89,16 @@ class UserBadges(View):
 		else:
 			badge_art = TextDisplay("No image available.")
 
-		page_buttons = [
-			Button(style=discord.ButtonStyle.secondary, label="<--", disabled=True, custom_id="previous"),
+		page_buttons = (
+			Button(style=discord.ButtonStyle.secondary, label="<--", disabled=False, custom_id="previous"),
 			Button(
 				style=discord.ButtonStyle.primary,
 				label=f"{self.current_badge_selected + 1}/{len(self.badges)}",
-				disabled=len(self.badges) == 1,
+				disabled=True,  # len(self.badges) == 1,
 				custom_id="change_page",
 			),
-			Button(style=discord.ButtonStyle.secondary, label="-->", disabled=True, custom_id="next"),
-		]
+			Button(style=discord.ButtonStyle.secondary, label="-->", disabled=False, custom_id="next"),
+		)
 
 		for button in page_buttons:
 			button.callback = self.button_callback
@@ -432,7 +432,7 @@ class ContractsUser(commands.Cog):
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError:
-			return await ctx.respond(f"There is no {season} in Ba Sing Se ||(No data for such season found)||", ephemeral=True)
+			return await ctx.respond(f"There is no {season} in Ba Sing Se.", ephemeral=True)
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
@@ -467,7 +467,7 @@ class ContractsUser(commands.Cog):
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError:
-			return await ctx.respond(f"There is no {season} in Ba Sing Se ||(No data for such season found)||", ephemeral=True)
+			return await ctx.respond(f"There is no {season} in Ba Sing Se.", ephemeral=True)
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
@@ -525,7 +525,7 @@ class ContractsUser(commands.Cog):
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError:
-			return await ctx.reply(f"There is no {season} in Ba Sing Se ||(No data for such season found)||")
+			return await ctx.reply(f"There is no {season} in Ba Sing Se.")
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
@@ -552,7 +552,7 @@ class ContractsUser(commands.Cog):
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError:
-			return await ctx.reply(f"There is no {season} in Ba Sing Se ||(No data for such season found)||")
+			return await ctx.reply(f"There is no {season} in Ba Sing Se.")
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
