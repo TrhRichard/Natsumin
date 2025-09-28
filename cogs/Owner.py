@@ -118,7 +118,7 @@ class Owner(commands.Cog):
 
 		await ctx.reply("Config has been updated to the latest version available on the system.")
 
-	@commands.command(hidden=True, aliases=["mui"])
+	@commands.command(hidden=True, aliases=["mui", "masteruserinfo"])
 	@commands.is_owner()
 	async def master_user_info(self, ctx: commands.Context, username: str = None):
 		if username is None:
@@ -128,7 +128,53 @@ class Owner(commands.Cog):
 		if not master_user:
 			return await ctx.reply("User not found.")
 
-		return await ctx.reply(f"```json\n{json.dumps(await master_user.to_dict(include_badges=True, include_leaderboards=True), indent=4)}\n```")
+		json_user = json.dumps(
+			await master_user.to_dict(include_badges=True, include_leaderboards=True, minimal_badges=False), indent=4, ensure_ascii=False
+		)
+
+		if len(json_user) < 1900:
+			await ctx.reply(f"```json\n{json_user}\n```")
+		else:
+			json_file = discord.File(io.BytesIO(json_user.encode("utf-8")), f"{master_user.username}.json")
+			await ctx.reply(file=json_file)
+
+	@commands.command(hidden=True, aliases=["bi", "badgeinfo"])
+	@commands.is_owner()
+	async def badge_info(self, ctx: commands.Context, id: int):
+		master_db = get_master_db()
+		badge = await master_db.fetch_badge(id)
+		if not badge:
+			return await ctx.reply("Badge not found.")
+
+		json_badge = json.dumps(await badge.to_dict(), indent=4)
+
+		if len(json_badge) < 1900:
+			await ctx.reply(f"```json\n{json_badge}\n```")
+		else:
+			json_file = discord.File(io.BytesIO(json_badge.encode("utf-8")), f"{badge.name}.json")
+			await ctx.reply(file=json_file)
+
+	@commands.command(hidden=True, aliases=["sui", "seasonuserinfo"])
+	@commands.is_owner()
+	async def season_user_info(self, ctx: commands.Context, username: str = None):
+		master_db = get_master_db()
+		season_db = await contracts.get_season_db()
+
+		m_user = await master_db.fetch_user_fuzzy(username)
+		if not m_user:
+			return await ctx.reply("User not found.")
+
+		s_user = await season_db.fetch_user(m_user.id)
+		if not s_user:
+			return await ctx.reply(f"User not found in {season_db.name}")
+
+		json_user = json.dumps(await s_user.to_dict(include_contracts=True), indent=4)
+
+		if len(json_user) < 1900:
+			await ctx.reply(f"```json\n{json_user}\n```")
+		else:
+			json_file = discord.File(io.BytesIO(json_user.encode("utf-8")), f"{m_user.username}.json")
+			await ctx.reply(file=json_file)
 
 	@commands.command(hidden=True)
 	@commands.is_owner()
@@ -161,7 +207,7 @@ class Owner(commands.Cog):
 	@commands.is_owner()
 	async def getaliases(self, ctx: commands.Context, id: int = None):
 		master_db = get_master_db()
-		user_aliases = await master_db.get_user_aliases(id)
+		user_aliases = await master_db.fetch_user_aliases(id)
 		if not user_aliases:
 			return await ctx.reply("No aliases found.")
 

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Literal, overload, get_type_hints, TypedDict
+from typing import Literal, overload, TypedDict
 from utils.contracts import get_legacy_rank
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -64,28 +64,8 @@ class UserKind(Enum):
 	AID = 1
 
 
-class DBClass:
-	"""Root class for all database classes, mainly for `DBClass.new` class method"""
-
-	@classmethod
-	def new(cls, **kwargs):
-		cls_types = get_type_hints(cls)
-		for k, v in kwargs.items():
-			if k in cls_types:
-				k_type = cls_types.get(k)
-				try:  # TODO: Fix unions, for now uh no enums will have a union
-					if issubclass(k_type, Enum):
-						v = k_type(v)
-				except TypeError:
-					pass
-
-				kwargs[k] = v
-
-		return cls(**kwargs)
-
-
 @dataclass(slots=True, eq=False)
-class SeasonUser(DBClass):
+class SeasonUser:
 	id: int
 	status: UserStatus
 	kind: UserKind
@@ -110,6 +90,12 @@ class SeasonUser(DBClass):
 
 		return False
 
+	def __post_init__(self):
+		if not isinstance(self.kind, UserKind):
+			self.kind = UserKind(self.kind)
+		if not isinstance(self.status, UserStatus):
+			self.status = UserStatus(self.status)
+
 	async def get_master_data(self) -> MasterUser:
 		return await self._db.fetch_user_from_master(id=self.id)
 
@@ -118,7 +104,7 @@ class SeasonUser(DBClass):
 		async with self._db.connect() as db:
 			async with db.execute("SELECT * FROM contracts WHERE contractee = ?", (self.id,)) as cursor:
 				rows = await cursor.fetchall()
-				return [Contract.new(**row, _db=self._db) for row in rows]
+				return [Contract(**row, _db=self._db) for row in rows]
 
 		return []
 
@@ -138,7 +124,7 @@ class SeasonUser(DBClass):
 	async def to_dict(self, *, include_contracts: bool = False):
 		master_user = await self.get_master_data()
 		return {
-			"user": await master_user.to_dict(include_badges=False),
+			"user": await master_user.to_dict(),
 			"status": self.status.name,
 			"kind": self.kind.name,
 			"rep": self.rep,
@@ -156,7 +142,7 @@ class SeasonUser(DBClass):
 
 
 @dataclass(slots=True, eq=False)
-class Contract(DBClass):
+class Contract:
 	id: int
 	name: str
 	type: str
@@ -181,6 +167,12 @@ class Contract(DBClass):
 			return self.id == value
 
 		return False
+
+	def __post_init__(self):
+		if not isinstance(self.kind, ContractKind):
+			self.kind = ContractKind(self.kind)
+		if not isinstance(self.status, ContractStatus):
+			self.status = ContractStatus(self.status)
 
 	async def get_contractee(self) -> SeasonUser:
 		return self._db.fetch_user(self.contractee)
@@ -281,7 +273,7 @@ class SeasonDBSyncContext:
 				self.total_users = {row["id"]: SeasonUser(**row, _db=self.season_db) for row in await cursor.fetchall()}
 
 			async with conn.execute("SELECT * FROM contracts") as cursor:
-				self.total_contracts = [Contract.new(**row, _db=self.season_db) for row in await cursor.fetchall()]
+				self.total_contracts = [Contract(**row, _db=self.season_db) for row in await cursor.fetchall()]
 
 	def get_user_id(self, username: str) -> int | None:
 		if username in self._username_to_id:
@@ -373,7 +365,7 @@ class SeasonDBSyncContext:
 		return user_id
 
 	def create_contract(self, **kwargs) -> Contract:
-		contract = Contract.new(id=-1, **kwargs, _db=self.season_db)
+		contract = Contract(id=-1, **kwargs, _db=self.season_db)
 		self.total_contracts.append(contract)
 		self._to_be_created.append(contract)
 		return contract
@@ -441,7 +433,7 @@ class SeasonDBSyncContext:
 
 
 @dataclass(slots=True)
-class MasterUser(DBClass):
+class MasterUser:
 	id: int
 	discord_id: int | None
 	username: str
@@ -472,7 +464,7 @@ class MasterUser(DBClass):
 				(self.id, badge_type) if badge_type is not None else (self.id,),
 			) as cursor:
 				rows = await cursor.fetchall()
-				return [Badge.new(**row) for row in rows]
+				return [Badge(**row) for row in rows]
 
 	async def give_badge(self, badge: Badge):
 		async with self._db.connect() as db:
@@ -486,7 +478,7 @@ class MasterUser(DBClass):
 				row = await cursor.fetchone()
 				return row is not None
 
-	async def to_dict(self, *, include_badges: bool = False, include_leaderboards: bool = False) -> dict:
+	async def to_dict(self, *, include_badges: bool = False, include_leaderboards: bool = False, minimal_badges: bool = True) -> dict:
 		legacy_exp = await self.get_legacy_exp() if include_leaderboards else None
 		return {
 			"id": self.id,
@@ -497,12 +489,12 @@ class MasterUser(DBClass):
 			"leaderboards": {"legacy": {"exp": legacy_exp, "rank": get_legacy_rank(legacy_exp).value if legacy_exp is not None else None}}
 			if include_leaderboards
 			else {},
-			"badges": [await badge.to_dict(minimal=True) for badge in await self.get_badges()] if include_badges else None,
+			"badges": [await badge.to_dict(minimal=minimal_badges) for badge in await self.get_badges()] if include_badges else None,
 		}
 
 
 @dataclass(slots=True)
-class Badge(DBClass):
+class Badge:
 	id: int
 	name: str
 	description: str
@@ -512,6 +504,10 @@ class Badge(DBClass):
 
 	def __hash__(self):
 		return hash((self.id))
+
+	def __post_init__(self):
+		if not isinstance(self.type, BadgeType):
+			self.type = BadgeType(self.type)
 
 	async def to_dict(self, *, minimal=False) -> dict:
 		return (
@@ -551,6 +547,16 @@ class MasterDB:
 
 			set_clause = ", ".join(f"{k} = :{k}" for k in kwargs)
 			await conn.execute(f"UPDATE users SET {set_clause} WHERE id = :id", {**kwargs, "id": id})
+			await conn.commit()
+
+	async def update_badge(self, id: int, **kwargs):
+		async with self.connect() as conn:
+			for k, v in kwargs.items():
+				if isinstance(v, Enum):
+					kwargs[k] = v.value
+
+			set_clause = ", ".join(f"{k} = :{k}" for k in kwargs)
+			await conn.execute(f"UPDATE badges SET {set_clause} WHERE id = :id", {**kwargs, "id": id})
 			await conn.commit()
 
 	async def add_user_alias(self, id: int, alias: str, *, force: bool = False):
@@ -690,7 +696,7 @@ class MasterDB:
 			return user_id
 
 	@alru_cache(ttl=CACHE_DURATION)
-	async def get_user_aliases(self, user_id: int = None) -> list[tuple[str, int]]:
+	async def fetch_user_aliases(self, user_id: int = None) -> list[tuple[str, int]]:
 		async with self.connect() as conn:
 			if user_id is None:
 				async with conn.execute("SELECT username, user_id FROM user_aliases") as cursor:
@@ -702,6 +708,14 @@ class MasterDB:
 		return [(row["username"], row["user_id"]) for row in rows]
 
 	@alru_cache(ttl=CACHE_DURATION)
+	async def fetch_usernames(self) -> dict[str, int]:
+		async with self.connect() as conn:
+			async with conn.execute("SELECT id, username FROM users UNION ALL SELECT user_id AS id, username FROM user_aliases") as cursor:
+				rows = await cursor.fetchall()
+
+		return {row["username"]: row["id"] for row in rows}
+
+	@alru_cache(ttl=CACHE_DURATION)
 	async def to_dict(self, *, include_badges_in_users: bool = False, include_leaderboard_in_users: bool = False) -> dict:
 		master_dict = {"badges": [], "users": [], "aliases": {}, "leaderboards": {"legacy": []}}
 
@@ -710,7 +724,7 @@ class MasterDB:
 				users: list[MasterUser] = [MasterUser(**row, _db=self) for row in await cursor.fetchall()]
 
 			async with conn.execute("SELECT * FROM badges") as cursor:
-				badges: list[Badge] = [Badge.new(**row) for row in await cursor.fetchall()]
+				badges: list[Badge] = [Badge(**row) for row in await cursor.fetchall()]
 
 			user_aliases: dict[int, list[str]] = {}
 			async with conn.execute("SELECT * FROM user_aliases") as cursor:

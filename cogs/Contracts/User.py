@@ -192,7 +192,7 @@ class ContractsProfile(View):
 		user_description = (
 			f"- **Status**: {get_user_status_name(UserStatus(season_user.status))} {get_status_emote(UserStatus(season_user.status))}\n"
 		)
-		if UserKind(season_user.kind) == UserKind.NORMAL:
+		if season_user.kind == UserKind.NORMAL:
 			user_description += f"- **Rep**: {season_user.rep or 'Unknown'}\n"
 			user_description += f"- **Contractor**: {season_user.contractor or 'None'}\n"
 			user_description += f"- **List**: {season_user.list_url or 'N/A'}\n"
@@ -293,7 +293,7 @@ class UserContracts(View):
 		user_description = (
 			f"- **Status**: {get_user_status_name(UserStatus(season_user.status))} {get_status_emote(UserStatus(season_user.status))}\n"
 		)
-		if UserKind(season_user.kind) == UserKind.NORMAL:
+		if season_user.kind == UserKind.NORMAL:
 			user_description += f"- **Contractor**: {season_user.contractor}"
 
 		header_content = f"## {username}'s Contracts\n{user_description}"
