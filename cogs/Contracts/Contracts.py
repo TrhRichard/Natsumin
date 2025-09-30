@@ -173,10 +173,11 @@ class ContractsContracts(commands.Cog):  # yeah
 
 	@contracts_group.command(description="Fetch the stats of a season, optionally of a rep in that season")
 	@discord.option(
-		name="rep", description="The rep to get stats of, only autocompletes from active season", default=None, autocomplete=reps_autocomplete(True)
+		"rep", description="The rep to get stats of, only autocompletes from active season", default=None, autocomplete=reps_autocomplete(True)
 	)
-	@discord.option(name="season", description="Season to get stats from, defaults to active", default=None, choices=contracts.AVAILABLE_SEASONS)
-	async def stats(self, ctx: discord.ApplicationContext, rep: str = None, season: str = None):
+	@discord.option("season", description="Season to get stats from, defaults to active", default=None, choices=contracts.AVAILABLE_SEASONS)
+	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	async def stats(self, ctx: discord.ApplicationContext, rep: str = None, season: str = None, hidden: bool = False):
 		if season is None:
 			season = config.active_season
 
@@ -187,17 +188,18 @@ class ContractsContracts(commands.Cog):  # yeah
 
 		if rep is not None:
 			original_rep_query: str = rep
-			rep = utils.get_rep(rep, only_include_reps=await utils.get_reps(season=season))
+			rep = utils.get_rep(rep, min_confidence=90, only_include_reps=await utils.get_reps(season=season))
 			if isinstance(rep, utils.RepName):
 				rep = rep.value
 
 			if rep is None:
-				return await ctx.respond(f"Rep {original_rep_query} cannot be found in {season}.", ephemeral=True)
+				global_rep = utils.get_rep(original_rep_query, min_confidence=90)
+				if global_rep is None:
+					return await ctx.respond(f"{original_rep_query} is not a valid rep.", ephemeral=True)
+				else:
+					return await ctx.respond(f"0 members of {global_rep.value} participated in {season}.", ephemeral=True)
 
-		await ctx.respond(
-			view=await StatsView.create(self.bot, ctx.author, rep, season),
-			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
-		)
+		await ctx.respond(view=await StatsView.create(self.bot, ctx.author, rep, season), ephemeral=hidden)
 
 	@commands.command("stats", aliases=["s"], help="Fetch the stats of a season, optionally of a rep in that season")
 	async def text_stats(self, ctx: commands.Context, *, rep: str = None):
@@ -208,20 +210,20 @@ class ContractsContracts(commands.Cog):  # yeah
 		except ValueError as e:
 			return await ctx.reply(str(e))
 
-		rep_stats_wanted = rep is not None
 		if rep is not None:
 			original_rep_query: str = rep
-			rep = utils.get_rep(rep, only_include_reps=await utils.get_reps(season=season))
+			rep = utils.get_rep(rep, min_confidence=90, only_include_reps=await utils.get_reps(season=season))
 			if isinstance(rep, utils.RepName):
 				rep = rep.value
 
-		if rep_stats_wanted and rep is None:
-			return await ctx.reply(f"Rep {original_rep_query} cannot be found in {season}.")
+			if rep is None:
+				global_rep = utils.get_rep(original_rep_query, min_confidence=90)
+				if global_rep is None:
+					return await ctx.reply(f"{original_rep_query} is not a valid rep.")
+				else:
+					return await ctx.reply(f"0 members of {global_rep.value} participated in {season}.")
 
-		await ctx.reply(
-			view=await StatsView.create(self.bot, ctx.author, rep, season),
-			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
-		)
+		await ctx.reply(view=await StatsView.create(self.bot, ctx.author, rep, season))
 
 	@commands.command("users", hidden=True, aliases=["u"], help="Fetch all the users in a season, optionally with filters")
 	async def text_users(self, ctx: commands.Context, *, flags: FilterFlags):
@@ -234,10 +236,7 @@ class ContractsContracts(commands.Cog):  # yeah
 		except ValueError as e:
 			return await ctx.reply(str(e))
 
-		await ctx.reply(
-			view=await UsersView.create(self.bot, ctx.author, flags.season, flags.reps, flags.statuses),
-			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
-		)
+		await ctx.reply(view=await UsersView.create(self.bot, ctx.author, flags.season, flags.reps, flags.statuses))
 
 
 def setup(bot):

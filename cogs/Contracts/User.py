@@ -245,9 +245,7 @@ class ContractsProfile(View):
 					return await interaction.respond("Could not find the contractor!", ephemeral=True)
 
 				await interaction.respond(
-					view=ContractsProfile(self.bot, interaction.user, user, master_user, season_user, season=self.season),
-					ephemeral=True,
-					allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
+					view=ContractsProfile(self.bot, interaction.user, user, master_user, season_user, season=self.season), ephemeral=True
 				)
 			case "get_contractee_profile":
 				await interaction.respond("Currenlty not implemented, how did you even reach this.", ephemeral=True)
@@ -260,7 +258,6 @@ class ContractsProfile(View):
 						self.bot, interaction.user, self.user, self.season_user, self.master_user, self.season, user_contracts, order_data
 					),
 					ephemeral=True,
-					allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
 				)
 			case _:
 				return
@@ -376,50 +373,47 @@ class ContractsUser(commands.Cog):
 	contracts_subgroup = user_group.create_subgroup("contracts", description="Various user contracts related commands", guild_ids=config.guild_ids)
 
 	@user_group.command(name="profile", description="Fetch the global profile of a user")
-	@discord.option(name="user", description="The user to get profile of", default=None, autocomplete=usernames_autocomplete(False))
-	async def globalprofile(self, ctx: discord.ApplicationContext, user: str = None):
+	@discord.option("user", description="The user to get profile of", default=None, autocomplete=usernames_autocomplete(False))
+	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	async def globalprofile(self, ctx: discord.ApplicationContext, user: str = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.respond("User is currently not in the database.", ephemeral=True)
+			return await ctx.respond("User not found!", ephemeral=True)
 
 		legacy_exp = await m_user.get_legacy_exp()
 
-		await ctx.respond(
-			view=MasterUserProfile(self.bot, ctx.author, selected_user, m_user, legacy_exp=legacy_exp),
-			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
-		)
+		await ctx.respond(view=MasterUserProfile(self.bot, ctx.author, selected_user, m_user, legacy_exp=legacy_exp), ephemeral=hidden)
 
 	@user_group.command(description="Fetch the badges of a user")
-	@discord.option(name="user", description="The user to see badges from", default=None, autocomplete=usernames_autocomplete(False))
-	async def badges(self, ctx: discord.ApplicationContext, user: str = None):
+	@discord.option("user", description="The user to see badges from", default=None, autocomplete=usernames_autocomplete(False))
+	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	async def badges(self, ctx: discord.ApplicationContext, user: str = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.respond("User is currently not in the database.", ephemeral=True)
+			return await ctx.respond("User not found!", ephemeral=True)
 
 		badges = await m_user.get_badges()
 		if len(badges) == 0:
 			return await ctx.respond("No badges found.", ephemeral=True)
 
-		await ctx.respond(
-			view=UserBadges(self.bot, ctx.author, selected_user, badges),
-			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
-		)
+		await ctx.respond(view=UserBadges(self.bot, ctx.author, selected_user, badges), ephemeral=hidden)
 
 	@contracts_subgroup.command(name="get", description="Fetch the contracts of a user")
 	@discord.option(
-		name="user",
+		"user",
 		description="The user to see contracts of, only autocompletes from active season",
 		default=None,
 		autocomplete=usernames_autocomplete(True),
 	)
-	@discord.option(name="season", description="Season to get data from, defaults to active", default=None, choices=contracts.AVAILABLE_SEASONS)
-	async def s_contracts(self, ctx: discord.ApplicationContext, user: str = None, season: str = None):
+	@discord.option("season", description="Season to get data from, defaults to active", default=None, choices=contracts.AVAILABLE_SEASONS)
+	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	async def s_contracts(self, ctx: discord.ApplicationContext, user: str = None, season: str = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
 		if season is None:
@@ -427,7 +421,7 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.respond("User is currently not in the database.", ephemeral=True)
+			return await ctx.respond("User not found!", ephemeral=True)
 
 		try:
 			season_db = await contracts.get_season_db(season)
@@ -436,25 +430,25 @@ class ContractsUser(commands.Cog):
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
-			return await ctx.respond(f"User is not part of Contracts {season}!", ephemeral=True)
+			return await ctx.respond(f"User has not participated in {season}!", ephemeral=True)
 
 		order_data = await season_db.get_order_data()
 		user_contracts = await s_user.get_contracts()
 
 		await ctx.respond(
-			view=UserContracts(self.bot, ctx.author, selected_user, s_user, m_user, season, user_contracts, order_data),
-			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
+			view=UserContracts(self.bot, ctx.author, selected_user, s_user, m_user, season, user_contracts, order_data), ephemeral=hidden
 		)
 
 	@contracts_subgroup.command(name="profile", description="Fetch the season profile of a user")
 	@discord.option(
-		name="user",
+		"user",
 		description="The user to see profile of, only autocompletes from active season",
 		default=None,
 		autocomplete=usernames_autocomplete(True),
 	)
-	@discord.option(name="season", description="Season to get data from, defaults to active", default=None, choices=contracts.AVAILABLE_SEASONS)
-	async def profile(self, ctx: discord.ApplicationContext, user: str = None, season: str = None):
+	@discord.option("season", description="Season to get data from, defaults to active", default=None, choices=contracts.AVAILABLE_SEASONS)
+	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	async def profile(self, ctx: discord.ApplicationContext, user: str = None, season: str = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
 		if season is None:
@@ -462,7 +456,7 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.respond("User is currently not in the database.", ephemeral=True)
+			return await ctx.respond("User not found!", ephemeral=True)
 
 		try:
 			season_db = await contracts.get_season_db(season)
@@ -471,12 +465,9 @@ class ContractsUser(commands.Cog):
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
-			return await ctx.respond(f"User is not part of Contracts {season}!", ephemeral=True)
+			return await ctx.respond(f"User has not participated in {season}!", ephemeral=True)
 
-		await ctx.respond(
-			view=ContractsProfile(self.bot, ctx.author, selected_user, m_user, s_user, season=season),
-			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
-		)
+		await ctx.respond(view=ContractsProfile(self.bot, ctx.author, selected_user, m_user, s_user, season=season), ephemeral=hidden)
 
 	@commands.command("badges", aliases=["b"], help="Fetch the badges of a user")
 	async def text_badges(self, ctx: commands.Context, user: str = None):
@@ -485,16 +476,13 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.reply("User is currently not in the database.")
+			return await ctx.reply("User not found!")
 
 		badges = await m_user.get_badges()
 		if len(badges) == 0:
 			return await ctx.reply("No badges found.")
 
-		await ctx.reply(
-			view=UserBadges(self.bot, ctx.author, selected_user, badges),
-			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
-		)
+		await ctx.reply(view=UserBadges(self.bot, ctx.author, selected_user, badges))
 
 	@commands.command("globalprofile", aliases=["gp"], help="Fetch the global profile of a user")
 	async def text_globalprofile(self, ctx: commands.Context, user: str = None):
@@ -503,14 +491,11 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.reply("User is currently not in the database.")
+			return await ctx.reply("User not found!")
 
 		legacy_exp = await m_user.get_legacy_exp()
 
-		await ctx.reply(
-			view=MasterUserProfile(self.bot, ctx.author, selected_user, m_user, legacy_exp=legacy_exp),
-			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
-		)
+		await ctx.reply(view=MasterUserProfile(self.bot, ctx.author, selected_user, m_user, legacy_exp=legacy_exp))
 
 	@commands.command("contracts", aliases=["c"], help="Fetch the status of your contracts")
 	async def text_contracts(self, ctx: commands.Context, user: str = None, *, flags: ExtraFlags):
@@ -520,7 +505,7 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.reply("User is currently not in the database.")
+			return await ctx.reply("User not found!")
 
 		try:
 			season_db = await contracts.get_season_db(season)
@@ -529,15 +514,12 @@ class ContractsUser(commands.Cog):
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
-			return await ctx.reply(f"User is not part of Contracts {season}!")
+			return await ctx.reply(f"User has not participated in {season}!")
 
 		order_data = await season_db.get_order_data()
 		user_contracts = await s_user.get_contracts()
 
-		await ctx.reply(
-			view=UserContracts(self.bot, ctx.author, selected_user, s_user, m_user, season, user_contracts, order_data),
-			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
-		)
+		await ctx.reply(view=UserContracts(self.bot, ctx.author, selected_user, s_user, m_user, season, user_contracts, order_data))
 
 	@commands.command("seasonprofile", aliases=["p", "profile"], help="Fetch the season profile of a user")
 	async def text_profile(self, ctx: commands.Context, user: str = None, *, flags: ExtraFlags):
@@ -547,7 +529,7 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.reply("User is currently not in the database.")
+			return await ctx.reply("User not found!")
 
 		try:
 			season_db = await contracts.get_season_db(season)
@@ -556,12 +538,9 @@ class ContractsUser(commands.Cog):
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
-			return await ctx.reply(f"User is not part of Contracts {season}!")
+			return await ctx.reply(f"User has not participated in {season}!")
 
-		await ctx.reply(
-			view=ContractsProfile(self.bot, ctx.author, selected_user, m_user, s_user, season=season),
-			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
-		)
+		await ctx.reply(view=ContractsProfile(self.bot, ctx.author, selected_user, m_user, s_user, season=season))
 
 
 def setup(bot):

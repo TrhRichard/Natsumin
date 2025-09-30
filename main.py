@@ -119,7 +119,7 @@ bot = Natsumin(
 	status=discord.Status.online,
 	intents=discord.Intents.all(),
 	case_insensitive=True,
-	allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True, replied_user=False),
+	allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=False, replied_user=False),
 )
 
 

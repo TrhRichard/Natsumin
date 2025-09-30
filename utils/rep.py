@@ -109,11 +109,11 @@ for rep in RepName:
 # python typing sucks what the hell is all of this it makes my head hurt when i look at it
 @overload
 def get_rep(
-	name, min_confidence: int = ..., *, only_include_reps: list[RepName | None] = ..., include_confidence: Literal[False] = ...
+	name, min_confidence: int = ..., *, only_include_reps: list[RepName] | None = ..., include_confidence: Literal[False] = ...
 ) -> RepName | None: ...
 @overload
 def get_rep(
-	name, min_confidence: int = ..., *, only_include_reps: list[RepName | None] = ..., include_confidence: Literal[True]
+	name, min_confidence: int = ..., *, only_include_reps: list[RepName] | None = ..., include_confidence: Literal[True]
 ) -> tuple[RepName | None, int | None]: ...
 def get_rep(
 	name: str, min_confidence: int = 80, *, only_include_reps: list[RepName] | None = None, include_confidence: bool = False
@@ -121,7 +121,6 @@ def get_rep(
 	if name is None:
 		return (None, None) if include_confidence else None
 
-	choices = rep_fuzzy_choices
 	if only_include_reps is not None:  # incase you only want to match the name from a specific list of reps instead of all
 		new_choices: dict[str, RepName] = {}
 		for rep in only_include_reps:
@@ -132,12 +131,14 @@ def get_rep(
 			for alt in ALTERNATIVE_NAMES.get(rep, []):
 				new_choices[alt.lower()] = rep
 		choices = new_choices
+	else:
+		choices = rep_fuzzy_choices
 
 	fuzzy_results: list[tuple[str, int]] = process.extract(name.lower(), [k for k in choices.keys()], limit=1)
 	if fuzzy_results:
 		rep_name, confidence = fuzzy_results[0]
 		if confidence >= min_confidence:
-			found_rep = rep_fuzzy_choices[rep_name]
+			found_rep = choices[rep_name]
 			return (found_rep, confidence) if include_confidence else found_rep
 
 	return (None, None) if include_confidence else None

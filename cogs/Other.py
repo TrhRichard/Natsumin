@@ -78,22 +78,6 @@ class Other(commands.Cog):
 		embed.description = f":ping_pong: Pong! ({round(self.bot.latency * 1000)}ms)"
 		await ctx.respond(embed=embed)
 
-	@commands.command(help="Helpful information on bot related stuff")
-	async def usage(self, ctx: commands.Context):
-		embed = discord.Embed(color=config.base_embed_color)
-		embed.description = """
-- Meanings of each emoji next to a username:
-  - ❌: Failed
-  - ✅: Passed
-  - ⌛☑️: Late Pass
-  - ⛔: Incomplete (Partial Fail)
-- For commands that take a username as an argument you can do the following:
-  - `[contractee]`: Your contractee in the season
-  - `[contractor]`: Your contractor in the season
-    - For each of the options above you can add a username before to check for that user, for example: ``frazzle_dazzle[contractee]``
-"""
-		await ctx.reply(embed=embed)
-
 	@commands.Cog.listener()
 	async def on_message(self, message: discord.Message):
 		if not message.guild or message.guild.id != 994071728017899600:
