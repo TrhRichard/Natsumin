@@ -133,18 +133,20 @@ class MasterUserProfile(View):
 		legacy_rank = utils.get_legacy_rank(legacy_exp)
 		username = f"<@{self.user.id}>" if user else master_user.username
 
-		header_content = (
-			f"# {username}'s Profile\n"
-			+ (f"- **Rep**: {master_user.rep}\n" if master_user.rep else "")
+		profile_data = (
+			(f"- **Rep**: {master_user.rep}\n" if master_user.rep else "")
 			+ (f"- **Generation**: {master_user.gen}\n" if master_user.gen else "")
 			+ (
-				"### Legacy Leaderboard\n"
-				+ f"- **Rank**: {legacy_rank} <a:{legacy_rank.value}:{utils.get_rank_emoteid(legacy_rank)}>\n"
-				+ f"- **EXP**: {legacy_exp}"
+				(
+					"### Legacy Leaderboard\n"
+					+ f"- **Rank**: {legacy_rank} <a:{legacy_rank.value}:{utils.get_rank_emoteid(legacy_rank)}>\n"
+					+ f"- **EXP**: {legacy_exp}"
+				)
+				if legacy_exp
+				else ""
 			)
-			if legacy_exp
-			else ""
-		)  # fmt: skip
+		)
+		header_content = f"# {username}'s Profile\n{profile_data.strip() or 'No information available.'}"
 
 		badges_button = Button(style=discord.ButtonStyle.secondary, label="Check badges", custom_id="check_badges")
 		badges_button.callback = self.button_callback
