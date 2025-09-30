@@ -1,6 +1,7 @@
-from config import CONSOLE_LOGGING_FORMATTER, FILE_LOGGING_FORMATTER, BASE_EMBED_COLOR, BOT_CONFIG, sync_config_to_local
+from utils import CONSOLE_LOGGING_FORMATTER, FILE_LOGGING_FORMATTER, config
 from discord.ext import commands
 from typing import TYPE_CHECKING
+from common import get_master_db
 import contracts
 import logging
 import discord
@@ -26,15 +27,15 @@ class Owner(commands.Cog):
 
 			self.logger.setLevel(logging.INFO)
 
-	@commands.command(hidden=True, aliases=["purge_cache", "clear_cache"])
+	@commands.command(hidden=True)
 	@commands.is_owner()
-	async def sync_season(self, ctx: commands.Context, *, season: str = BOT_CONFIG.active_season):
+	async def sync_season(self, ctx: commands.Context, *, season: str = config.active_season):
 		async with ctx.typing():
 			try:
 				duration = await contracts.sync_season_db(season)
 				self.logger.info(f"{season} has been manually synced by {ctx.author.name} in {duration:.2f} seconds")
 				await ctx.reply(
-					embed=discord.Embed(description=f"✅ **{season}** has been synced in {duration:.2f} seconds!", color=BASE_EMBED_COLOR)
+					embed=discord.Embed(description=f"✅ **{season}** has been synced in {duration:.2f} seconds!", color=config.base_embed_color)
 				)
 			except Exception as e:
 				self.logger.error(f"Failed to sync season '{season}' manually by {ctx.author.name}: {e}")
@@ -66,20 +67,22 @@ class Owner(commands.Cog):
 
 	@commands.command(hidden=True, aliases=["season_json"])
 	@commands.is_owner()
-	async def get_season_file(self, ctx: commands.Context, season: str = BOT_CONFIG.active_season):
+	async def get_season_file(self, ctx: commands.Context, season: str = config.active_season):
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError as e:
 			return await ctx.reply(embed=discord.Embed(description=f"❌ {e}", color=discord.Color.red()), mention_author=False)
 
-		all_users = await season_db.fetch_users()
-		all_contracts = await season_db.fetch_contracts()
+		async with ctx.typing():
+			async with season_db.connect() as conn:
+				async with conn.execute("SELECT * FROM users") as cursor:
+					all_users = [contracts.SeasonUser.new(**row, _db=season_db) for row in await cursor.fetchall()]
 
-		users_json = [user.to_json() for user in all_users]
-		contracts_json = [contract.to_json() for contract in all_contracts]
+				users_json = [await user.to_dict(include_contracts=True) for user in all_users]
 
-		discord_file = discord.File(io.BytesIO(json.dumps({"users": users_json, "contracts": contracts_json}, indent=4).encode("utf-8")))
-		discord_file.filename = f"{season}.json"
+				discord_file = discord.File(io.BytesIO(json.dumps({"users": users_json}, indent=4).encode("utf-8")))
+				discord_file.filename = f"{season}.json"
+
 		await ctx.reply(f"Here is {season} data:", file=discord_file)
 
 	@commands.command(hidden=True, aliases=["r", "reload"])
@@ -97,22 +100,118 @@ class Owner(commands.Cog):
 			embed = discord.Embed(color=discord.Color.red(), description=error_message)
 			await ctx.reply(embed=embed, mention_author=False)
 		else:
-			embed = discord.Embed(color=BASE_EMBED_COLOR, description="✅ Successfully reloaded all cogs.")
+			embed = discord.Embed(color=config.base_embed_color, description="✅ Successfully reloaded all cogs.")
 			await ctx.reply(embed=embed, mention_author=False)
 
 	@commands.command(hidden=True, aliases=["rsc"])
 	@commands.is_owner()
 	async def reload_slash_command(self, ctx: commands.Context):
 		await self.bot.sync_commands()
-		embed = discord.Embed(color=BASE_EMBED_COLOR)
+		embed = discord.Embed(color=config.base_embed_color)
 		embed.description = "✅ Successfully synced bot application commands."
 		await ctx.reply(embed=embed, mention_author=False)
 
 	@commands.command(hidden=True, aliases=["rbc"])
 	@commands.is_owner()
 	async def reload_bot_config(self, ctx: commands.Context):
-		sync_config_to_local()
+		await config.update_from_file()
+
 		await ctx.reply("Config has been updated to the latest version available on the system.")
+
+	@commands.command(hidden=True, aliases=["mui", "masteruserinfo"])
+	@commands.is_owner()
+	async def master_user_info(self, ctx: commands.Context, username: str = None):
+		if username is None:
+			username = ctx.author.name
+		master_db = get_master_db()
+		master_user = await master_db.fetch_user_fuzzy(username)
+		if not master_user:
+			return await ctx.reply("User not found.")
+
+		json_user = json.dumps(
+			await master_user.to_dict(include_badges=True, include_leaderboards=True, minimal_badges=False), indent=4, ensure_ascii=False
+		)
+
+		if len(json_user) < 1900:
+			await ctx.reply(f"```json\n{json_user}\n```")
+		else:
+			json_file = discord.File(io.BytesIO(json_user.encode("utf-8")), f"{master_user.username}.json")
+			await ctx.reply(file=json_file)
+
+	@commands.command(hidden=True, aliases=["bi", "badgeinfo"])
+	@commands.is_owner()
+	async def badge_info(self, ctx: commands.Context, id: int):
+		master_db = get_master_db()
+		badge = await master_db.fetch_badge(id)
+		if not badge:
+			return await ctx.reply("Badge not found.")
+
+		json_badge = json.dumps(await badge.to_dict(), indent=4)
+
+		if len(json_badge) < 1900:
+			await ctx.reply(f"```json\n{json_badge}\n```")
+		else:
+			json_file = discord.File(io.BytesIO(json_badge.encode("utf-8")), f"{badge.name}.json")
+			await ctx.reply(file=json_file)
+
+	@commands.command(hidden=True, aliases=["sui", "seasonuserinfo"])
+	@commands.is_owner()
+	async def season_user_info(self, ctx: commands.Context, username: str = None):
+		master_db = get_master_db()
+		season_db = await contracts.get_season_db()
+
+		m_user = await master_db.fetch_user_fuzzy(username)
+		if not m_user:
+			return await ctx.reply("User not found.")
+
+		s_user = await season_db.fetch_user(m_user.id)
+		if not s_user:
+			return await ctx.reply(f"User not found in {season_db.name}")
+
+		json_user = json.dumps(await s_user.to_dict(include_contracts=True), indent=4)
+
+		if len(json_user) < 1900:
+			await ctx.reply(f"```json\n{json_user}\n```")
+		else:
+			json_file = discord.File(io.BytesIO(json_user.encode("utf-8")), f"{m_user.username}.json")
+			await ctx.reply(file=json_file)
+
+	@commands.command(hidden=True)
+	@commands.is_owner()
+	async def setalias(self, ctx: commands.Context, id: int, alias: str):
+		master_db = get_master_db()
+		master_user = await master_db.fetch_user(id)
+		if not master_user:
+			return await ctx.reply("User not found.")
+
+		await master_db.add_user_alias(id, alias, force=True)
+		await ctx.reply(f"Succesfully added alias `{alias}` to {master_user.username} ({master_user.id})")
+
+	@commands.command(hidden=True)
+	@commands.is_owner()
+	async def removealias(self, ctx: commands.Context, alias: str):
+		master_db = get_master_db()
+		async with master_db.connect() as conn:
+			async with conn.execute("SELECT 1 FROM user_aliases WHERE username = ?", (alias,)) as cursor:
+				row = await cursor.fetchone()
+
+			if row is None:
+				return await ctx.reply("Alias not found.")
+
+			await conn.execute("DELETE FROM user_aliases WHERE username = ?", (alias,))
+			await conn.commit()
+
+		await ctx.reply(f"Removed alias `{alias}`")
+
+	@commands.command(hidden=True)
+	@commands.is_owner()
+	async def getaliases(self, ctx: commands.Context, id: int = None):
+		master_db = get_master_db()
+		user_aliases = await master_db.fetch_user_aliases(id)
+		if not user_aliases:
+			return await ctx.reply("No aliases found.")
+
+		await ctx.reply(f"Aliases: {', '.join([f'`{alias}` ({u_id})' if id is None else f'`{alias}`' for alias, u_id in user_aliases])}")
 
 
 def setup(bot):

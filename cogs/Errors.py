@@ -1,4 +1,4 @@
-from config import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER
+from utils import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER
 from discord.ext import commands
 import logging
 import discord

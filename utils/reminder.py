@@ -4,7 +4,7 @@ import aiosqlite
 import datetime
 import os
 
-with open("assets/Reminder.sql") as f:
+with open("assets/schemas/Reminder.sql") as f:
 	db_script = f.read()
 
 

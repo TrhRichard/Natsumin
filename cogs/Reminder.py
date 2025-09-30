@@ -1,10 +1,12 @@
-from utils.reminder import ReminderDB
+from discord.ui import View, Container, TextDisplay, Section, Thumbnail
+from utils.reminder import ReminderDB, Reminder
 from discord.ext import commands, tasks
 from typing import TYPE_CHECKING
+from common import config
 import datetime
 import logging
 import discord
-import config
+import utils
 import re
 
 if TYPE_CHECKING:
@@ -110,6 +112,30 @@ async def get_user_reminders(ctx: discord.AutocompleteContext):
 	]
 
 
+class RemindersList(View):
+	def __init__(self, bot: "Natsumin", user: discord.User, reminders: list[Reminder], show_hidden: bool):
+		super().__init__(timeout=180, disable_on_timeout=True)
+		self.bot = bot
+		self.user = user
+		self.reminders = sorted(reminders, key=lambda r: r.remind_at)
+		self.show_hidden = show_hidden
+
+		reminder_str_list: list[str] = []
+		for reminder in self.reminders:
+			if reminder.hidden and not show_hidden:
+				continue
+			reminder_str_list.append(
+				f"1. {shorten(reminder.message, 24) or '?'} <t:{reminder.remind_timestamp()}:R> (<t:{reminder.remind_timestamp()}:f>)"
+			)
+
+		self.add_item(
+			Container(
+				Section(TextDisplay(f"# Reminders:\n{'\n'.join(reminder_str_list)}"), accessory=Thumbnail(user.display_avatar.url)),
+				color=config.base_embed_color,
+			)
+		)
+
+
 class ReminderCog(commands.Cog):
 	def __init__(self, bot: "Natsumin"):
 		self.bot = bot
@@ -119,9 +145,9 @@ class ReminderCog(commands.Cog):
 
 		if not self.logger.handlers:
 			file_handler = logging.FileHandler("logs/reminder.log", encoding="utf-8")
-			file_handler.setFormatter(config.FILE_LOGGING_FORMATTER)
+			file_handler.setFormatter(utils.FILE_LOGGING_FORMATTER)
 			console_handler = logging.StreamHandler()
-			console_handler.setFormatter(config.CONSOLE_LOGGING_FORMATTER)
+			console_handler.setFormatter(utils.CONSOLE_LOGGING_FORMATTER)
 			self.logger.addHandler(file_handler)
 			self.logger.addHandler(console_handler)
 			self.logger.setLevel(logging.INFO)
@@ -130,7 +156,7 @@ class ReminderCog(commands.Cog):
 	async def on_ready(self):
 		await self.db.setup()
 
-	reminder_group = discord.SlashCommandGroup("reminder", "Reminder commands", guild_ids=config.BOT_CONFIG.guild_ids)
+	reminder_group = discord.SlashCommandGroup("reminder", "Reminder commands", guild_ids=config.guild_ids)
 
 	@reminder_group.command(description="Create a new reminder.")
 	@discord.option("when", str, required=True, parameter_name="remind_in", description="Example: 1d24h60m or 1 day 24 hours 60 minutes")
@@ -159,7 +185,7 @@ class ReminderCog(commands.Cog):
 	@discord.option(
 		"id", int, required=True, autocomplete=get_user_reminders, description="ID of the reminder, should get autocompleted if not skill issue"
 	)
-	@discord.option("hidden", bool, description="Optionally make the response visible to you", default=False)
+	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
 	async def delete(self, ctx: discord.ApplicationContext, id: int, hidden: bool):
 		user_reminders = await self.db.get_reminders(user_id=ctx.user.id)
 
@@ -178,6 +204,22 @@ class ReminderCog(commands.Cog):
 			await ctx.respond(f"Deleted reminder that's due in {time_diff_str}", ephemeral=hidden)
 
 		self.logger.info(f"@{ctx.user.name} deleted reminder id={deleted_reminder.id} message={deleted_reminder.message}, due in {time_diff_str}")
+
+	@reminder_group.command(description="See all the currently set reminders and their reminding date")
+	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	@discord.option("show_hidden", bool, description="Show hidden (DM) reminders, hidden argument takes priority over this.", default=False)
+	async def list(self, ctx: discord.ApplicationContext, hidden: bool = False, show_hidden: bool = False):
+		user_reminders = await self.db.get_reminders(user_id=ctx.user.id)
+		hidden_reminders = [r for r in user_reminders if r.hidden]
+		channel_reminders = [r for r in user_reminders if not r.hidden]
+		show_hidden = show_hidden if not hidden else hidden
+
+		if show_hidden and (len(channel_reminders) == 0 and len(hidden_reminders) == 0):
+			return await ctx.respond("No reminders set!", ephemeral=hidden)
+		elif len(channel_reminders) == 0:
+			return await ctx.respond("No reminders set!", ephemeral=hidden)
+
+		await ctx.respond(view=RemindersList(self.bot, ctx.author, user_reminders, show_hidden), ephemeral=hidden)
 
 	@tasks.loop(seconds=15)
 	async def reminder_loop(self):
@@ -198,16 +240,21 @@ class ReminderCog(commands.Cog):
 				)
 
 				if (not channel) or reminder.hidden:
-					await user.send(channelless_response)
+					await user.send(
+						channelless_response, allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True, replied_user=False)
+					)
 					continue
 
 				bot_perms_in_channel = channel.permissions_for(channel.guild.me)
 				if not bot_perms_in_channel.send_messages:
-					await user.send(channelless_response)
+					await user.send(
+						channelless_response, allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True, replied_user=False)
+					)
 					continue
 
 				await channel.send(
-					f"<@{user.id}>, reminder from <t:{reminder.created_timestamp()}:R>{f': `{reminder.message}`' if reminder.message.strip() else ''}"
+					f"<@{user.id}>, reminder from <t:{reminder.created_timestamp()}:R>{f': `{reminder.message}`' if reminder.message.strip() else ''}",
+					allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True, replied_user=False),
 				)
 			except Exception as e:
 				self.logger.error(f"Could not emit reminder {reminder.id} to user {reminder.user_id}: {e}")

@@ -1,15 +1,12 @@
-from dotenv import load_dotenv
-from ..classes import Contract, User, SeasonDB, SeasonSyncContext, ContractKind, ContractType, ContractStatus, UserStatus, UserKind
+from ..classes import SeasonDB, ContractKind, ContractStatus, UserStatus, UserKind, MasterDB, Contract, SeasonDBSyncContext
+from utils import get_cell, get_rep
 from async_lru import alru_cache
-import utils
 import aiohttp
 import re
 import os
 
-load_dotenv()
-
 SPREADSHEET_ID = "19aueoNx6BBU6amX7DhKGU8kHVauHWcSGiGKMzFSGkGc"
-DB_PATH = "contracts/seasons/Winter2025.db"
+DB_PATH = "data/seasons/Winter2025.db"
 
 
 async def _get_sheet_data() -> dict:
@@ -46,45 +43,37 @@ def _get_first_url(text: str) -> str:
 	return ""
 
 
-def get_cell(row: list[str], i: int, default="") -> str:
-	if i >= len(row):
-		return default
-	v = row[i].strip()
-	return v if v else default
-
-
 def get_url(row: list[str], i: int) -> str:
-	return _get_first_url(get_cell(row, i))
+	return _get_first_url(get_cell(row, i, "", str))
 
 
 NAME_MEDIUM_REGEX = r"(.*) \((.*)\)"
 DASHBOARD_ROW_NAMES = {
-	0: ContractType.BASE_CONTRACT,
-	1: ContractType.CHALLENGE_CONTRACT,
-	2: ContractType.VETERAN_SPECIAL,
-	3: ContractType.MOVIE_SPECIAL,
-	4: ContractType.VN_SPECIAL,
-	5: ContractType.INDIE_SPECIAL,
-	6: ContractType.EXTREME_SPECIAL,
-	7: ContractType.BASE_BUDDY,
-	8: ContractType.CHALLENGE_BUDDY,
+	0: "Base Contract",
+	1: "Challenge Contract",
+	2: "Veteran Special",
+	3: "Movie Special",
+	4: "VN Special",
+	5: "Indie Special",
+	6: "Extreme Special",
+	7: "Base Buddy",
+	8: "Challenge Buddy",
 }
-OPTIONAL_CONTRACTS = [ContractType.EXTREME_SPECIAL]
+OPTIONAL_CONTRACTS = ["Extreme Special"]
 
 
-def is_contract_optional(contract: Contract) -> bool:
-	return contract.type in OPTIONAL_CONTRACTS
-
-
-async def _sync_dashboard_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncContext):
+async def _sync_dashboard_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 	dashboard_rows: list[list[str]] = sheet_data["valueRanges"][0]["values"]
 
 	for row in dashboard_rows:
 		status = row[0]
 		username = row[1].strip().lower()
-
 		contract_names = row[2:11]
 		contract_passed = row[12:21]
+
+		user_id = ctx.get_user_id(username)
+		if not user_id:
+			user_id = await ctx.create_master_user(username)
 
 		user_status: UserStatus
 		match status:
@@ -99,15 +88,13 @@ async def _sync_dashboard_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncCo
 			case _:
 				user_status = UserStatus.PENDING
 
-		if existing_user := ctx.users.get(username):
-			if existing_user.status != user_status:
-				await db.update_user(username, status=user_status)
-		else:
-			discord_id = None
-			if d := await utils.find_madfigs_user(search_name=username):
-				discord_id = d["user_id"]
-			await db.create_user(username=username, status=user_status, kind=UserKind.NORMAL, discord_id=discord_id)
-			ctx.users[username] = User(username=username, status=user_status, kind=UserKind.NORMAL, discord_id=discord_id)
+		season_user, existed_already = ctx.get_or_create_user(user_id, kind=UserKind.NORMAL, status=user_status)
+
+		if existed_already:
+			if season_user.status != user_status:
+				ctx.update_user(season_user, status=user_status)
+
+		user_contracts = ctx.get_user_contracts(user_id, True)
 
 		for i, contract_name in enumerate(contract_names):
 			contract_type = DASHBOARD_ROW_NAMES[i]
@@ -119,41 +106,43 @@ async def _sync_dashboard_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncCo
 
 			contract_status = (
 				ContractStatus.PASSED
-				if "PASSED" in get_cell(contract_passed, i)
+				if "PASSED" in get_cell(contract_passed, i, "", str)
 				else ContractStatus.FAILED
-				if "FAILED" in get_cell(contract_passed, i)
+				if "FAILED" in get_cell(contract_passed, i, "", str)
 				else ContractStatus.LATE_PASS
-				if "LATE PASS" in get_cell(contract_passed, i)
+				if "LATE PASS" in get_cell(contract_passed, i, "", str)
 				else ContractStatus.PENDING
 			)
 
-			if existing_contract := ctx.contracts.get(username, {}).get(contract_type):
-				if existing_contract.status != contract_status:
-					await db.update_contract(existing_contract.id, status=contract_status)
+			if contract_data := user_contracts.get(contract_type):
+				if contract_data.status != contract_status:
+					ctx.update_contract(contract_data, status=contract_status)
 			else:
-				id = await db.create_contract(contract_name, contract_type, ContractKind.NORMAL, contract_status, username)
-				ctx.contracts.setdefault(username, {})[contract_type] = Contract(
-					id=id, name=contract_name, type=contract_type, kind=ContractKind.NORMAL, status=contract_status, contractee=username
-				)
+				ctx.create_contract(name=contract_name, type=contract_type, kind=ContractKind.NORMAL, status=contract_status, contractee=user_id)
+
+	await ctx.commit()
 
 
-async def _sync_basechallenge_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncContext):
+async def _sync_basechallenge_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 	base_challenge_rows: list[list[str]] = sheet_data["valueRanges"][1]["values"]
 
 	for row in base_challenge_rows:
 		username = row[3].strip().lower()
 		contractor = row[5].strip().lower()
 
-		if username not in ctx.users:
+		user_id = ctx.get_user_id(username)
+		if not user_id:
 			continue
 
-		user = ctx.users.get(username)
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
 
-		if user.contractor != contractor or user.veto_used != (get_cell(row, 10) == "TRUE"):
-			await db.update_user(
-				username,
-				rep=get_cell(row, 2).upper(),
+		if season_user.contractor != contractor or season_user.veto_used != (get_cell(row, 10) == "TRUE"):
+			ctx.update_user(
+				season_user,
 				contractor=contractor,
+				rep=get_rep(get_cell(row, 2, "")),
 				list_url=get_url(row, 7),
 				veto_used=get_cell(row, 10) == "TRUE",
 				preferences=get_cell(row, 16).replace("\n", ", "),
@@ -162,65 +151,80 @@ async def _sync_basechallenge_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSy
 				accepting_ln=get_cell(row, 19) == "Yes",
 			)
 
-		user_contracts = ctx.contracts[username]
-		base_contract = user_contracts.get(ContractType.BASE_CONTRACT)
+		if user_id in ctx.master_users_created:
+			await ctx.master_db.update_user(user_id, rep=season_user.rep)
+
+		user_contracts = ctx.get_user_contracts(user_id, True)
+
+		base_contract = user_contracts.get("Base Contract")
 
 		if (
 			base_contract.progress != get_cell(row, 29, "?/?").replace("\n", "")
-			or base_contract.rating != get_cell(row, 26)
+			or base_contract.rating != get_cell(row, 26, "")
 			or base_contract.review_url != get_url(row, 31)
 		):
-			await db.update_contract(
-				base_contract.id,
+			ctx.update_contract(
+				base_contract,
 				contractor=contractor,
 				progress=get_cell(row, 29, "?/?").replace("\n", ""),
 				rating=get_cell(row, 26),
 				review_url=get_url(row, 31),
 				medium=get_cell(row, 9),
-				optional=is_contract_optional(base_contract),
+				optional=False,
 			)
-		if challenge_contract := user_contracts.get(ContractType.CHALLENGE_CONTRACT):
+		if challenge_contract := user_contracts.get("Challenge Contract"):
 			if (
 				challenge_contract.progress != get_cell(row, 30, "?/?").replace("\n", "")
-				or challenge_contract.rating != get_cell(row, 28)
+				or challenge_contract.rating != get_cell(row, 28, "")
 				or challenge_contract.review_url != get_url(row, 32)
 			):
-				await db.update_contract(
-					challenge_contract.id,
+				ctx.update_contract(
+					challenge_contract,
 					contractor=contractor,
 					progress=get_cell(row, 30, "?/?").replace("\n", ""),
 					rating=get_cell(row, 28),
 					review_url=get_url(row, 32),
 					medium=get_cell(row, 13),
-					optional=is_contract_optional(challenge_contract),
+					optional=False,
 				)
 
+	await ctx.commit()
 
-async def _sync_specials_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncContext):
+
+async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 	rows: list[list[str]] = sheet_data["valueRanges"][2]["values"]
+
+	users_contracts: dict[int, dict[str, Contract]] = {}
+	for contract in ctx.total_contracts:
+		users_contracts.setdefault(contract.contractee, {})[contract.type] = contract
 
 	# Veteran Special
 	for row in rows:
 		username = row[2].strip().lower()
 
-		if username not in ctx.users:
+		user_id = ctx.get_user_id(username)
+		if not user_id:
 			continue
 
-		user_contracts = ctx.contracts.get(username)
-		veteran_special = user_contracts.get(ContractType.VETERAN_SPECIAL)
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		veteran_special = user_contracts.get("Veteran Special")
 		if (
 			veteran_special.progress != get_cell(row, 6, "?/?")
 			or veteran_special.rating != get_cell(row, 7)
 			or veteran_special.review_url != get_url(row, 8)
 		):
-			await db.update_contract(
-				veteran_special.id,
+			ctx.update_contract(
+				veteran_special,
 				contractor=get_cell(row, 4).strip().lower(),
 				progress=get_cell(row, 6, "?/?"),
 				rating=get_cell(row, 7),
 				review_url=get_url(row, 8),
 				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 3)),
-				optional=is_contract_optional(veteran_special),
+				optional=veteran_special.type in OPTIONAL_CONTRACTS,
 			)
 
 	# VN Special
@@ -228,169 +232,170 @@ async def _sync_specials_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncCon
 	for row in rows:
 		username = row[2].strip().lower()
 
-		if username not in ctx.users:
+		user_id = ctx.get_user_id(username)
+		if not user_id:
 			continue
 
-		user_contracts = ctx.contracts.get(username)
-		vn_special = user_contracts.get(ContractType.VN_SPECIAL)
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		vn_special = user_contracts.get("VN Special")
 		if vn_special.rating != get_cell(row, 5) or vn_special.review_url != get_url(row, 6):
-			await db.update_contract(
-				vn_special.id,
+			ctx.update_contract(
+				vn_special,
 				contractor=get_cell(row, 4).strip().lower(),
 				progress="Completed" if vn_special.status in [ContractStatus.PASSED, ContractStatus.LATE_PASS] else "Not Completed",
 				rating=get_cell(row, 5),
 				review_url=get_url(row, 6),
 				medium="VN",
-				optional=is_contract_optional(vn_special),
+				optional=vn_special.type in OPTIONAL_CONTRACTS,
 			)
 
 	# Movie Special
 	rows: list[list[str]] = sheet_data["valueRanges"][4]["values"]
 	for row in rows:
 		username = row[2].strip().lower()
-		if username not in ctx.users:
+		user_id = ctx.get_user_id(username)
+		if not user_id:
 			continue
 
-		user_contracts = ctx.contracts.get(username)
-		movie_special = user_contracts.get(ContractType.MOVIE_SPECIAL)
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		movie_special = user_contracts.get("Movie Special")
 		if movie_special.rating != get_cell(row, 5) or movie_special.review_url != get_url(row, 6):
-			await db.update_contract(
-				movie_special.id,
+			ctx.update_contract(
+				movie_special,
 				contractor=get_cell(row, 4).strip().lower(),
 				progress="Completed" if movie_special.status in [ContractStatus.PASSED, ContractStatus.LATE_PASS] else "Not Completed",
 				rating=get_cell(row, 5),
 				review_url=get_url(row, 6),
 				medium="Movie",
-				optional=is_contract_optional(movie_special),
+				optional=movie_special.type in OPTIONAL_CONTRACTS,
 			)
 
 	# Indie Special
 	rows: list[list[str]] = sheet_data["valueRanges"][5]["values"]
 	for row in rows:
 		username = row[2].strip().lower()
-		if username not in ctx.users:
+		user_id = ctx.get_user_id(username)
+		if not user_id:
 			continue
 
-		user_contracts = ctx.contracts.get(username)
-		indie_special = user_contracts.get(ContractType.INDIE_SPECIAL)
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		indie_special = user_contracts.get("Indie Special")
 		if indie_special.progress != get_cell(row, 5) or indie_special.rating != get_cell(row, 6) or indie_special.review_url != get_url(row, 7):
-			await db.update_contract(
-				indie_special.id,
+			ctx.update_contract(
+				indie_special,
 				contractor=get_cell(row, 4).strip().lower(),
 				progress=get_cell(row, 5),
 				rating=get_cell(row, 6),
 				review_url=get_url(row, 7),
 				medium="Game",
-				optional=is_contract_optional(indie_special),
+				optional=indie_special in OPTIONAL_CONTRACTS,
 			)
 
 	# Extreme Special
 	rows: list[list[str]] = sheet_data["valueRanges"][6]["values"]
 	for row in rows:
 		username = row[2].strip().lower()
-		if username not in ctx.users:
+		user_id = ctx.get_user_id(username)
+		if not user_id:
 			continue
 
-		user_contracts = ctx.contracts.get(username)
-		extreme_special = user_contracts.get(ContractType.EXTREME_SPECIAL)
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		extreme_special = user_contracts.get("Extreme Special")
 		if extreme_special.rating != get_cell(row, 5) or extreme_special.review_url != get_url(row, 6):
-			await db.update_contract(
-				extreme_special.id,
+			ctx.update_contract(
+				extreme_special,
 				contractor=get_cell(row, 4).strip().lower(),
 				progress="Completed" if extreme_special.status in [ContractStatus.PASSED, ContractStatus.LATE_PASS] else "Not Completed",
 				rating=get_cell(row, 5),
 				review_url=get_url(row, 6),
 				medium="Movie",
-				optional=is_contract_optional(extreme_special),
+				optional=extreme_special.type in OPTIONAL_CONTRACTS,
 			)
 
 	# Buddying
 	rows: list[list[str]] = sheet_data["valueRanges"][7]["values"]
 	for row in rows:
 		username = row[2].strip().lower()
-		if username not in ctx.users:
+		user_id = ctx.get_user_id(username)
+		if not user_id:
 			continue
 
-		user_contracts = ctx.contracts.get(username)
-		if base_buddy := user_contracts.get(ContractType.BASE_BUDDY):
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		if base_buddy := user_contracts.get("Base Buddy"):
 			if base_buddy.progress != get_cell(row, 8, "?/?") or base_buddy.rating != get_cell(row, 10) or base_buddy.review_url != get_url(row, 12):
-				await db.update_contract(
-					base_buddy.id,
+				ctx.update_contract(
+					base_buddy,
 					contractor=get_cell(row, 4).strip().lower(),
 					progress=get_cell(row, 8, "?/?"),
 					rating=get_cell(row, 10),
 					review_url=get_url(row, 12),
 					medium="Anime / Manga",
-					optional=is_contract_optional(base_buddy),
+					optional=base_buddy.type in OPTIONAL_CONTRACTS,
 				)
-		if challenge_buddy := user_contracts.get(ContractType.CHALLENGE_BUDDY):
+		if challenge_buddy := user_contracts.get("Challenge Buddy"):
 			if (
 				challenge_buddy.progress != get_cell(row, 9, "?/?")
 				or challenge_buddy.rating != get_cell(row, 11)
 				or challenge_buddy.review_url != get_url(row, 13)
 			):
-				await db.update_contract(
-					challenge_buddy.id,
+				ctx.update_contract(
+					challenge_buddy,
 					contractor=get_cell(row, 6).strip().lower(),
 					progress=get_cell(row, 9, "?/?"),
 					rating=get_cell(row, 11),
 					review_url=get_url(row, 13),
 					medium="Anime / Manga",
-					optional=is_contract_optional(challenge_buddy),
+					optional=challenge_buddy.type in OPTIONAL_CONTRACTS,
 				)
 
+	await ctx.commit()
 
-async def _sync_aids_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncContext):
+
+async def _sync_aids_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 	rows: list[list[str]] = sheet_data["valueRanges"][9]["values"]
 
-	aids_user_count: dict[str, int] = {}
+	aids_user_count: dict[int, int] = {}
 	for row in rows:
-		username = get_cell(row, 1).lower()
+		username = get_cell(row, 1, "").strip().lower()
+		contractor = get_cell(row, 3, "").strip().lower()
 
-		if username == "":
+		if not username:
 			continue
-		elif username not in ctx.users:  # Either user didnt get cached properly or user wasn't in season, create it then
-			if not await db.has_user(username):
-				discord_id = None
-				if d := await utils.find_madfigs_user(search_name=username):
-					discord_id = d["user_id"]
-				await db.create_user(
-					username=username,
-					status=UserStatus.PENDING,
-					kind=UserKind.AID,
-					rep="AIDS",
-					discord_id=discord_id,
-					contractor="Cow Lord",
-					list_url="https://discord.com/channels/994071728017899600/1008810171876773978/1374143929787613375",
-					veto_used=False,
-					accepting_manhwa=False,
-					accepting_ln=False,
-					preferences="Unknown",
-					bans="Unknown",
-				)
-				ctx.users[username] = User(
-					username=username,
-					status=UserStatus.PENDING,
-					kind=UserKind.AID,
-					rep="AIDS",
-					discord_id=discord_id,
-					contractor="Cow Lord",
-					list_url="https://discord.com/channels/994071728017899600/1008810171876773978/1374143929787613375",
-					veto_used=False,
-					accepting_manhwa=False,
-					accepting_ln=False,
-					preferences="Unknown",
-					bans="Unknown",
-				)
 
-		user_contracts = ctx.contracts.setdefault(username, {})
+		user_id = ctx.get_user_id(username)
+		if not user_id:
+			user_id = await ctx.create_master_user(username)
 
-		if username not in aids_user_count:
-			aids_user_count[username] = 0
-		aids_user_count[username] += 1
-		contract_type = ContractType(f"Aid Contract {aids_user_count[username]}")
+		_, _ = ctx.get_or_create_user(user_id, kind=UserKind.AID, status=UserStatus.PENDING)
 
-		aid_name = get_cell(row, 4).replace("\n", "")
+		user_contracts = ctx.get_user_contracts(user_id, True)
+
+		if user_id not in aids_user_count:
+			aids_user_count[user_id] = 0
+		aids_user_count[user_id] += 1
+		contract_type = f"Aid Contract {aids_user_count[user_id]}"
+
+		aid_name = get_cell(row, 6).replace("\n", "")
 
 		contract_status: ContractStatus
 		if get_cell(row, 0) == "PASSED":
@@ -400,65 +405,55 @@ async def _sync_aids_data(sheet_data: dict, db: SeasonDB, ctx: SeasonSyncContext
 		else:
 			contract_status = ContractStatus.PENDING
 
-		if existing_contract := user_contracts.get(contract_type):
+		if e_contract := user_contracts.get(contract_type):
 			if (
-				existing_contract.name != aid_name
-				or existing_contract.progress != get_cell(row, 5)
-				or existing_contract.contractor != get_cell(row, 3).lower()
-				or existing_contract.rating != get_cell(row, 6)
-				or existing_contract.review_url != get_url(row, 7)
+				e_contract.name != aid_name
+				or e_contract.progress != get_cell(row, 5)
+				or e_contract.contractor != contractor
+				or e_contract.rating != get_cell(row, 4)
+				or e_contract.review_url != get_url(row, 7)
 			):
-				await db.update_contract(
-					existing_contract.id,
+				ctx.update_contract(
+					e_contract,
 					name=aid_name,
 					status=contract_status,
 					progress=get_cell(row, 5),
-					rating=get_cell(row, 6),
+					rating=get_cell(row, 4),
 					review_url=get_url(row, 7),
-					contractor=get_cell(row, 3).lower(),
+					contractor=contractor,
 				)
 		else:
-			id = await db.create_contract(
+			ctx.create_contract(
 				name=aid_name,
 				type=contract_type,
 				kind=ContractKind.AID,
 				status=contract_status,
-				contractee=username,
+				contractee=user_id,
 				progress=get_cell(row, 5),
-				rating=get_cell(row, 6),
-				review_url=get_cell(row, 7),
-				contractor=get_cell(row, 3).lower(),
-				optional=False,
-			)
-			ctx.contracts[username][contract_type] = Contract(
-				id=id,
-				name=aid_name,
-				type=contract_type,
-				kind=ContractKind.AID,
-				status=contract_status,
-				contractee=username,
-				progress=get_cell(row, 5),
-				rating=get_cell(row, 6),
-				review_url=get_cell(row, 7),
-				contractor=get_cell(row, 3).lower(),
+				rating=get_cell(row, 4),
+				review_url=get_url(row, 7),
+				contractor=contractor,
 				optional=False,
 			)
 
+	await ctx.commit()
 
-async def sync_to_latest(db: SeasonDB):
-	ctx = SeasonSyncContext()
-	await ctx.load(db)
+
+async def sync_to_latest(season_db: SeasonDB):
+	ctx = SeasonDBSyncContext(season_db)
+	await ctx.setup()
 	sheet_data = await _get_sheet_data()
 
-	await _sync_dashboard_data(sheet_data, db, ctx)
-	await _sync_basechallenge_data(sheet_data, db, ctx)
-	await _sync_specials_data(sheet_data, db, ctx)
-	await _sync_aids_data(sheet_data, db, ctx)
+	await _sync_dashboard_data(sheet_data, ctx)
+	await _sync_basechallenge_data(sheet_data, ctx)
+	await _sync_specials_data(sheet_data, ctx)
+	await _sync_aids_data(sheet_data, ctx)
 
 
 @alru_cache
 async def get_database() -> SeasonDB:
-	season_db = SeasonDB("Winter 2025", "data/seasons/Winter2025.db")
+	master_db = MasterDB.get_database()
+	season_db = SeasonDB("Winter 2025", DB_PATH, master_db)
 	await season_db.setup()
 
 	return season_db

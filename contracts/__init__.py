@@ -1,22 +1,27 @@
-import time
 from .classes import SeasonDB
 from .seasons import Winter2025
 from .classes import *  # noqa: F403
-from config import BOT_CONFIG
+from common import config
+import time
 
 AVAILABLE_SEASONS = ["Winter 2025"]
 
 
-async def get_season_db(season: str = BOT_CONFIG.active_season) -> SeasonDB:
-	if season not in AVAILABLE_SEASONS:
-		raise ValueError(f"Invalid season: {season}")
+async def get_season_db(season: str = None) -> SeasonDB:
+	if season is None:
+		season = config.active_season
 
 	match season:
 		case "Winter 2025":
 			return await Winter2025.get_database()
+		case _:
+			raise ValueError(f"Invalid season: {season}")
 
 
-async def sync_season_db(season: str = BOT_CONFIG.active_season) -> float:  # Returns duration of sync
+async def sync_season_db(season: str = None) -> float:  # Returns duration of sync
+	if season is None:
+		season = config.active_season
+
 	if season not in AVAILABLE_SEASONS:
 		raise ValueError(f"Invalid season: {season}")
 

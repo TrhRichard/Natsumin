@@ -1,111 +1,193 @@
 from typing import TYPE_CHECKING
-
 from async_lru import alru_cache
-import aiosqlite
+from common import config, get_master_db
+from enum import StrEnum
 import datetime
-import discord
-import config
-import contracts
-import re
-import os
+import fnmatch
 
 if TYPE_CHECKING:
-	from main import Natsumin
+	from contracts import ContractOrderCategory
+
+__all__ = ["LegacyRank", "get_rank_emoteid", "get_legacy_rank", "get_usernames", "get_reps", "get_contract_category", "get_deadline_footer"]
 
 
-@alru_cache
-async def get_usernames(season_db: contracts.SeasonDB, query: str = "", limit: int = None) -> list[str]:
-	sql_query = "SELECT username FROM users WHERE lower(username) LIKE ?"
-	if limit:
-		sql_query += f" LIMIT {limit}"
-	async with season_db.connect() as db:
-		async with db.execute(sql_query, (f"%{query.lower()}%",)) as cursor:
-			return [row[0] for row in await cursor.fetchall()]
+class LegacyRank(StrEnum):
+	QUARTZ = "Quartz"
+	CITRINE = "Citrine"
+	AMETHYST = "Amethyst"
+	AQUAMARINE = "Aquamarine"
+	JADE = "Jade"
+	TOPAZ = "Topaz"
+	MORGANITE = "Morganite"
+	SPINEL = "Spinel"
+	EMERALD = "Emerald"
+	SAPPHIRE = "Sapphire"
+	RUBY = "Ruby"
+	DIAMOND = "Diamond"
+	ALEXANDRITE = "Alexandrite"
+	PAINITE = "Painite"
 
 
-@alru_cache
-async def get_reps(season_db: contracts.SeasonDB, query: str = "", limit: int = None) -> list[str]:
-	sql_query = "SELECT DISTINCT rep FROM users WHERE upper(rep) LIKE ?"
-	if limit:
-		sql_query += f" LIMIT {limit}"
-	async with season_db.connect() as db:
-		async with db.execute(sql_query, (f"%{query.lower()}%",)) as cursor:
-			return [row[0] for row in await cursor.fetchall() if row[0] != "AIDS"]
-
-
-async def get_slash_usernames(ctx: discord.AutocompleteContext):
-	season_db = await contracts.get_season_db()
-	return await get_usernames(season_db, query=ctx.value.strip(), limit=25)
-
-
-async def get_slash_reps(ctx: discord.AutocompleteContext):
-	season_db = await contracts.get_season_db()
-	return await get_reps(season_db, query=ctx.value.strip(), limit=25)
-
-
-async def _get_contract_user(season_db: contracts.SeasonDB, username: str) -> contracts.User:
-	user: contracts.User = await season_db.fetch_user(username=username)
-	if not user:
-		if d := await find_madfigs_user(search_name=username):
-			return await season_db.fetch_user(username=(*[s.strip().lower() for s in d["previous_names"].split(",")],))
-	else:
-		return user
-
-
-async def get_target(
-	bot: "Natsumin", ctx_user: discord.Member, username: str | None = None, season: str = config.BOT_CONFIG.active_season
-) -> tuple[discord.User | discord.Member | None, str | None]:
-	season_db = await contracts.get_season_db(season)
-	if not username:
-		if user := await _get_contract_user(season_db, ctx_user.name):
-			return ctx_user, user.username
-		return ctx_user, ctx_user.name
-	username = username.lower()
-
-	user_id: int = None
-	match = re.match(r"<@!?(\d+)>", username.lower())
-	if match:
-		user_id = int(match.group(1))
-		member = await bot.get_contract_user(id=user_id)
-		if user := await _get_contract_user(season_db, member.name):
-			return member, user.username
-		return member, member.name if member else None
-
-	match username:
-		case "[contractee]":
-			if contractee := await season_db.fetch_user(contractor=ctx_user.name):
-				username = contractee.username
-				user_id = contractee.discord_id
-		case "[contractor]":
-			user = await season_db.fetch_user(username=ctx_user.name)
-			if contractor := await season_db.fetch_user(username=user.contractor):
-				username = contractor.username
-				user_id = contractor.discord_id
-		case match if match := re.match(r"(\S*)\[(\S*)]", username):
-			check_username, check_type = match.groups()
-			check_user = await _get_contract_user(season_db, check_username)
-			if check_user:
-				match check_type:
-					case "contractee":
-						if contractee := await season_db.fetch_user(contractor=check_user.username):
-							username = contractee.username
-							user_id = contractee.discord_id
-					case "contractor":
-						if contractor := await season_db.fetch_user(username=check_user.contractor):
-							username = contractor.username
-							user_id = contractor.discord_id
+def get_rank_emoteid(rank: LegacyRank | None = None) -> int | None:
+	match rank:
+		case LegacyRank.QUARTZ:
+			return 1370358752129187891
+		case LegacyRank.CITRINE:
+			return 1370358870370812015
+		case LegacyRank.AMETHYST:
+			return 1370359411465519196
+		case LegacyRank.AQUAMARINE:
+			return 1370359420269101196
+		case LegacyRank.JADE:
+			return 1370359433514848367
+		case LegacyRank.TOPAZ:
+			return 1370359441265786911
+		case LegacyRank.MORGANITE:
+			return 1370359449528565770
+		case LegacyRank.SPINEL:
+			return 1370908107861004419
+		case LegacyRank.EMERALD:
+			return 1370359457917308958
+		case LegacyRank.SAPPHIRE:
+			return 1370359466519826505
+		case LegacyRank.RUBY:
+			return 1370359475080400926
+		case LegacyRank.DIAMOND:
+			return 1370359483531919461
+		case LegacyRank.ALEXANDRITE:
+			return 1370359491438051328
+		case LegacyRank.PAINITE:
+			return 1370359499151638530
 		case _:
-			if user := await _get_contract_user(season_db, username):
-				user_id = user.discord_id
-				username = user.username
-
-	member = await bot.get_contract_user(id=user_id, username=username)
-	return member, username
+			return None
 
 
-def get_common_embed(
-	user: contracts.User | None = None, member: discord.Member | None = None, season: str = config.BOT_CONFIG.active_season
-) -> discord.Embed:
+def get_legacy_rank(exp: int | None) -> LegacyRank | None:
+	if exp is None:
+		return None
+
+	if exp >= 34000:
+		return LegacyRank.PAINITE
+	elif exp >= 29000:
+		return LegacyRank.ALEXANDRITE
+	elif exp >= 24400:
+		return LegacyRank.DIAMOND
+	elif exp >= 20200:
+		return LegacyRank.RUBY
+	elif exp >= 16400:
+		return LegacyRank.SAPPHIRE
+	elif exp >= 13000:
+		return LegacyRank.EMERALD
+	elif exp >= 10000:
+		return LegacyRank.SPINEL
+	elif exp >= 7400:
+		return LegacyRank.MORGANITE
+	elif exp >= 5200:
+		return LegacyRank.TOPAZ
+	elif exp >= 3400:
+		return LegacyRank.JADE
+	elif exp >= 2000:
+		return LegacyRank.AQUAMARINE
+	elif exp >= 1000:
+		return LegacyRank.AMETHYST
+	elif exp >= 150:
+		return LegacyRank.CITRINE
+	else:
+		return LegacyRank.QUARTZ
+
+
+@alru_cache(ttl=12 * 60 * 60)
+async def get_usernames(query: str = "", limit: int = None, *, season: str = None, seasonal: bool = True) -> list[str]:
+	if season is None:
+		season = config.active_season
+
+	master_db = get_master_db()
+	async with master_db.connect() as db:
+		async with db.execute("SELECT id, username FROM users") as cursor:
+			id_usernames: dict[int, str] = {row["id"]: row["username"] for row in await cursor.fetchall()}
+
+	if seasonal:
+		from contracts import get_season_db
+
+		season_db = await get_season_db(season)
+		async with season_db.connect() as db:
+			async with db.execute("SELECT id FROM users") as cursor:
+				season_user_ids: list[int] = [row["id"] for row in await cursor.fetchall()]
+
+		usernames = [id_usernames[user_id] for user_id in season_user_ids if user_id in id_usernames]
+	else:
+		usernames = list(id_usernames.values())
+
+	if query:
+		usernames = [name for name in usernames if query.lower() in name.lower()]
+
+	if limit is not None:
+		usernames = usernames[:limit]
+
+	return usernames
+
+
+@alru_cache(ttl=12 * 60 * 60)
+async def get_reps(query: str = "", limit: int | None = None, *, season: str = None, seasonal: bool = True) -> list[str]:
+	if season is None:
+		season = config.active_season
+
+	if seasonal:
+		from contracts import get_season_db
+
+		season_db = await get_season_db(season)
+		async with season_db.connect() as db:
+			async with db.execute(
+				f"SELECT DISTINCT rep FROM users WHERE upper(rep) LIKE ? {f'LIMIT {limit}' if limit else ''}", (f"%{query.upper()}%",)
+			) as cursor:
+				return [row[0] for row in await cursor.fetchall()]
+	else:
+		master_db = get_master_db()
+		async with master_db.connect() as db:
+			async with db.execute(
+				f"SELECT DISTINCT rep FROM users WHERE upper(rep) LIKE ? {f'LIMIT {limit}' if limit else ''}", (f"%{query.upper()}%",)
+			) as cursor:
+				return [row[0] for row in await cursor.fetchall()]
+
+
+def get_contract_category(order_data: "list[ContractOrderCategory]", c_type: str) -> str:
+	c_type = c_type.lower()
+	for category in order_data:
+		for pattern in category["order"]:
+			pattern = pattern.lower()
+
+			if any(c in pattern for c in "*?[]"):
+				if fnmatch.fnmatch(c_type, pattern):
+					return category["name"]
+			else:
+				if c_type == pattern:
+					return category["name"]
+
+	return "Other"
+
+
+def get_deadline_footer(season: str = None) -> str:
+	if season is None:
+		season = config.active_season
+
+	if season == config.active_season:
+		current_datetime = datetime.datetime.now(datetime.UTC)
+		difference = config.deadline_datetime - current_datetime
+		difference_seconds = max(difference.total_seconds(), 0)
+
+		if difference_seconds > 0:
+			days, remainder = divmod(difference_seconds, 86400)
+			hours, remainder = divmod(remainder, 3600)
+			minutes, _ = divmod(remainder, 60)
+			return config.deadline_footer.format(days=int(days), hours=int(hours), minutes=int(minutes))
+		else:
+			return "This season has ended."
+	else:
+		return f"Data from {season}"
+
+
+"""
+def get_common_embed(user: contracts.User | None = None, member: discord.Member | None = None, season: str = config.active_season) -> discord.Embed:
 	embed = discord.Embed(color=config.BASE_EMBED_COLOR, description="")
 	if user:
 		symbol = ""
@@ -119,7 +201,7 @@ def get_common_embed(
 			case contracts.UserStatus.INCOMPLETE:
 				symbol = "⛔"
 
-		if season != config.BOT_CONFIG.active_season:
+		if season != config.active_season:
 			symbol += f" ({season})" if symbol != "" else f"{(season)}"
 
 		embed.set_author(
@@ -128,9 +210,9 @@ def get_common_embed(
 			icon_url=member.display_avatar.url if member else None,
 		)
 
-	if season == config.BOT_CONFIG.active_season:
+	if season == config.active_season:
 		current_datetime = datetime.datetime.now(datetime.UTC)
-		difference = config.DEADLINE_TIMESTAMP - current_datetime
+		difference = config.deadline_datetime - current_datetime
 		difference_seconds = max(difference.total_seconds(), 0)
 
 		if difference_seconds > 0:
@@ -138,7 +220,7 @@ def get_common_embed(
 			hours, remainder = divmod(remainder, 3600)
 			minutes, _ = divmod(remainder, 60)
 			embed.set_footer(
-				text=config.BOT_CONFIG.deadline_footer.format(days=int(days), hours=int(hours), minutes=int(minutes)),
+				text=config.deadline_footer.format(days=int(days), hours=int(hours), minutes=int(minutes)),
 				icon_url="https://cdn.discordapp.com/emojis/998705274074435584.webp?size=4096",
 			)
 		else:
@@ -147,40 +229,4 @@ def get_common_embed(
 		embed.set_footer(text=f"Data from {season}", icon_url="https://cdn.discordapp.com/emojis/998705274074435584.webp?size=4096")
 	return embed
 
-
-@alru_cache  # NOTE: Could probably make all madfigs sheet related stuff better but works for now
-async def find_madfigs_user(user_id: int = None, search_name: str = None) -> dict | None:
-	if not os.path.isfile("data/madfigs.db"):
-		return None
-
-	if not user_id and not search_name:
-		raise ValueError("You must provide at least one of user_id, search_name.")
-
-	query = "SELECT * FROM users WHERE "
-	params = []
-	conditions = []
-
-	if user_id:
-		conditions.append("user_id = ?")
-		params.append(user_id)
-	if search_name:
-		conditions.append("username = ?")
-		params.append(search_name)
-
-	query += " OR ".join(conditions)
-
-	async with aiosqlite.connect("data/madfigs.db") as db:
-		async with db.execute(query, params) as cursor:
-			row = await cursor.fetchone()
-			if row:
-				return {"user_id": row[0], "username": row[1], "previous_names": row[2]}
-
-		async with db.execute("SELECT * from users WHERE previous_names != ''") as cursor:
-			rows = await cursor.fetchall()
-			for user_id, username, prev_names in rows:
-				for prev in prev_names.split():
-					prev = prev.strip().lower()
-					if search_name == prev:
-						return {"user_id": user_id, "username": username, "previous_names": prev_names}
-
-	return None
+"""
