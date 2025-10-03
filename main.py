@@ -19,6 +19,7 @@ class Natsumin(commands.Bot):
 		self.master_db = get_master_db()
 
 	async def on_ready(self):
+		print("server successfully started")
 		os.system("cls" if os.name == "nt" else "clear")
 		print(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 

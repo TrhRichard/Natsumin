@@ -7,6 +7,7 @@ import logging
 import discord
 import json
 import io
+import gc
 
 if TYPE_CHECKING:
 	from main import Natsumin
@@ -157,6 +158,8 @@ class Owner(commands.Cog):
 	@commands.command(hidden=True, aliases=["sui", "seasonuserinfo"])
 	@commands.is_owner()
 	async def season_user_info(self, ctx: commands.Context, username: str = None):
+		if username is None:
+			username = ctx.author.name
 		master_db = get_master_db()
 		season_db = await contracts.get_season_db()
 
@@ -212,6 +215,12 @@ class Owner(commands.Cog):
 			return await ctx.reply("No aliases found.")
 
 		await ctx.reply(f"Aliases: {', '.join([f'`{alias}` ({u_id})' if id is None else f'`{alias}`' for alias, u_id in user_aliases])}")
+
+	@commands.command(hidden=True, aliases=["gc"])
+	@commands.is_owner()
+	async def forcegarbagecollect(self, ctx: commands.Context):
+		count = gc.collect()
+		await ctx.reply(f"Collected {count} instances from the garbage.")
 
 
 def setup(bot):

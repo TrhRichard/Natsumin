@@ -106,7 +106,11 @@ class Other(commands.Cog):
 		self.fish_messages_since_last = 0
 		self.fish_event_forced = False
 		try:
-			await message.reply(None, stickers=[self.fish_sticker])
+			await message.reply(
+				None,
+				stickers=[self.fish_sticker],
+				allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=False, replied_user=True),
+			)
 		except (discord.HTTPException, discord.Forbidden) as e:
 			self.logger.error(f"Could not send a fish event: {e}")
 

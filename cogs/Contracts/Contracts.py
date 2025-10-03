@@ -27,21 +27,14 @@ class FilterFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
 
 
 class UsersView(View):
-	def __init__(
-		self, bot: "Natsumin", invoker: discord.User, season: str | None = None, reps: list[str] | None = None, statuses: list[str] | None = None
-	):
+	def __init__(self):
 		super().__init__(timeout=180, disable_on_timeout=True)
-		self.bot = bot
-		self.invoker = invoker
-		self.season = season
-		self.reps = reps
-		self.statuses = statuses
 
 	@classmethod
 	async def create(
 		cls, bot: "Natsumin", invoker: discord.User, season: str | None = None, reps: list[str] | None = None, statuses: list[str] | None = None
 	):
-		self = cls(bot, invoker, season, reps, statuses)
+		self = cls()
 
 		header_content = f"# Contracts {season}\n"
 		if reps or statuses:
@@ -70,19 +63,15 @@ class UsersView(View):
 
 
 class StatsView(View):
-	def __init__(self, bot: "Natsumin", invoker: discord.User, rep: str | None = None, season: str | None = None):
+	def __init__(self):
 		super().__init__(timeout=180, disable_on_timeout=True)
-		self.bot = bot
-		self.invoker = invoker
-		self.rep = rep
-		self.season = season
 
 	# async initializer needed for this im not passing a billion values
 	@classmethod
 	async def create(cls, bot: "Natsumin", invoker: discord.User, rep: str | None = None, season: str | None = None):
 		if season is None:
 			season = config.active_season
-		s_view = cls(bot, invoker, rep, season)
+		s_view = cls()
 
 		season_db = await contracts.get_season_db(season)
 		order_data = await season_db.get_order_data()

@@ -268,6 +268,10 @@ class SeasonDBSyncContext:
 				self._username_to_id = {row["username"]: row["id"] for row in rows}
 				self._id_to_username = {row["id"]: row["username"] for row in rows}
 
+			async with conn.execute("SELECT username, user_id FROM user_aliases") as cursor:
+				rows = await cursor.fetchall()
+				self._username_to_id |= {row["username"]: row["user_id"] for row in rows}
+
 		async with self.season_db.connect() as conn:
 			async with conn.execute("SELECT * FROM users") as cursor:
 				self.total_users = {row["id"]: SeasonUser(**row, _db=self.season_db) for row in await cursor.fetchall()}
@@ -595,7 +599,7 @@ class MasterDB:
 				async with conn.execute(
 					"""
 					SELECT u.* FROM users u
-					JOIN user_aliases a ON u.id = a.id
+					JOIN user_aliases a ON u.id = a.user_id
 					WHERE a.username = ?
 					LIMIT 1
 					""",

@@ -115,13 +115,10 @@ async def get_user_reminders(ctx: discord.AutocompleteContext):
 class RemindersList(View):
 	def __init__(self, bot: "Natsumin", user: discord.User, reminders: list[Reminder], show_hidden: bool):
 		super().__init__(timeout=180, disable_on_timeout=True)
-		self.bot = bot
-		self.user = user
-		self.reminders = sorted(reminders, key=lambda r: r.remind_at)
-		self.show_hidden = show_hidden
+		reminders = sorted(reminders, key=lambda r: r.remind_at)
 
 		reminder_str_list: list[str] = []
-		for reminder in self.reminders:
+		for reminder in reminders:
 			if reminder.hidden and not show_hidden:
 				continue
 			reminder_str_list.append(

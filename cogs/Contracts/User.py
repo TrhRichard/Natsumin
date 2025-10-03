@@ -68,6 +68,17 @@ class UserBadges(View):
 
 		self.add_item(self.get_badge_container(badges[self.current_badge_selected]))
 
+	async def on_timeout(self):
+		await super().on_timeout()
+		self.bot = None
+		self.invoker = None
+		self.user = None
+		self.badges = None
+
+		for item in self.children:
+			if hasattr(item, "callback"):
+				item.callback = None
+
 	async def button_callback(self, interaction: discord.Interaction):
 		match interaction.custom_id:
 			case "previous":
@@ -160,6 +171,15 @@ class MasterUserProfile(View):
 			)
 		)
 
+	async def on_timeout(self):
+		await super().on_timeout()
+		self.bot = None
+		self.invoker = None
+		self.user = None
+		self.master_user = None
+
+		self.get_item("check_badges").callback = None
+
 	async def button_callback(self, interaction: discord.Interaction):
 		if interaction.custom_id != "check_badges":
 			return
@@ -190,7 +210,7 @@ class ContractsProfile(View):
 		self.season_user = season_user
 		self.season = season
 
-		username = f"<@{self.user.id}>" if user else master_user.username
+		username = f"<@{user.id}>" if user else master_user.username
 		user_description = (
 			f"- **Status**: {get_user_status_name(UserStatus(season_user.status))} {get_status_emote(UserStatus(season_user.status))}\n"
 		)
@@ -213,7 +233,7 @@ class ContractsProfile(View):
 			Button(
 				style=discord.ButtonStyle.secondary,
 				label="Get Contractor",
-				disabled=self.season_user.contractor is None,
+				disabled=season_user.contractor is None,
 				custom_id="get_contractor_profile",
 			),
 			# Button(style=discord.ButtonStyle.secondary, label="Get Contractee", disabled=True, custom_id="get_contractee_profile"),
@@ -232,6 +252,20 @@ class ContractsProfile(View):
 				color=config.base_embed_color,
 			)
 		)
+
+	async def on_timeout(self):
+		await super().on_timeout()
+
+		self.bot = None
+		self.invoker = None
+		self.user = None
+		self.master_user = None
+		self.season_user = None
+		self.season = None
+
+		for item in self.children:
+			if hasattr(item, "callback"):
+				item.callback = None
 
 	async def button_callback(self, interaction: discord.Interaction):
 		match interaction.custom_id:
@@ -278,14 +312,8 @@ class UserContracts(View):
 		order_data: list[contracts.ContractOrderCategory] | None = None,
 	):
 		super().__init__(timeout=180, disable_on_timeout=True)
-		self.bot = bot
-		self.invoker = invoker
-		self.user = user
-		self.season_user = season_user
-		self.season = season
-		self.order_data = order_data
 
-		username = f"<@{self.user.id}>" if user else master_user.username
+		username = f"<@{user.id}>" if user else master_user.username
 
 		footer_messages: list[str] = []
 
