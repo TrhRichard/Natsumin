@@ -95,8 +95,8 @@ class StatsView(View):
 				) as cursor:
 					total_contracts = [contracts.Contract(**row, _db=season_db) for row in await cursor.fetchall()]
 
-		normal_contracts = filter_list(total_contracts, kind=ContractKind.NORMAL)
-		aid_contracts = filter_list(total_contracts, kind=ContractKind.AID)
+		normal_contracts = filter_list(total_contracts, kind=ContractKind.NORMAL, optional=False)
+		aid_contracts = filter_list(total_contracts, kind=ContractKind.AID, optional=False)
 
 		stats_display = TextDisplay(
 			f"**Users passed**: {get_percentage_formatted(len(filter_list(total_users, status=UserStatus.PASSED)), len(total_users))}\n"

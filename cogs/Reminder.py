@@ -1,5 +1,5 @@
 from discord.ui import View, Container, TextDisplay, Section, Thumbnail
-from utils.reminder import ReminderDB, Reminder
+from utils.reminder import ReminderDB, Reminder, from_utc_timestamp
 from discord.ext import commands, tasks
 from typing import TYPE_CHECKING
 from common import config
@@ -11,6 +11,8 @@ import re
 
 if TYPE_CHECKING:
 	from main import Natsumin
+
+TIMESTAMP_REGEX = r"<t:(\d+):(\w+)>"
 
 
 def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime) -> str:
@@ -121,8 +123,9 @@ class RemindersList(View):
 		for reminder in reminders:
 			if reminder.hidden and not show_hidden:
 				continue
+			message = shorten(reminder.message, 24)
 			reminder_str_list.append(
-				f"1. {shorten(reminder.message, 24) or '?'} <t:{reminder.remind_timestamp()}:R> (<t:{reminder.remind_timestamp()}:f>)"
+				f"1. {f'{message} ' if message else ''}<t:{reminder.remind_timestamp()}:R> (<t:{reminder.remind_timestamp()}:f>)"
 			)
 
 		self.add_item(
@@ -160,12 +163,25 @@ class ReminderCog(commands.Cog):
 	@discord.option("message", str, default="", description="Optionally include a message to display when the reminder is due")
 	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
 	async def create(self, ctx: discord.ApplicationContext, remind_in: str, message: str, hidden: bool):
-		try:
-			delta = parse_duration_str(remind_in)
-		except ValueError:
-			return await ctx.respond("Invalid duration format, please use something like: `1d24h60m` or `1 day 24 hours 60 minutes`", ephemeral=True)
+		if match := re.match(TIMESTAMP_REGEX, remind_in):
+			try:
+				timestamp = int(match.group(1))
+			except ValueError:
+				return await ctx.respond("Invalid timestamp.", ephemeral=True)
 
-		remind_at = datetime.datetime.now(datetime.UTC) + delta
+			remind_at = from_utc_timestamp(timestamp)
+			current_datetime = datetime.datetime.now(datetime.UTC)
+			if remind_at <= current_datetime:
+				return await ctx.respond("Invalid timestamp, timestamp must be in the future not the past.", ephemeral=True)
+		else:
+			try:
+				delta = parse_duration_str(remind_in)
+			except ValueError:
+				return await ctx.respond(
+					"Invalid duration format, please use something like: `1d24h60m` or `1 day 24 hours 60 minutes`", ephemeral=True
+				)
+
+			remind_at = datetime.datetime.now(datetime.UTC) + delta
 
 		new_reminder = await self.db.create_reminder(ctx.user.id, ctx.channel.id, remind_at, message, hidden)
 
