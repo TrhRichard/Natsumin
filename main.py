@@ -74,9 +74,13 @@ class Natsumin(commands.Bot):
 				if self.anicord:
 					discord_user = self.anicord.get_member(discord_id)
 					if not discord_user:
-						discord_user = await self.anicord.fetch_member(discord_id)
-				else:
-					discord_user = await self.get_or_fetch_user(discord_id)
+						try:
+							discord_user = await self.anicord.fetch_member(discord_id)
+						except discord.NotFound:
+							pass
+
+				if not discord_user:
+					discord_user = await self.get_or_fetch_user(discord_id)  # lol
 
 				if not discord_user:
 					return None, None
@@ -94,7 +98,10 @@ class Natsumin(commands.Bot):
 			if master_user.discord_id and self.anicord:
 				discord_user = self.anicord.get_member(master_user.discord_id)
 				if not discord_user:
-					discord_user = await self.anicord.fetch_member(master_user.discord_id)
+					try:
+						discord_user = await self.anicord.fetch_member(master_user.discord_id)
+					except discord.NotFound:
+						pass
 
 			if not discord_user and master_user.discord_id:
 				discord_user = await self.get_or_fetch_user(master_user.discord_id)
