@@ -20,6 +20,7 @@ class BotConfig:
 	deadline_footer: str
 	mastersheet_spreadsheet_id: int
 	embed_color: list[int]
+	syncing_enabled: bool
 
 	@property
 	def deadline_datetime(self) -> datetime.datetime:

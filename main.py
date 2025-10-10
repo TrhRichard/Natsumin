@@ -108,7 +108,8 @@ class Natsumin(commands.Bot):
 
 	@tasks.loop(minutes=10)
 	async def sync_databases(self):
-		await contracts.sync_season_db()
+		if config.syncing_enabled:
+			await contracts.sync_season_db()
 
 	@sync_databases.before_loop
 	async def before_sync(self):

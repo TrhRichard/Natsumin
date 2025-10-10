@@ -13,12 +13,12 @@ CREATE TABLE IF NOT EXISTS users (
 -- User aliases table, allows to find a user from a past username
 CREATE TABLE IF NOT EXISTS user_aliases (
 	username TEXT PRIMARY KEY,
-	user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
+	user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- Legacy leaderboard, no plans for new leaderboard since it's still wip according to the sheet
 CREATE TABLE IF NOT EXISTS legacy_leaderboard (
-	user_id INTEGER PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,         
+	user_id INTEGER PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,         
 	exp     INTEGER NOT NULL
 );
 
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS badges (
 
 -- Which user owns which badges, so that I don't have to use json to keep track
 CREATE TABLE IF NOT EXISTS user_badges (
-	user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,                     
-	badge_id INTEGER NOT NULL REFERENCES badges(id) ON DELETE CASCADE,
+	user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,                     
+	badge_id INTEGER NOT NULL REFERENCES badges(id) ON DELETE CASCADE ON UPDATE CASCADE,
 	PRIMARY KEY (user_id, badge_id)
 );

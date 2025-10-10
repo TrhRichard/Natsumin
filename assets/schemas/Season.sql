@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS contracts (
 	type       TEXT NOT NULL,
 	kind       INTEGER NOT NULL,
 	status     INTEGER NOT NULL,
-	contractee INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	contractee INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
 	contractor TEXT,
 	optional   BOOLEAN NOT NULL DEFAULT FALSE,
 	progress   TEXT,
