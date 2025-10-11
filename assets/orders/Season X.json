@@ -1,0 +1,22 @@
+[
+	{
+		"name": "Contracts",
+		"order": [
+			"base contract",
+			"challenge contract",
+			"veteran special",
+			"duality special",
+
+			"epoch special",
+			"honzuki special",
+			"aria special",
+			"arcana special",
+			"base buddy",
+			"challenge buddy"
+		]
+	},
+	{
+		"name": "Aid Contracts",
+		"order": ["aid contract [1-9]"]
+	}
+]

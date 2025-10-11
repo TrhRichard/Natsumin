@@ -9,6 +9,6 @@ embed_color: [67, 79, 93] # RGB color
 # Contracts related
 deadline_timestamp: 0 # UTC Timestamp
 deadline_footer: "Season deadline in {days} days, {hours} hours, and {minutes} minutes."
-active_season: "Winter 2025"
+active_season: "Season X"
 mastersheet_spreadsheet_id: "1MJM_AH1wJ8uQ3hDdnxZnT2AyMlq0NFFNYMhpLDdwK6w"
 syncing_enabled: false
