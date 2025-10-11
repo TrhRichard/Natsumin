@@ -152,6 +152,68 @@ class ReminderCog(commands.Cog):
 			self.logger.addHandler(console_handler)
 			self.logger.setLevel(logging.INFO)
 
+	async def create_reminder(self, user: discord.User, channel: discord.TextChannel, remind_in: str, message: str, hidden: bool) -> tuple[str, bool]:
+		if match := re.match(TIMESTAMP_REGEX, remind_in):
+			try:
+				timestamp = int(match.group(1))
+			except ValueError:
+				return "Invalid timestamp.", True
+
+			remind_at = from_utc_timestamp(timestamp)
+			current_datetime = datetime.datetime.now(datetime.UTC)
+			if remind_at <= current_datetime:
+				return "Invalid timestamp, timestamp must be in the future not the past.", True
+		else:
+			try:
+				delta = parse_duration_str(remind_in)
+			except ValueError:
+				return "Invalid duration format, please use something like: `1d24h60m` or `1 day 24 hours 60 minutes`", True
+
+			remind_at = datetime.datetime.now(datetime.UTC) + delta
+
+		new_reminder = await self.db.create_reminder(user.id, channel.id, remind_at, message, hidden)
+
+		time_diff_str = diff_to_str(new_reminder.created_at, new_reminder.remind_at)
+		response = f"Done! Reminding in {time_diff_str}: `{new_reminder.message}`"
+		if not new_reminder.message.strip():
+			response = f"Done! Reminding in {time_diff_str}"
+
+		self.logger.info(f"@{user.name} created reminder id={new_reminder.id} message={new_reminder.message}, due in {time_diff_str}.")
+		return response, hidden
+
+	async def delete_reminder(self, user: discord.User, id: int, hidden: bool) -> tuple[str, bool]:
+		user_reminders = await self.db.get_reminders(user_id=user.id)
+
+		has_reminder_with_id = any([reminder.id == id for reminder in user_reminders])
+
+		if not has_reminder_with_id:
+			return f"Could not find any reminder with id {id}", True
+
+		deleted_reminder = [r for r in user_reminders if r.id == id][0]
+		await self.db.delete_reminder(id)
+
+		time_diff_str = diff_to_str(datetime.datetime.now(datetime.UTC), deleted_reminder.remind_at)
+
+		self.logger.info(f"@{user.name} deleted reminder id={deleted_reminder.id} message={deleted_reminder.message}, due in {time_diff_str}")
+
+		if deleted_reminder.message:
+			return f"Deleted reminder `{deleted_reminder.message}` that's due in {time_diff_str}", hidden
+		else:
+			return f"Deleted reminder that's due in {time_diff_str}", hidden
+
+	async def list_reminders(self, user: discord.User, hidden: bool, show_hidden: bool) -> tuple[str | RemindersList, bool]:
+		user_reminders = await self.db.get_reminders(user_id=user.id)
+		hidden_reminders = [r for r in user_reminders if r.hidden]
+		channel_reminders = [r for r in user_reminders if not r.hidden]
+		show_hidden = show_hidden if not hidden else hidden
+
+		if show_hidden and (len(channel_reminders) == 0 and len(hidden_reminders) == 0):
+			return "No reminders set!", hidden
+		elif len(channel_reminders) == 0:
+			return "No reminders set!", hidden
+
+		return RemindersList(self.bot, user, user_reminders, show_hidden), hidden
+
 	@commands.Cog.listener()
 	async def on_ready(self):
 		await self.db.setup()
@@ -163,36 +225,8 @@ class ReminderCog(commands.Cog):
 	@discord.option("message", str, default="", description="Optionally include a message to display when the reminder is due")
 	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
 	async def create(self, ctx: discord.ApplicationContext, remind_in: str, message: str, hidden: bool):
-		if match := re.match(TIMESTAMP_REGEX, remind_in):
-			try:
-				timestamp = int(match.group(1))
-			except ValueError:
-				return await ctx.respond("Invalid timestamp.", ephemeral=True)
-
-			remind_at = from_utc_timestamp(timestamp)
-			current_datetime = datetime.datetime.now(datetime.UTC)
-			if remind_at <= current_datetime:
-				return await ctx.respond("Invalid timestamp, timestamp must be in the future not the past.", ephemeral=True)
-		else:
-			try:
-				delta = parse_duration_str(remind_in)
-			except ValueError:
-				return await ctx.respond(
-					"Invalid duration format, please use something like: `1d24h60m` or `1 day 24 hours 60 minutes`", ephemeral=True
-				)
-
-			remind_at = datetime.datetime.now(datetime.UTC) + delta
-
-		new_reminder = await self.db.create_reminder(ctx.user.id, ctx.channel.id, remind_at, message, hidden)
-
-		time_diff_str = diff_to_str(new_reminder.created_at, new_reminder.remind_at)
-		response = f"Done! Reminding in {time_diff_str}: `{new_reminder.message}`"
-		if not new_reminder.message.strip():
-			response = f"Done! Reminding in {time_diff_str}"
-
-		self.logger.info(f"@{ctx.user.name} created reminder id={new_reminder.id} message={new_reminder.message}, due in {time_diff_str}.")
-
-		await ctx.respond(response, ephemeral=hidden)
+		response, ephemeral = await self.create_reminder(ctx.user, ctx.channel, remind_in, message, hidden)
+		await ctx.respond(response, ephemeral=ephemeral)
 
 	@reminder_group.command(description="Delete a reminder.")
 	@discord.option(
@@ -200,39 +234,40 @@ class ReminderCog(commands.Cog):
 	)
 	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
 	async def delete(self, ctx: discord.ApplicationContext, id: int, hidden: bool):
-		user_reminders = await self.db.get_reminders(user_id=ctx.user.id)
-
-		has_reminder_with_id = any([reminder.id == id for reminder in user_reminders])
-
-		if not has_reminder_with_id:
-			return await ctx.respond(f"Could not find any reminder with id {id}", ephemeral=True)
-
-		deleted_reminder = [r for r in user_reminders if r.id == id][0]
-		await self.db.delete_reminder(id)
-
-		time_diff_str = diff_to_str(datetime.datetime.now(datetime.UTC), deleted_reminder.remind_at)
-		if deleted_reminder.message:
-			await ctx.respond(f"Deleted reminder `{deleted_reminder.message}` that's due in {time_diff_str}", ephemeral=hidden)
-		else:
-			await ctx.respond(f"Deleted reminder that's due in {time_diff_str}", ephemeral=hidden)
-
-		self.logger.info(f"@{ctx.user.name} deleted reminder id={deleted_reminder.id} message={deleted_reminder.message}, due in {time_diff_str}")
+		response, ephemeral = await self.delete_reminder(ctx.user, id, hidden)
+		await ctx.respond(response, ephemeral=ephemeral)
 
 	@reminder_group.command(description="See all the currently set reminders and their reminding date")
 	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
 	@discord.option("show_hidden", bool, description="Show hidden (DM) reminders, hidden argument takes priority over this.", default=False)
 	async def list(self, ctx: discord.ApplicationContext, hidden: bool = False, show_hidden: bool = False):
-		user_reminders = await self.db.get_reminders(user_id=ctx.user.id)
-		hidden_reminders = [r for r in user_reminders if r.hidden]
-		channel_reminders = [r for r in user_reminders if not r.hidden]
-		show_hidden = show_hidden if not hidden else hidden
+		response, ephemeral = await self.list_reminders(ctx.user, hidden, show_hidden)
+		if isinstance(response, RemindersList):
+			await ctx.respond(view=response, ephemeral=ephemeral)
+		else:
+			await ctx.response(response, ephemeral=ephemeral)
 
-		if show_hidden and (len(channel_reminders) == 0 and len(hidden_reminders) == 0):
-			return await ctx.respond("No reminders set!", ephemeral=hidden)
-		elif len(channel_reminders) == 0:
-			return await ctx.respond("No reminders set!", ephemeral=hidden)
+	@commands.group(name="reminder", help="Reminder commands", aliases=["remind"], hidden=True, invoke_without_command=True)
+	async def reminder_textgroup(self, ctx: commands.Context):
+		await ctx.reply("Please specify a valid subcommand.")
 
-		await ctx.respond(view=RemindersList(self.bot, ctx.author, user_reminders, show_hidden), ephemeral=hidden)
+	@reminder_textgroup.command("create", help="Create a new reminder", aliases=["new", "add"])
+	async def text_create(self, ctx: commands.Context, remind_in: str, *, message: str):
+		response, _ = await self.create_reminder(ctx.author, ctx.channel, remind_in, message, False)
+		await ctx.reply(response)
+
+	@reminder_textgroup.command("delete", help="Delete a reminder", aliases=["remove"])
+	async def text_delete(self, ctx: commands.Context, id: int):
+		response, _ = await self.delete_reminder(ctx.author, id)
+		await ctx.reply(response)
+
+	@reminder_textgroup.command("list", help="List all of your reminders")
+	async def text_list(self, ctx: commands.Context, show_hidden: bool = False):
+		response, _ = await self.list_reminders(ctx.author, False, show_hidden)
+		if isinstance(response, RemindersList):
+			await ctx.reply(view=response)
+		else:
+			await ctx.reply(response)
 
 	@tasks.loop(seconds=15)
 	async def reminder_loop(self):
