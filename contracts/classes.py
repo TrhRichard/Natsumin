@@ -91,10 +91,10 @@ class SeasonUser:
 		return False
 
 	def __post_init__(self):
-		if not isinstance(self.kind, UserKind):
-			self.kind = UserKind(self.kind)
-		if not isinstance(self.status, UserStatus):
-			self.status = UserStatus(self.status)
+		self.kind = UserKind(self.kind)
+		self.status = UserStatus(self.status)
+		self.accepting_manhwa = bool(self.accepting_manhwa)
+		self.accepting_ln = bool(self.accepting_ln)
 
 	async def get_master_data(self) -> MasterUser:
 		return await self._db.fetch_user_from_master(id=self.id)
@@ -169,10 +169,9 @@ class Contract:
 		return False
 
 	def __post_init__(self):
-		if not isinstance(self.kind, ContractKind):
-			self.kind = ContractKind(self.kind)
-		if not isinstance(self.status, ContractStatus):
-			self.status = ContractStatus(self.status)
+		self.kind = ContractKind(self.kind)
+		self.status = ContractStatus(self.status)
+		self.optional = bool(self.optional)
 
 	async def get_contractee(self) -> SeasonUser:
 		return self._db.fetch_user(self.contractee)
@@ -510,8 +509,7 @@ class Badge:
 		return hash((self.id))
 
 	def __post_init__(self):
-		if not isinstance(self.type, BadgeType):
-			self.type = BadgeType(self.type)
+		self.type = BadgeType(self.type)
 
 	async def to_dict(self, *, minimal=False) -> dict:
 		return (

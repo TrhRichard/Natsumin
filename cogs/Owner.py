@@ -77,7 +77,7 @@ class Owner(commands.Cog):
 		async with ctx.typing():
 			async with season_db.connect() as conn:
 				async with conn.execute("SELECT * FROM users") as cursor:
-					all_users = [contracts.SeasonUser.new(**row, _db=season_db) for row in await cursor.fetchall()]
+					all_users = [contracts.SeasonUser(**row, _db=season_db) for row in await cursor.fetchall()]
 
 				users_json = [await user.to_dict(include_contracts=True) for user in all_users]
 

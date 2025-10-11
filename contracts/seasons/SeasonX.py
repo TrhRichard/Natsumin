@@ -130,7 +130,7 @@ async def _sync_basechallenge_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 	for row in base_challenge_rows:
 		username = row[3].strip().lower()
-		contractor = row[5].strip().lower()
+		contractor = get_cell(row, 5, "").strip().lower()
 
 		user_id = ctx.get_user_id(username)
 		if not user_id:
@@ -145,12 +145,12 @@ async def _sync_basechallenge_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 				season_user,
 				contractor=contractor,
 				rep=get_rep(get_cell(row, 2, "")),
-				list_url=get_url(row, 7),
-				veto_used=get_cell(row, 10) == "TRUE",
-				preferences=get_cell(row, 16).replace("\n", ", "),
-				bans=get_cell(row, 17).replace("\n", ", "),
-				accepting_manhwa=get_cell(row, 18) == "Yes",
-				accepting_ln=get_cell(row, 19) == "Yes",
+				list_url=get_url(row, 8),
+				veto_used=get_cell(row, 12, "FALSE") == "TRUE",
+				preferences=get_cell(row, 18, "N/A").replace("\n", ", "),
+				bans=get_cell(row, 19, "N/A").replace("\n", ", "),
+				accepting_manhwa=get_cell(row, 9, "N/A") == "Yes",
+				accepting_ln=get_cell(row, 10, "N/A") == "Yes",
 			)
 
 		if user_id in ctx.master_users_created:
@@ -161,32 +161,32 @@ async def _sync_basechallenge_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 		base_contract = user_contracts.get("Base Contract")
 
 		if (
-			base_contract.progress != get_cell(row, 29, "?/?").replace("\n", "")
-			or base_contract.rating != get_cell(row, 26, "")
-			or base_contract.review_url != get_url(row, 31)
+			base_contract.progress != get_cell(row, 31, "?/?").replace("\n", "")
+			or base_contract.rating != get_cell(row, 28, "0/10")
+			or base_contract.review_url != get_url(row, 33)
 		):
 			ctx.update_contract(
 				base_contract,
 				contractor=contractor,
-				progress=get_cell(row, 29, "?/?").replace("\n", ""),
-				rating=get_cell(row, 26),
-				review_url=get_url(row, 31),
-				medium=get_cell(row, 9),
+				progress=get_cell(row, 31, "?/?").replace("\n", ""),
+				rating=get_cell(row, 28, "0/10"),
+				review_url=get_url(row, 33),
+				medium=get_cell(row, 7),
 				optional=False,
 			)
 		if challenge_contract := user_contracts.get("Challenge Contract"):
 			if (
-				challenge_contract.progress != get_cell(row, 30, "?/?").replace("\n", "")
-				or challenge_contract.rating != get_cell(row, 28, "")
-				or challenge_contract.review_url != get_url(row, 32)
+				challenge_contract.progress != get_cell(row, 32, "?/?").replace("\n", "")
+				or challenge_contract.rating != get_cell(row, 30, "0/10")
+				or challenge_contract.review_url != get_url(row, 34)
 			):
 				ctx.update_contract(
 					challenge_contract,
 					contractor=contractor,
-					progress=get_cell(row, 30, "?/?").replace("\n", ""),
-					rating=get_cell(row, 28),
-					review_url=get_url(row, 32),
-					medium=get_cell(row, 13),
+					progress=get_cell(row, 32, "?/?").replace("\n", ""),
+					rating=get_cell(row, 30, "0/10"),
+					review_url=get_url(row, 34),
+					medium=get_cell(row, 15),
 					optional=False,
 				)
 
@@ -207,7 +207,7 @@ async def sync_to_latest(season_db: SeasonDB):
 	sheet_data = await _get_sheet_data()
 
 	await _sync_dashboard_data(sheet_data, ctx)
-	# await _sync_basechallenge_data(sheet_data, ctx)
+	await _sync_basechallenge_data(sheet_data, ctx)
 	# await _sync_specials_data(sheet_data, ctx)
 
 
