@@ -252,7 +252,7 @@ class ReminderCog(commands.Cog):
 		await ctx.reply("Please specify a valid subcommand.")
 
 	@reminder_textgroup.command("create", help="Create a new reminder", aliases=["new", "add"])
-	async def text_create(self, ctx: commands.Context, remind_in: str, *, message: str):
+	async def text_create(self, ctx: commands.Context, remind_in: str, *, message: str = ""):
 		response, _ = await self.create_reminder(ctx.author, ctx.channel, remind_in, message, False)
 		await ctx.reply(response)
 
