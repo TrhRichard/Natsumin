@@ -154,11 +154,12 @@ class Help(commands.HelpCommand):
 		await channel.send(embed=embed)
 
 	async def send_command_help(self, command: commands.Command):
-		embed = discord.Embed(color=config.base_embed_color)
+		embed = discord.Embed(
+			color=config.base_embed_color, title=f"{self.context.clean_prefix}{command.qualified_name} {command.signature}", description=""
+		)
 
-		embed.description = f"{self.context.clean_prefix}{command.qualified_name} {command.signature}"
 		if len(command.aliases) > 0:
-			embed.description += f"\n> **Aliases**: {', '.join(command.aliases)}"
+			embed.description += f"\n**Aliases**: {', '.join(command.aliases)}"
 
 		if command.description or command.help:
 			embed.description += f"\n\n{command.description or command.help}"
@@ -180,8 +181,10 @@ class Help(commands.HelpCommand):
 
 	async def send_group_help(self, group: commands.Group):
 		embed = discord.Embed(color=config.base_embed_color, title=f"{group.qualified_name.capitalize()} sub-commands", description="")
+		if len(group.aliases) > 0:
+			embed.description += f"\n**Aliases**: {', '.join(group.aliases)}"
 		if group.description or group.help:
-			embed.description += f"{group.description or group.help}"
+			embed.description += f"\n\n{group.description or group.help}"
 
 		filtered: list[commands.Command] = await self.filter_commands(group.commands, sort=True)
 		command_signatures = [f"{self.get_command_signature(c)}\n  - {c.help}" if c.help else self.get_command_signature(c) for c in filtered]
