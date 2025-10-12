@@ -251,17 +251,32 @@ class ReminderCog(commands.Cog):
 	async def reminder_textgroup(self, ctx: commands.Context):
 		await ctx.reply(f"Please specify a valid subcommand. Use `{ctx.clean_prefix}help {ctx.invoked_with}` for a full list.")
 
-	@reminder_textgroup.command("create", help="Create a new reminder", aliases=["new", "add"])
+	@reminder_textgroup.command(
+		"create",
+		aliases=["new", "add"],
+		help="Create a new reminder",
+		description="Create a new reminder. In order to specify a time like `1 hour 15 minutes` you must put it in quotation marks.\nAdditionally you can use a discord timestamp as the time, for example `<t:1894658400:f>` (which would turn into <t:1894658400:f>)",
+	)
 	async def text_create(self, ctx: commands.Context, remind_in: str, *, message: str = ""):
 		response, _ = await self.create_reminder(ctx.author, ctx.channel, remind_in, message, False)
 		await ctx.reply(response)
 
-	@reminder_textgroup.command("delete", help="Delete a reminder", aliases=["remove"])
+	@reminder_textgroup.command(
+		"delete",
+		aliases=["remove"],
+		help="Delete a reminder",
+		description="Delete a reminder, grab the id from the list subcommand otherwise guess it if u can lol",
+	)
 	async def text_delete(self, ctx: commands.Context, id: int):
 		response, _ = await self.delete_reminder(ctx.author, id)
 		await ctx.reply(response)
 
-	@reminder_textgroup.command("list", help="List all of your reminders")
+	@reminder_textgroup.command(
+		"list",
+		aliases=["all"],
+		help="List all of your reminders",
+		description="List all of your reminders, by default ones made hidden will not be listed",
+	)
 	async def text_list(self, ctx: commands.Context, show_hidden: bool = False):
 		response, _ = await self.list_reminders(ctx.author, False, show_hidden)
 		if isinstance(response, RemindersList):
