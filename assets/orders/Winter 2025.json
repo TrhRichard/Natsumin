@@ -15,6 +15,6 @@
 	},
 	{
 		"name": "Aid Contracts",
-		"order": ["aid contract [1-9]"]
+		"order": ["aid contract \\d+"]
 	}
 ]

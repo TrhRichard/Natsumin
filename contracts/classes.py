@@ -80,7 +80,7 @@ class SeasonUser:
 	_db: SeasonDB = None
 
 	def __hash__(self):
-		return hash(self.id)
+		return hash((self.id, self._db.name))
 
 	def __eq__(self, value):
 		if isinstance(value, SeasonUser):
