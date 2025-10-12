@@ -119,6 +119,8 @@ async def _sync_dashboard_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 			if contract_data := user_contracts.get(contract_type):
 				if contract_data.status != contract_status:
 					ctx.update_contract(contract_data, status=contract_status)
+				if contract_data.name != contract_name:
+					ctx.update_contract(contract_data, name=contract_name)
 			else:
 				ctx.create_contract(name=contract_name, type=contract_type, kind=ContractKind.NORMAL, status=contract_status, contractee=user_id)
 
@@ -208,7 +210,7 @@ async def sync_to_latest(season_db: SeasonDB):
 
 	await _sync_dashboard_data(sheet_data, ctx)
 	await _sync_basechallenge_data(sheet_data, ctx)
-	# await _sync_specials_data(sheet_data, ctx)
+	await _sync_specials_data(sheet_data, ctx)
 
 
 @alru_cache

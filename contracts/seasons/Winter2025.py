@@ -402,6 +402,8 @@ async def _sync_aids_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 			contract_status = ContractStatus.PASSED
 		elif get_cell(row, 0) == "FAILED":
 			contract_status = ContractStatus.FAILED
+		elif get_cell(row, 0) == "LATE PASS":
+			contract_status = ContractStatus.LATE_PASS
 		else:
 			contract_status = ContractStatus.PENDING
 
