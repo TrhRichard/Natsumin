@@ -145,7 +145,7 @@ class Help(commands.HelpCommand):
 
 		for cog, cog_commands in mapping.items():
 			filtered: list[commands.Command] = await self.filter_commands(cog_commands, sort=True)
-			command_signatures = [f"{self.get_command_signature(c)}\n  - {c.help}" for c in filtered]
+			command_signatures = [f"{self.get_command_signature(c)}\n  - {c.help}" if c.help else self.get_command_signature(c) for c in filtered]
 
 			if command_signatures:
 				embed.description += "".join([f"\n- {s}" for s in command_signatures])
@@ -167,14 +167,13 @@ class Help(commands.HelpCommand):
 		await channel.send(embed=embed)
 
 	async def send_cog_help(self, cog: commands.Cog):
-		embed = discord.Embed(color=config.base_embed_color)
+		embed = discord.Embed(color=config.base_embed_color, title=getattr(cog, "qualified_name", "Cog"), description=getattr(cog, "description", ""))
 
 		filtered: list[commands.Command] = await self.filter_commands(cog.get_commands(), sort=True)
-		command_signatures = [self.get_command_signature(c) for c in filtered]
+		command_signatures = [f"{self.get_command_signature(c)}\n  - {c.help}" if c.help else self.get_command_signature(c) for c in filtered]
 
 		if command_signatures:
-			cog_name = getattr(cog, "qualified_name", "No Category")
-			embed.add_field(name=cog_name, value="\n".join([f"> {s}" for s in command_signatures]), inline=False)
+			embed.description += "".join([f"\n- {s}" for s in command_signatures])
 
 		channel = self.get_destination()
 		await channel.send(embed=embed)
@@ -185,7 +184,7 @@ class Help(commands.HelpCommand):
 			embed.description += f"{group.description or group.help}"
 
 		filtered: list[commands.Command] = await self.filter_commands(group.commands, sort=True)
-		command_signatures = [f"{self.get_command_signature(c)}\n  - {c.help}" for c in filtered]
+		command_signatures = [f"{self.get_command_signature(c)}\n  - {c.help}" if c.help else self.get_command_signature(c) for c in filtered]
 
 		if command_signatures:
 			embed.description += "".join([f"\n- {s}" for s in command_signatures])
