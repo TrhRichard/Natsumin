@@ -95,6 +95,7 @@ class SeasonUser:
 		self.status = UserStatus(self.status)
 		self.accepting_manhwa = bool(self.accepting_manhwa)
 		self.accepting_ln = bool(self.accepting_ln)
+		self.veto_used = bool(self.veto_used)
 
 	async def get_master_data(self) -> MasterUser:
 		return await self._db.fetch_user_from_master(id=self.id)
@@ -279,6 +280,9 @@ class SeasonDBSyncContext:
 				self.total_contracts = [Contract(**row, _db=self.season_db) for row in await cursor.fetchall()]
 
 	def get_user_id(self, username: str) -> int | None:
+		if not username.strip():
+			return None
+
 		if username in self._username_to_id:
 			return self._username_to_id.get(username)
 		else:

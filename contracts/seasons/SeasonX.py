@@ -73,7 +73,7 @@ async def _sync_dashboard_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 		user_id = ctx.get_user_id(username)
 		if not user_id:
-			print(f"TO BE CREATED: {username}")
+			# print(f"TO BE CREATED: {username}")
 			continue
 			# user_id = await ctx.create_master_user(username)
 
@@ -196,6 +196,143 @@ async def _sync_basechallenge_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 
 async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
+	users_contracts: dict[int, dict[str, Contract]] = {}
+	for contract in ctx.total_contracts:
+		users_contracts.setdefault(contract.contractee, {})[contract.type] = contract
+
+	# Duality Special
+	rows: list[list[str]] = sheet_data["valueRanges"][2]["values"]
+	for row in rows:
+		username = get_cell(row, 3, "").strip().lower()
+
+		user_id = ctx.get_user_id(username)
+		if not user_id:
+			continue
+
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		duality_special = user_contracts.get("Duality Special")
+		if duality_special.rating != get_cell(row, 7, "0/10") or duality_special.review_url != get_url(row, 8):
+			ctx.update_contract(
+				duality_special,
+				contractor=get_cell(row, 6, "frazzle").strip().lower(),
+				rating=get_cell(row, 7, "0/10"),
+				review_url=get_url(row, 8),
+				optional=duality_special.type in OPTIONAL_CONTRACTS,
+				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4)),
+			)
+
+	# Veteran Special
+	rows: list[list[str]] = sheet_data["valueRanges"][3]["values"]
+	for row in rows:
+		username = get_cell(row, 3, "").strip().lower()
+
+		user_id = ctx.get_user_id(username)
+		if not user_id:
+			continue
+
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		veteran_special = user_contracts.get("Veteran Special")
+		if (
+			veteran_special.progress != get_cell(row, 7, "?/?")
+			or veteran_special.rating != get_cell(row, 8, "0/10")
+			or veteran_special.review_url != get_url(row, 9)
+		):
+			ctx.update_contract(
+				veteran_special,
+				contractor=get_cell(row, 5).strip().lower(),
+				progress=get_cell(row, 7, "?/?"),
+				rating=get_cell(row, 8, "0/10"),
+				review_url=get_url(row, 9),
+				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4)),
+				optional=veteran_special.type in OPTIONAL_CONTRACTS,
+			)
+
+	# Epoch Special
+	rows: list[list[str]] = sheet_data["valueRanges"][4]["values"]
+	for row in rows:
+		username = get_cell(row, 3, "").strip().lower()
+
+		user_id = ctx.get_user_id(username)
+		if not user_id:
+			continue
+
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		epoch_special = user_contracts.get("Epoch Special")
+		if epoch_special.rating != get_cell(row, 7, "0/10") or epoch_special.review_url != get_url(row, 8):
+			ctx.update_contract(
+				epoch_special,
+				contractor=get_cell(row, 6).strip().lower(),
+				rating=get_cell(row, 7, "0/10"),
+				review_url=get_url(row, 8),
+				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4)),
+				optional=epoch_special.type in OPTIONAL_CONTRACTS,
+			)
+
+	# Honzuki Special
+	rows: list[list[str]] = sheet_data["valueRanges"][5]["values"]
+	for row in rows:
+		username = get_cell(row, 3, "").strip().lower()
+
+		user_id = ctx.get_user_id(username)
+		if not user_id:
+			continue
+
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		honzuki_special = user_contracts.get("Honzuki Special")
+		if honzuki_special.rating != get_cell(row, 5, "0/10") or honzuki_special.review_url != get_url(row, 6):
+			ctx.update_contract(
+				honzuki_special,
+				rating=get_cell(row, 5, "0/10"),
+				review_url=get_url(row, 6),
+				medium="LN",
+				optional=epoch_special.type in OPTIONAL_CONTRACTS,
+			)
+
+	# Aria Special
+	rows: list[list[str]] = sheet_data["valueRanges"][6]["values"]
+	for row in rows:
+		username = get_cell(row, 2, "").strip().lower()
+
+		user_id = ctx.get_user_id(username)
+		if not user_id:
+			continue
+
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		aria_special = user_contracts.get("Aria Special")
+		if aria_special.rating != get_cell(row, 5, "0/10") or aria_special.review_url != get_url(row, 6):
+			ctx.update_contract(
+				aria_special,
+				contractor=get_cell(row, 4).strip().lower(),
+				rating=get_cell(row, 5, "0/10"),
+				review_url=get_url(row, 6),
+				medium="Game",
+				optional=epoch_special.type in OPTIONAL_CONTRACTS,
+			)
+
+	await ctx.commit()
+
+
+async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 	pass
 
 
@@ -211,6 +348,7 @@ async def sync_to_latest(season_db: SeasonDB):
 	await _sync_dashboard_data(sheet_data, ctx)
 	await _sync_basechallenge_data(sheet_data, ctx)
 	await _sync_specials_data(sheet_data, ctx)
+	await _sync_arcana_data(sheet_data, ctx)
 
 
 @alru_cache
