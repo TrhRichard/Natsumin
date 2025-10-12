@@ -247,9 +247,9 @@ class ReminderCog(commands.Cog):
 		else:
 			await ctx.response(response, ephemeral=ephemeral)
 
-	@commands.group(name="reminder", help="Reminder commands", aliases=["remind"], hidden=True, invoke_without_command=True)
+	@commands.group(name="reminder", aliases=["remind", "reminders"], invoke_without_command=True, help="Reminder related commands")
 	async def reminder_textgroup(self, ctx: commands.Context):
-		await ctx.reply("Please specify a valid subcommand.")
+		await ctx.reply(f"Please specify a valid subcommand. Use `{ctx.clean_prefix}help {ctx.invoked_with}` for a full list.")
 
 	@reminder_textgroup.command("create", help="Create a new reminder", aliases=["new", "add"])
 	async def text_create(self, ctx: commands.Context, remind_in: str, *, message: str = ""):

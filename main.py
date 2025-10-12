@@ -134,7 +134,11 @@ bot = Natsumin(
 
 class Help(commands.HelpCommand):
 	def get_command_signature(self, command: commands.Command):
-		return "**%s%s**%s" % (self.context.clean_prefix, command.qualified_name, (f" {command.signature}" if command.signature else ""))
+		return "**%s%s**%s" % (
+			self.context.clean_prefix,
+			command.qualified_name,
+			(f" {command.signature}" if command.signature else " [sub-command]" if isinstance(command, commands.Group) else ""),
+		)
 
 	async def send_bot_help(self, mapping: Mapping[Optional[commands.Cog], list[commands.Command]]):
 		embed = discord.Embed(color=config.base_embed_color, description="")
@@ -156,8 +160,8 @@ class Help(commands.HelpCommand):
 		if len(command.aliases) > 0:
 			embed.description += f"\n> **Aliases**: {', '.join(command.aliases)}"
 
-		if command.help:
-			embed.description += f"\n\n{command.help}"
+		if command.description or command.help:
+			embed.description += f"\n\n{command.description or command.help}"
 
 		channel = self.get_destination()
 		await channel.send(embed=embed)
@@ -171,6 +175,20 @@ class Help(commands.HelpCommand):
 		if command_signatures:
 			cog_name = getattr(cog, "qualified_name", "No Category")
 			embed.add_field(name=cog_name, value="\n".join([f"> {s}" for s in command_signatures]), inline=False)
+
+		channel = self.get_destination()
+		await channel.send(embed=embed)
+
+	async def send_group_help(self, group: commands.Group):
+		embed = discord.Embed(color=config.base_embed_color, title=f"{group.qualified_name.capitalize()} sub-commands", description="")
+		if group.description or group.help:
+			embed.description += f"{group.description or group.help}"
+
+		filtered: list[commands.Command] = await self.filter_commands(group.commands, sort=True)
+		command_signatures = [f"{self.get_command_signature(c)}\n  - {c.help}" for c in filtered]
+
+		if command_signatures:
+			embed.description += "".join([f"\n- {s}" for s in command_signatures])
 
 		channel = self.get_destination()
 		await channel.send(embed=embed)
