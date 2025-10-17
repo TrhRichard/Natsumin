@@ -3,11 +3,13 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS giveaways (
     message_id INTEGER PRIMARY KEY,
+    channel_id INTEGER NOT NULL,
     author_id INTEGER NOT NULL,
     reward TEXT NOT NULL,
     winners INTEGER NOT NULL DEFAULT 1 CHECK(winners >= 0),
     ends_at INTEGER NOT NULL CHECK(ends_at > created_at),
     created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    ended INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS role_requirements (

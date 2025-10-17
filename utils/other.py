@@ -204,11 +204,13 @@ class ReminderDB:
 @dataclass
 class Giveaway:
 	message_id: int
+	channel_id: int
 	author_id: int
 	reward: int
 	winners: int
 	ends_at: datetime.datetime
 	created_at: datetime.datetime
+	ended: bool
 	_db: "GiveawayDB"
 
 	def ends_timestamp(self) -> int:
@@ -288,10 +290,11 @@ class GiveawayDB:
 				row = await cursor.fetchone()
 				return self._row_to_giveaway(row) if row else None
 
-	async def get_entered_giveaways(self, user_id: int) -> list[Giveaway]:
+	async def get_entered_giveaways(self, user_id: int, include_ended=False) -> list[Giveaway]:
 		async with self.connect() as conn:
 			async with conn.execute(
-				"SELECT g.* FROM giveaways AS g JOIN users_entered AS ue ON ue.giveaway_id = g.message_id WHERE ue.user_id = ?;", (user_id,)
+				"SELECT g.* FROM giveaways AS g JOIN users_entered AS ue ON ue.giveaway_id = g.message_id WHERE ue.user_id = ? AND g.ended = ?",
+				(user_id, 1 if include_ended else 0),
 			) as cursor:
 				rows = await cursor.fetchall()
 				return [self._row_to_giveaway(row) for row in rows]
@@ -299,7 +302,8 @@ class GiveawayDB:
 	async def get_due_giveaways(self) -> list[Giveaway]:
 		async with self.connect() as conn:
 			async with await conn.execute(
-				"DELETE FROM giveaways WHERE ends_at <= ? RETURNING *", (to_utc_timestamp(datetime.datetime.now(datetime.UTC)),)
+				"UPDATE giveaways SET ended = 1 WHERE ends_at <= ? AND ended = 0 RETURNING *",
+				(to_utc_timestamp(datetime.datetime.now(datetime.UTC)),),
 			) as cursor:
 				rows = await cursor.fetchall()
 
@@ -310,11 +314,13 @@ class GiveawayDB:
 
 	def _row_to_giveaway(self, row: aiosqlite.Row) -> Giveaway:
 		return Giveaway(
-			message_id=row["id"],
+			message_id=row["message_id"],
+			channel_id=row["channel_id"],
 			author_id=row["author_id"],
 			reward=row["reward"],
 			winners=row["winners"],
 			ends_at=from_utc_timestamp(row["ends_at"]),
 			created_at=from_utc_timestamp(row["created_at"]),
+			ended=bool(row["ended"]),
 			_db=self,
 		)
