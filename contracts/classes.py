@@ -286,7 +286,7 @@ class SeasonDBSyncContext:
 		if username in self._username_to_id:
 			return self._username_to_id.get(username)
 		else:
-			fuzzy_result = process.extractOne(username, self._id_to_username, score_cutoff=90)
+			fuzzy_result = process.extractOne(username, self._id_to_username, score_cutoff=91)
 			if fuzzy_result:
 				return fuzzy_result[2]
 			else:

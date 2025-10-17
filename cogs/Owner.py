@@ -2,6 +2,7 @@ from utils import CONSOLE_LOGGING_FORMATTER, FILE_LOGGING_FORMATTER, config
 from discord.ext import commands
 from typing import TYPE_CHECKING
 from common import get_master_db
+from thefuzz import process
 import contracts
 import logging
 import discord
@@ -221,6 +222,45 @@ class Owner(commands.Cog):
 	async def forcegarbagecollect(self, ctx: commands.Context):
 		count = gc.collect()
 		await ctx.reply(f"Collected {count} instances from the garbage.")
+
+	@commands.command(hidden=True)
+	@commands.is_owner()
+	async def sync_master_ids(self, ctx: commands.Context):
+		if not self.bot.anicord:
+			await ctx.reply("Bot is not in Anicord!")
+			return
+
+		master_db = get_master_db()
+
+		guild_members = await self.bot.anicord.fetch_members(limit=None).flatten()
+		print(f"Received {len(guild_members)} members!")
+		name_members: dict[str, discord.Member] = {m.name: m for m in guild_members}
+		member_names: dict[discord.Member, str] = {m: m.name for m in guild_members}
+
+		async with master_db.connect() as conn:
+			async with conn.execute("SELECT * FROM users WHERE discord_id IS NULL") as cursor:
+				users = await cursor.fetchall()
+				for user in users:
+					username: str = user["username"]
+					if member := name_members.get(username):
+						await conn.execute("UPDATE OR IGNORE users SET discord_id = ? WHERE id = ?", (member.id, user["id"]))
+					else:
+						fuzzy_results: list[tuple[str, int, discord.Member]] = process.extract(username, member_names, limit=1)
+						if not fuzzy_results:
+							print(f"Could not find a discord id for {username}, skipping...")
+							continue
+
+						_, confidence, member = fuzzy_results[0]
+						if confidence >= 90:
+							if username == member.name:
+								await conn.execute("UPDATE OR IGNORE users SET discord_id = ? WHERE id = ?", (member.id, user["id"]))
+							else:
+								print(f"It appears that {username}'s actual name is {member.name}, updating that as well")
+								await conn.execute(
+									"UPDATE OR IGNORE users SET discord_id = ?, username = ? WHERE id = ?", (member.id, member.name, user["id"])
+								)
+
+			await conn.commit()
 
 
 def setup(bot):

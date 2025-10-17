@@ -73,9 +73,7 @@ async def _sync_dashboard_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 		user_id = ctx.get_user_id(username)
 		if not user_id:
-			# print(f"TO BE CREATED: {username}")
-			continue
-			# user_id = await ctx.create_master_user(username)
+			user_id = await ctx.create_master_user(username)
 
 		user_status: UserStatus
 		match status:
