@@ -1,5 +1,5 @@
 from discord.ui import View, Container, TextDisplay, Section, Thumbnail
-from utils.reminder import ReminderDB, Reminder, from_utc_timestamp
+from utils.other import ReminderDB, Reminder, from_utc_timestamp, TIMESTAMP_REGEX, parse_duration_str, diff_to_str
 from discord.ext import commands, tasks
 from typing import TYPE_CHECKING
 from common import config
@@ -12,89 +12,6 @@ import re
 if TYPE_CHECKING:
 	from main import Natsumin
 
-TIMESTAMP_REGEX = r"<t:(\d+):(\w+)>"
-
-
-def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime) -> str:
-	if dt1 > dt2:
-		delta = dt1 - dt2
-	else:
-		delta = dt2 - dt1
-
-	total_seconds = int(delta.total_seconds())
-
-	years, remainder = divmod(total_seconds, 365 * 86400)
-	months, remainder = divmod(remainder, 30 * 86400)
-	days, remainder = divmod(remainder, 86400)
-	hours, remainder = divmod(remainder, 3600)
-	minutes, seconds = divmod(remainder, 60)
-
-	parts = []
-	if years > 0:
-		parts.append(f"{years} year{'s' if years != 1 else ''}")
-	if months > 0:
-		parts.append(f"{months} month{'s' if months != 1 else ''}")
-	if days > 0:
-		parts.append(f"{days} day{'s' if days != 1 else ''}")
-	if hours > 0:
-		parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
-	if minutes > 0:
-		parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
-	if seconds > 0:
-		parts.append(f"{seconds} second{'s' if seconds != 1 else ''}")
-
-	if not parts:
-		return "0 seconds"
-
-	return " ".join(parts)
-
-
-def parse_duration_str(duration_str: str) -> datetime.timedelta:
-	UNIT_CANONICAL = {"y", "M", "d", "h", "m", "s"}
-	ALIASES = {
-		"year": "y",
-		"years": "y",
-		"month": "M",
-		"months": "M",
-		"day": "d",
-		"days": "d",
-		"hour": "h",
-		"hours": "h",
-		"minute": "m",
-		"minutes": "m",
-		"second": "s",
-		"seconds": "s",
-	}
-	pattern = r"(\d+)\s*(\w+)"
-	matches = re.findall(pattern, duration_str.lower())
-	if not matches:
-		raise ValueError("Invalid duration format")
-
-	total_days = 0
-	hours = 0
-	minutes = 0
-	seconds = 0
-
-	for value, unit_word in matches:
-		unit = ALIASES.get(unit_word, unit_word)
-		if unit not in UNIT_CANONICAL:
-			raise ValueError(f"Unknown time unit: {unit_word}")
-		v = int(value)
-		if unit == "y":
-			total_days += v * 365
-		elif unit == "M":
-			total_days += v * 30
-		elif unit == "d":
-			total_days += v
-		elif unit == "h":
-			hours += v
-		elif unit == "m":
-			minutes += v
-		elif unit == "s":
-			seconds += v
-
-	return datetime.timedelta(days=total_days, hours=hours, minutes=minutes, seconds=seconds)
-
 
 def shorten(text: str, max_len: int = 32) -> str:
 	return text if len(text) <= max_len else text[: max_len - 3] + "..."
@@ -104,7 +21,7 @@ async def get_user_reminders(ctx: discord.AutocompleteContext):
 	db: ReminderDB = ctx.cog.db
 	if not db:
 		return []
-	user_reminders = await db.get_reminders(user_id=ctx.interaction.user.id)
+	user_reminders = sorted(await db.get_reminders(user_id=ctx.interaction.user.id), key=lambda r: r.remind_at)
 
 	return [
 		discord.OptionChoice(
