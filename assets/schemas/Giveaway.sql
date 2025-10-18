@@ -4,6 +4,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS giveaways (
     message_id INTEGER PRIMARY KEY,
     channel_id INTEGER NOT NULL,
+    guild_id INTEGER NOT NULL,
     author_id INTEGER NOT NULL,
     reward TEXT NOT NULL,
     winners INTEGER NOT NULL CHECK(winners > 0),

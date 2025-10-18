@@ -140,7 +140,7 @@ class ReminderDB:
 
 	async def create_reminder(self, user_id: int, channel_id: int, remind_at: datetime.datetime, message: str, hidden: bool = False) -> Reminder:
 		async with self.connect() as conn:
-			async with await conn.execute(
+			async with conn.execute(
 				"""
 				INSERT INTO reminders (user_id, channel_id, message, remind_at, hidden)
 				VALUES (?, ?, ?, ?, ?)
@@ -162,7 +162,7 @@ class ReminderDB:
 
 	async def get_reminder(self, id: int) -> Reminder | None:
 		async with self.connect() as conn:
-			async with await conn.execute("SELECT * FROM reminders WHERE id = ?", (id,)) as cursor:
+			async with conn.execute("SELECT * FROM reminders WHERE id = ?", (id,)) as cursor:
 				row = await cursor.fetchone()
 				return self._row_to_reminder(row) if row else None
 
@@ -179,8 +179,8 @@ class ReminderDB:
 
 	async def get_due_reminders(self) -> list[Reminder]:
 		async with self.connect() as conn:
-			async with await conn.execute(
-				"DELETe FROM reminders WHERE remind_at <= ? RETURNING *", (to_utc_timestamp(datetime.datetime.now(datetime.UTC)),)
+			async with conn.execute(
+				"DELETE FROM reminders WHERE remind_at <= ? RETURNING *", (to_utc_timestamp(datetime.datetime.now(datetime.UTC)),)
 			) as cursor:
 				rows = await cursor.fetchall()
 
@@ -205,6 +205,7 @@ class ReminderDB:
 class Giveaway:
 	message_id: int
 	channel_id: int
+	guild_id: int
 	author_id: int
 	reward: int
 	winners: int
@@ -221,13 +222,25 @@ class Giveaway:
 
 	async def get_users_entered(self) -> list[int]:
 		async with self._db.connect() as conn:
-			async with conn.execute("SELECT user_id FROM users_entered WHERE giveaway_id = ?", (self.message_id,)) as conn:
-				return [row["user_id"] for row in await conn.fetchall()]
+			async with conn.execute("SELECT user_id FROM users_entered WHERE giveaway_id = ?", (self.message_id,)) as cursor:
+				return [row["user_id"] for row in await cursor.fetchall()]
 
 	async def get_role_requirements(self) -> list[int]:
 		async with self._db.connect() as conn:
-			async with conn.execute("SELECT role_id FROM role_requirements WHERE giveaway_id = ?", (self.message_id,)) as conn:
-				return [row["role_id"] for row in await conn.fetchall()]
+			async with conn.execute("SELECT role_id FROM role_requirements WHERE giveaway_id = ?", (self.message_id,)) as cursor:
+				return [row["role_id"] for row in await cursor.fetchall()]
+
+	async def get_winners(self) -> list[int]:
+		async with self._db.connect() as conn:
+			async with conn.execute("SELECT user_id FROM winners WHERE giveaway_id = ?", (self.message_id,)) as cursor:
+				return [row["user_id"] for row in await cursor.fetchall()]
+
+	async def get_winner_index(self, index: int) -> int | None:
+		async with self._db.connect() as conn:
+			async with conn.execute("SELECT user_id FROM winners WHERE giveaway_id = ? AND winner_index = ?", (self.message_id, index)) as cursor:
+				row = await cursor.fetchone()
+
+				return row["user_id"] if row else None
 
 
 class GiveawayDB:
@@ -250,18 +263,31 @@ class GiveawayDB:
 			await db.commit()
 
 	async def create_giveaway(
-		self, message_id: int, channel_id: int, author_id: int, reward: str, ends_at: datetime.datetime, winners: int = 1
+		self,
+		message_id: int,
+		channel_id: int,
+		author_id: int,
+		guild_id: int,
+		reward: str,
+		ends_at: datetime.datetime,
+		winners: int = 1,
+		roles_required: list[int] = [],
 	) -> Giveaway:
 		async with self.connect() as conn:
-			async with await conn.execute(
+			async with conn.execute(
 				"""
-				INSERT INTO giveaways (message_id, channel_id, author_id, reward, winners, ends_at)
-				VALUES (?, ?, ?, ?, ?, ?)
+				INSERT INTO giveaways (message_id, channel_id, guild_id, author_id, reward, winners, ends_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?)
 				RETURNING *
 				""",
-				(message_id, channel_id, author_id, reward, winners, to_utc_timestamp(ends_at)),
+				(message_id, channel_id, guild_id, author_id, reward, winners, to_utc_timestamp(ends_at)),
 			) as cursor:
 				row = await cursor.fetchone()
+
+			if len(roles_required) > 0:
+				await conn.executemany(
+					"INSERT INTO role_requirements (giveaway_id, role_id) VALUES (?, ?)", [(message_id, role_id) for role_id in roles_required]
+				)
 
 			await conn.commit()
 			return self._row_to_giveaway(row)
@@ -292,18 +318,18 @@ class GiveawayDB:
 				row = await cursor.fetchone()
 				return self._row_to_giveaway(row) if row else None
 
-	async def get_entered_giveaways(self, user_id: int, include_ended=False) -> list[Giveaway]:
+	async def get_user_entered_giveaways(self, user_id: int, guild_id: int, include_ended=False) -> list[Giveaway]:
 		async with self.connect() as conn:
 			async with conn.execute(
-				"SELECT g.* FROM giveaways AS g JOIN users_entered AS ue ON ue.giveaway_id = g.message_id WHERE ue.user_id = ? AND g.ended = ?",
-				(user_id, 1 if include_ended else 0),
+				"SELECT g.* FROM giveaways AS g JOIN users_entered AS ue ON ue.giveaway_id = g.message_id WHERE ue.user_id = ? AND g.guild_id = ? AND g.ended = ?",
+				(user_id, guild_id, 1 if include_ended else 0),
 			) as cursor:
 				rows = await cursor.fetchall()
 				return [self._row_to_giveaway(row) for row in rows]
 
 	async def get_due_giveaways(self) -> list[Giveaway]:
 		async with self.connect() as conn:
-			async with await conn.execute(
+			async with conn.execute(
 				"UPDATE giveaways SET ended = 1 WHERE ends_at <= ? AND ended = 0 RETURNING *",
 				(to_utc_timestamp(datetime.datetime.now(datetime.UTC)),),
 			) as cursor:
@@ -320,6 +346,7 @@ class GiveawayDB:
 		return Giveaway(
 			message_id=row["message_id"],
 			channel_id=row["channel_id"],
+			guild_id=row["guild_id"],
 			author_id=row["author_id"],
 			reward=row["reward"],
 			winners=row["winners"],

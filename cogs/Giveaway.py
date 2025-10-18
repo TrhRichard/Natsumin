@@ -14,16 +14,19 @@ import re
 if TYPE_CHECKING:
 	from main import Natsumin
 
+db = GiveawayDB("data/giveaways.db")
+
 
 def shorten(text: str, max_len: int = 32) -> str:
 	return text if len(text) <= max_len else text[: max_len - 3] + "..."
 
 
 async def get_user_giveaways(ctx: discord.AutocompleteContext):
-	db: GiveawayDB = ctx.cog.db
-	if not db:
+	if not ctx.interaction.guild_id:
 		return []
-	entered_giveaways = sorted(await db.get_entered_giveaways(user_id=ctx.interaction.user.id), key=lambda g: g.ends_at)
+	entered_giveaways = sorted(
+		await db.get_user_entered_giveaways(user_id=ctx.interaction.user.id, guild_id=ctx.interaction.guild_id), key=lambda g: g.ends_at
+	)
 
 	return [
 		discord.OptionChoice(
@@ -32,9 +35,6 @@ async def get_user_giveaways(ctx: discord.AutocompleteContext):
 		)
 		for giveaway in entered_giveaways
 	]
-
-
-db = GiveawayDB("data/giveaways.db")
 
 
 class GiveawaysList(View):
@@ -62,7 +62,7 @@ async def get_giveaway_embed(giveaway: Giveaway) -> discord.Embed:
 	)
 
 	role_requirements = await giveaway.get_role_requirements()
-	if len(role_requirements) > 0:
+	if role_requirements:
 		embed.description += (
 			f"\n\nMust have the role{'s' if len(role_requirements) > 1 else ''}: {', '.join([f'<@&{role_id}>' for role_id in role_requirements])}"
 		)
@@ -89,13 +89,27 @@ class GiveawayMessageView(View):
 		await interaction.response.defer(ephemeral=True)
 		giveaway = await db.get_giveaway(interaction.message.id)
 		if not giveaway:
-			return await interaction.respond("How did you get here?", ephemeral=True)
+			return await interaction.respond("Could not find a giveaway in the database for this message.", ephemeral=True)
 
 		interaction_message = await interaction.original_response()
 
 		entered_users = await giveaway.get_users_entered()
+
+		if giveaway.ended or datetime.datetime.now(datetime.UTC) > giveaway.ends_at:
+			return await interaction.respond(f"Giveaway **{giveaway.reward}** has already ended with {len(entered_users)} entries!", ephemeral=True)
+
 		if interaction.user.id in entered_users:
 			return await interaction.respond("todo leaving", ephemeral=True)
+
+		roles_required = await giveaway.get_role_requirements()
+		if roles_required:
+			missing_roles: list[int] = []
+			for role_id in roles_required:
+				if not interaction.user.get_role(role_id):
+					missing_roles.append(role_id)
+
+			if missing_roles:
+				return await interaction.respond(f"Missing roles: {', '.join([f'<@&{role_id}>' for role_id in missing_roles])}", ephemeral=True)
 
 		success = await db.add_user_to_giveaway(interaction.message.id, interaction.user.id)
 		if success:
@@ -115,7 +129,7 @@ class GiveawayMessageView(View):
 		await interaction.response.defer(ephemeral=True)
 		giveaway = await db.get_giveaway(interaction.message.id)
 		if not giveaway:
-			return await interaction.respond("How did you get here?", ephemeral=True)
+			return await interaction.respond("Could not find a giveaway in the database for this message.", ephemeral=True)
 
 		await interaction.respond(
 			f"todo participant list\ntemp: {', '.join([f'<@{user_id}>' for user_id in await giveaway.get_users_entered()])}", ephemeral=True
@@ -154,12 +168,16 @@ class GiveawayCog(commands.Cog):
 	@discord.option(
 		"required-role",
 		discord.Role,
-		parameter_name="role_required",
+		parameter_name="required_role",
 		default=None,
-		description="The role required for this giveaway, this will be ignored if required-roles is set",
+		description="The role required for this giveaway, can be used together with required_roles",
 	)
 	@discord.option(
-		"required-roles", str, parameter_name="roles_required", default="", description="The role ids required for this giveaway, separated by ,"
+		"required-roles",
+		str,
+		parameter_name="required_roles",
+		default="",
+		description="The ids of each role required for this giveaway, separated by ,",
 	)
 	async def create(
 		self,
@@ -168,8 +186,8 @@ class GiveawayCog(commands.Cog):
 		reward: str,
 		winners: int,
 		channel: discord.TextChannel | None,
-		role_required: discord.Role | None,
-		roles_required: str,
+		required_role: discord.Role | None,
+		required_roles: str,
 	):
 		if match := re.match(TIMESTAMP_REGEX, ends_at):
 			try:
@@ -191,16 +209,45 @@ class GiveawayCog(commands.Cog):
 
 		await ctx.defer(ephemeral=True)
 
+		giveaway_channel = channel or ctx.channel
+
+		invalid_role_ids: list[str] = []
+
+		roles_needed: list[int] = []
+		if required_roles:
+			roles_required_list = required_roles.split(",")
+			for str_role_id in roles_required_list:
+				str_role_id = str_role_id.strip()
+				if str_role_id.isdigit():
+					role_id = int(str_role_id)
+					role_found = await discord.utils.get_or_fetch(giveaway_channel.guild, "role", role_id, default=None)
+					if not role_found:
+						invalid_role_ids.append(str_role_id)
+
+					if role_id not in roles_needed:
+						roles_needed.append(role_id)
+				else:
+					invalid_role_ids.append(str_role_id)
+
+		if required_role and required_role.id not in roles_needed:
+			roles_needed.append(required_role.id)
+
 		embed = discord.Embed(
 			title=reward,
 			description=f"Click 🎉 button to enter!\nWinners: **{winners}**\nEnds: <t:{to_utc_timestamp(ends_at_datetime)}:R>",
 			color=config.base_embed_color,
 		)
-		giveaway_channel = channel or ctx.channel
+		if roles_needed:
+			embed.description += (
+				f"\n\nMust have the role{'s' if len(roles_needed) > 1 else ''}: {', '.join([f'<@&{role_id}>' for role_id in roles_needed])}"
+			)
+
 		giveaway_message = await giveaway_channel.send(embed=embed, view=GiveawayMessageView(0, False))
 
-		await db.create_giveaway(giveaway_message.id, giveaway_channel.id, ctx.user.id, reward, ends_at_datetime, winners)
-		await ctx.respond("Done!", ephemeral=True)
+		await db.create_giveaway(
+			giveaway_message.id, giveaway_channel.id, giveaway_channel.guild.id, ctx.user.id, reward, ends_at_datetime, winners, roles_needed
+		)
+		await ctx.respond(f"Giveaway started! You can find it [here]({giveaway_message.jump_url})", ephemeral=True)
 
 	@tasks.loop(seconds=10)
 	async def giveaway_loop(self):
@@ -221,7 +268,7 @@ class GiveawayCog(commands.Cog):
 
 				winners: list[discord.User] = random.sample(valid_entries, min(len(valid_entries), giveaway.winners))
 
-				if len(winners) == 0:
+				if not winners:
 					embed = discord.Embed(title=giveaway.reward, description="No winner.", color=config.base_embed_color)
 				else:
 					embed = discord.Embed(
@@ -232,8 +279,15 @@ class GiveawayCog(commands.Cog):
 
 				await message.edit("GIVEAWAY ENDED", embed=embed, view=GiveawayMessageView(len(users_entered), True))
 
-				if len(winners) == 0:
+				if not winners:
 					continue
+
+				async with db.connect() as conn:
+					await conn.executemany(
+						"INSERT OR IGNORE INTO winners (giveaway_id, winner_index, user_id) VALUES (?, ?, ?)",
+						[(giveaway.message_id, index, user.id) for index, user in enumerate(winners, start=1)],
+					)
+					await conn.commit()
 
 				embed = discord.Embed(
 					description=(
@@ -254,6 +308,7 @@ class GiveawayCog(commands.Cog):
 
 	@giveaway_loop.before_loop
 	async def before_loop(self):
+		await db.setup()
 		await self.bot.wait_until_ready()
 
 
