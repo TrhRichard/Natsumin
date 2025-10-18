@@ -16,6 +16,7 @@ class Natsumin(commands.Bot):
 		super().__init__(*args, **kwargs)
 		self.sync_databases.start()
 		self.anicord: discord.Guild = None
+		self.added_persistent_views: list[str] = []
 		self.master_db = get_master_db()
 
 	async def on_ready(self):

@@ -249,15 +249,17 @@ class GiveawayDB:
 			await db.executescript(db_script)
 			await db.commit()
 
-	async def create_giveaway(self, message_id: int, author_id: int, reward: str, ends_at: datetime.datetime, winners: int = 1) -> Reminder:
+	async def create_giveaway(
+		self, message_id: int, channel_id: int, author_id: int, reward: str, ends_at: datetime.datetime, winners: int = 1
+	) -> Giveaway:
 		async with self.connect() as conn:
 			async with await conn.execute(
 				"""
-				INSERT INTO giveaways (message_id, author_id, reward, winners, ends_at)
-				VALUES (?, ?, ?, ?, ?)
+				INSERT INTO giveaways (message_id, channel_id, author_id, reward, winners, ends_at)
+				VALUES (?, ?, ?, ?, ?, ?)
 				RETURNING *
 				""",
-				(message_id, author_id, reward, winners, to_utc_timestamp(ends_at)),
+				(message_id, channel_id, author_id, reward, winners, to_utc_timestamp(ends_at)),
 			) as cursor:
 				row = await cursor.fetchone()
 
@@ -284,7 +286,7 @@ class GiveawayDB:
 			await conn.commit()
 			return changes_succeded
 
-	async def get_giveaway(self, id: int) -> Reminder | None:
+	async def get_giveaway(self, id: int) -> Giveaway | None:
 		async with self.connect() as conn:
 			async with await conn.execute("SELECT * FROM giveaways WHERE message_id = ?", (id,)) as cursor:
 				row = await cursor.fetchone()
@@ -309,6 +311,8 @@ class GiveawayDB:
 
 			if not rows:
 				return []
+
+			await conn.commit()
 
 			return [self._row_to_giveaway(row) for row in rows]
 

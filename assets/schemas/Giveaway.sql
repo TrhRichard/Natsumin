@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS giveaways (
     reward TEXT NOT NULL,
     winners INTEGER NOT NULL DEFAULT 1 CHECK(winners >= 0),
     ends_at INTEGER NOT NULL CHECK(ends_at > created_at),
-    created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
     ended INTEGER NOT NULL DEFAULT 0
 );
 
