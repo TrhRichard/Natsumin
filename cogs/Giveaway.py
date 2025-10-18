@@ -70,6 +70,41 @@ async def get_giveaway_embed(giveaway: Giveaway) -> discord.Embed:
 	return embed
 
 
+class LeaveGiveawayView(View):
+	def __init__(self, invoker: discord.User, giveaway: Giveaway, giveaway_message: discord.Message):
+		super().__init__(disable_on_timeout=True)
+		self.invoker = invoker
+		self.giveaway = giveaway
+		self.giveaway_message = giveaway_message
+
+	@ui.button(style=discord.ButtonStyle.danger, label="Leave", custom_id="natsumin:leave_giveaway")
+	async def leave_callback(self, button: ui.Button, interaction: discord.Interaction):
+		if self.giveaway.ended or datetime.datetime.now(datetime.UTC) > self.giveaway.ends_at:
+			return await interaction.edit("Could not leave the giveaway due it having already ended!")
+		success = await db.remove_user_from_giveaway(self.giveaway.message_id, self.invoker.id)
+		if success:
+			if self.giveaway_message:
+				await self.giveaway_message.edit(
+					embed=await get_giveaway_embed(self.giveaway),
+					view=GiveawayMessageView(len(await self.giveaway.get_users_entered()), self.giveaway.ended),
+				)
+
+			await interaction.edit(
+				content=f"Succesfully left the giveaway for [**{self.giveaway.reward}**](<{self.giveaway_message.jump_url}>)!", view=None
+			)
+
+		else:
+			await interaction.edit(
+				content=f"Could not leave the giveaway for [**{self.giveaway.reward}**](<{self.giveaway_message.jump_url}>).", view=None
+			)
+
+	async def on_timeout(self):
+		await super().on_timeout()
+		self.invoker = None
+		self.giveaway = None
+		self.giveaway_message = None
+
+
 class GiveawayMessageView(View):
 	def __init__(self, entered_users: int = 0, has_ended: bool = False):
 		super().__init__(timeout=None)
@@ -91,7 +126,7 @@ class GiveawayMessageView(View):
 		if not giveaway:
 			return await interaction.respond("Could not find a giveaway in the database for this message.", ephemeral=True)
 
-		interaction_message = await interaction.original_response()
+		giveaway_message = interaction.message
 
 		entered_users = await giveaway.get_users_entered()
 
@@ -99,7 +134,11 @@ class GiveawayMessageView(View):
 			return await interaction.respond(f"Giveaway **{giveaway.reward}** has already ended with {len(entered_users)} entries!", ephemeral=True)
 
 		if interaction.user.id in entered_users:
-			return await interaction.respond("todo leaving", ephemeral=True)
+			return await interaction.respond(
+				f"Are you sure you want to leave the giveaway for {giveaway.reward}?",
+				view=LeaveGiveawayView(interaction.user, giveaway, giveaway_message),
+				ephemeral=True,
+			)
 
 		roles_required = await giveaway.get_role_requirements()
 		if roles_required:
@@ -111,14 +150,14 @@ class GiveawayMessageView(View):
 			if missing_roles:
 				return await interaction.respond(f"Missing roles: {', '.join([f'<@&{role_id}>' for role_id in missing_roles])}", ephemeral=True)
 
-		success = await db.add_user_to_giveaway(interaction.message.id, interaction.user.id)
+		success = await db.add_user_to_giveaway(giveaway.message_id, interaction.user.id)
 		if success:
 			embed = discord.Embed(
 				title="Entry confirmed!",
-				description=f"Your entry for the giveaway of [{giveaway.reward}]({interaction_message.jump_url}) is confirmed!",
+				description=f"Your entry for the giveaway of [{giveaway.reward}]({giveaway_message.jump_url}) is confirmed!",
 				color=config.base_embed_color,
 			)
-			await interaction.message.edit(embed=await get_giveaway_embed(giveaway), view=GiveawayMessageView(len(entered_users) + 1, giveaway.ended))
+			await giveaway_message.edit(embed=await get_giveaway_embed(giveaway), view=GiveawayMessageView(len(entered_users) + 1, giveaway.ended))
 		else:
 			embed = discord.Embed(
 				title="Entry error", description="Something went wrong while trying to add you to the giveaway.", color=config.base_embed_color
