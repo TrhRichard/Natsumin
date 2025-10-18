@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS giveaways (
     channel_id INTEGER NOT NULL,
     author_id INTEGER NOT NULL,
     reward TEXT NOT NULL,
-    winners INTEGER NOT NULL DEFAULT 1 CHECK(winners >= 0),
+    winners INTEGER NOT NULL CHECK(winners > 0),
     ends_at INTEGER NOT NULL CHECK(ends_at > created_at),
     created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
     ended INTEGER NOT NULL DEFAULT 0
@@ -22,6 +22,14 @@ CREATE TABLE IF NOT EXISTS users_entered (
     giveaway_id INTEGER NOT NULL REFERENCES giveaways(message_id) ON DELETE CASCADE ON UPDATE CASCADE,
     user_id INTEGER NOT NULL,
     PRIMARY KEY (giveaway_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS winners (
+    giveaway_id INTEGER NOT NULL REFERENCES giveaways(message_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    winner_index INTEGER NOT NULL CHECK(winner_index > 0),
+    user_id INTEGER NOT NULL,
+    PRIMARY KEY (giveaway_id, winner_index),
+    UNIQUE (giveaway_id, user_id)
 );
 
 CREATE INDEX IF NOT EXISTS giveaways_ends_at ON giveaways(ends_at);
