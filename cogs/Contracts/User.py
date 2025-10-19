@@ -11,7 +11,7 @@ import utils
 if TYPE_CHECKING:
 	from main import Natsumin
 
-NEED_TO_SELECT_STRINGS = ["PLEASE SELECT", "Undecided"]
+NEED_TO_SELECT_STRINGS = ["please select", "undecided", "pending"]
 
 
 def usernames_autocomplete(seasonal: bool = True):
@@ -348,7 +348,7 @@ class UserContracts(View):
 					contract_name = f"[{contract.name}]({contract.review_url})" if contract.review_url else contract.name
 
 					status_emote: str = None
-					if contract.name.strip() in NEED_TO_SELECT_STRINGS:
+					if contract.name.strip().lower() in NEED_TO_SELECT_STRINGS:
 						status_emote = "⚠️"
 						contract_name = f"**__{contract_name}__**"
 					else:
@@ -372,7 +372,7 @@ class UserContracts(View):
 				contract_name = f"[{contract.name}]({contract.review_url})" if contract.review_url else contract.name
 
 				status_emote: str = None
-				if contract.name.strip() in NEED_TO_SELECT_STRINGS:
+				if contract.name.strip().lower() in NEED_TO_SELECT_STRINGS:
 					status_emote = "⚠️"
 					contract_name = f"**__{contract_name}__**"
 				else:

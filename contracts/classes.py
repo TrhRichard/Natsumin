@@ -80,7 +80,7 @@ class SeasonUser:
 	_db: SeasonDB = None
 
 	def __hash__(self):
-		return hash(self.id)
+		return hash((self.id, self._db.name))
 
 	def __eq__(self, value):
 		if isinstance(value, SeasonUser):
@@ -91,10 +91,11 @@ class SeasonUser:
 		return False
 
 	def __post_init__(self):
-		if not isinstance(self.kind, UserKind):
-			self.kind = UserKind(self.kind)
-		if not isinstance(self.status, UserStatus):
-			self.status = UserStatus(self.status)
+		self.kind = UserKind(self.kind)
+		self.status = UserStatus(self.status)
+		self.accepting_manhwa = bool(self.accepting_manhwa)
+		self.accepting_ln = bool(self.accepting_ln)
+		self.veto_used = bool(self.veto_used)
 
 	async def get_master_data(self) -> MasterUser:
 		return await self._db.fetch_user_from_master(id=self.id)
@@ -169,10 +170,9 @@ class Contract:
 		return False
 
 	def __post_init__(self):
-		if not isinstance(self.kind, ContractKind):
-			self.kind = ContractKind(self.kind)
-		if not isinstance(self.status, ContractStatus):
-			self.status = ContractStatus(self.status)
+		self.kind = ContractKind(self.kind)
+		self.status = ContractStatus(self.status)
+		self.optional = bool(self.optional)
 
 	async def get_contractee(self) -> SeasonUser:
 		return self._db.fetch_user(self.contractee)
@@ -280,10 +280,13 @@ class SeasonDBSyncContext:
 				self.total_contracts = [Contract(**row, _db=self.season_db) for row in await cursor.fetchall()]
 
 	def get_user_id(self, username: str) -> int | None:
+		if not username.strip():
+			return None
+
 		if username in self._username_to_id:
 			return self._username_to_id.get(username)
 		else:
-			fuzzy_result = process.extractOne(username, self._id_to_username, score_cutoff=90)
+			fuzzy_result = process.extractOne(username, self._id_to_username, score_cutoff=91)
 			if fuzzy_result:
 				return fuzzy_result[2]
 			else:
@@ -510,8 +513,7 @@ class Badge:
 		return hash((self.id))
 
 	def __post_init__(self):
-		if not isinstance(self.type, BadgeType):
-			self.type = BadgeType(self.type)
+		self.type = BadgeType(self.type)
 
 	async def to_dict(self, *, minimal=False) -> dict:
 		return (

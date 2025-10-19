@@ -3,7 +3,7 @@ from async_lru import alru_cache
 from common import config, get_master_db
 from enum import StrEnum
 import datetime
-import fnmatch
+import re
 
 if TYPE_CHECKING:
 	from contracts import ContractOrderCategory
@@ -151,17 +151,10 @@ async def get_reps(query: str = "", limit: int | None = None, *, season: str = N
 
 
 def get_contract_category(order_data: "list[ContractOrderCategory]", c_type: str) -> str:
-	c_type = c_type.lower()
 	for category in order_data:
 		for pattern in category["order"]:
-			pattern = pattern.lower()
-
-			if any(c in pattern for c in "*?[]"):
-				if fnmatch.fnmatch(c_type, pattern):
-					return category["name"]
-			else:
-				if c_type == pattern:
-					return category["name"]
+			if c_type.lower() == pattern.lower() or re.fullmatch(pattern, c_type, re.IGNORECASE):
+				return category["name"]
 
 	return "Other"
 
@@ -171,6 +164,9 @@ def get_deadline_footer(season: str = None) -> str:
 		season = config.active_season
 
 	if season == config.active_season:
+		if config.deadline_timestamp == 0:
+			return "Deadline unknown."
+
 		current_datetime = datetime.datetime.now(datetime.UTC)
 		difference = config.deadline_datetime - current_datetime
 		difference_seconds = max(difference.total_seconds(), 0)

@@ -1,0 +1,29 @@
+[
+	{
+		"name": "Normal Contracts",
+		"order": [
+			"base contract",
+			"challenge contract",
+			"base buddy",
+			"challenge buddy"
+		]
+	},
+	{
+		"name": "Special Contracts",
+		"order": [
+			"veteran special",
+			"duality special",
+			"epoch special",
+			"honzuki special",
+			"aria special"
+		]
+	},
+	{
+		"name": "Arcana Quests",
+		"order": ["arcana special \\d+"]
+	},
+	{
+		"name": "Aid Contracts",
+		"order": ["aid contract \\d+"]
+	}
+]
