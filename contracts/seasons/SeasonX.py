@@ -17,14 +17,14 @@ async def _get_sheet_data() -> dict:
 				"majorDimension": "ROWS",
 				"valueRenderOption": "FORMATTED_VALUE",
 				"ranges": [
-					"Dashboard!A2:V507",
-					"Base!A2:AH505",
-					"Duality Special!A2:I289",
-					"Veteran Special!A2:J278",
-					"Epoch Special!A2:I236",
-					"Honzuki Special!A2:G168",
-					"Aria Special!A2:G193",
-					"Arcana Special!A2:K346",
+					"Dashboard!A2:V508",
+					"Base!A2:AH516",
+					"Duality Special!A2:I291",
+					"Veteran Special!A2:J280",
+					"Epoch Special!A2:I237",
+					"Honzuki Special!A2:G171",
+					"Aria Special!A2:G149",
+					"Arcana Special!A2:K588",
 					# TODO: Implement buddy
 				],
 				"key": os.getenv("GOOGLE_API_KEY"),
@@ -66,8 +66,8 @@ async def _sync_dashboard_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 	dashboard_rows: list[list[str]] = sheet_data["valueRanges"][0]["values"]
 
 	for row in dashboard_rows:
-		status = row[0]
-		username = row[1].strip().lower()
+		status = get_cell(row, 0, "")
+		username = get_cell(row, 1, "").strip().lower()
 		contract_names = row[2:11]
 		contract_passed = row[12:21]
 
@@ -101,6 +101,8 @@ async def _sync_dashboard_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 			if contract_name == "-":
 				continue
+			if re.match(r"\d+\/\d+", contract_name):  # Ignore Arcana Souls
+				continue
 
 			contract_name = contract_name.strip().replace("\n", "")
 
@@ -129,7 +131,7 @@ async def _sync_basechallenge_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 	base_challenge_rows: list[list[str]] = sheet_data["valueRanges"][1]["values"]
 
 	for row in base_challenge_rows:
-		username = row[3].strip().lower()
+		username = get_cell(row, 3, "").strip().lower()
 		contractor = get_cell(row, 5, "").strip().lower()
 
 		user_id = ctx.get_user_id(username)
@@ -271,7 +273,7 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 		if epoch_special.rating != get_cell(row, 7, "0/10") or epoch_special.review_url != get_url(row, 8):
 			ctx.update_contract(
 				epoch_special,
-				contractor=get_cell(row, 6).strip().lower(),
+				contractor=get_cell(row, 6, "").strip().lower(),
 				rating=get_cell(row, 7, "0/10"),
 				review_url=get_url(row, 8),
 				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4)),
@@ -320,7 +322,7 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 		if aria_special.rating != get_cell(row, 5, "0/10") or aria_special.review_url != get_url(row, 6):
 			ctx.update_contract(
 				aria_special,
-				contractor=get_cell(row, 4).strip().lower(),
+				contractor=get_cell(row, 4, "").strip().lower(),
 				rating=get_cell(row, 5, "0/10"),
 				review_url=get_url(row, 6),
 				medium="Game",

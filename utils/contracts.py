@@ -164,6 +164,9 @@ def get_deadline_footer(season: str = None) -> str:
 		season = config.active_season
 
 	if season == config.active_season:
+		if config.deadline_timestamp == 0:
+			return "Deadline unknown."
+
 		current_datetime = datetime.datetime.now(datetime.UTC)
 		difference = config.deadline_datetime - current_datetime
 		difference_seconds = max(difference.total_seconds(), 0)
