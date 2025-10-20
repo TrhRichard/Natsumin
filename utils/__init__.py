@@ -3,7 +3,6 @@ from .rep import get_rep, RepName  # noqa: F401
 from common import config  # noqa: F401
 from typing import TypeVar, Callable, overload
 from discord.ext import commands
-import datetime
 import logging
 import math
 
@@ -49,20 +48,26 @@ def get_cell(row: list, index: int, default: T = None, return_type: Callable[[an
 class WrongChannel(commands.CommandError): ...
 
 
-def is_in_channel(*channel_ids: int, guild_id: int = 994071728017899600) -> Callable[[T], T]:
-	channel_ids: list[int] = list(set(channel_ids))
-
-	async def predicate(ctx: commands.Context) -> bool:
-		if ctx.author.id in config.owner_ids:
-			return True
-
-		if ctx.guild is None or ctx.guild.id != guild_id:
-			return True
-
-		if ctx.channel.id not in channel_ids:
-			raise WrongChannel(f"This command can only be ran in {', '.join([f'<#{channel_id}>' for channel_id in channel_ids])}")
-
+def is_channel(ctx: commands.Context, *channel_ids: int, guild_id: int = 994071728017899600, raise_exception: bool = False) -> bool:
+	channel_ids: list[int] = list(set(channel_ids))  # Make sure the list only has unique ids
+	if ctx.author.id in config.owner_ids:
 		return True
+
+	if ctx.guild is None or ctx.guild.id != guild_id:
+		return True
+
+	if ctx.channel.id not in channel_ids:
+		if raise_exception:
+			raise WrongChannel(f"This command can only be used in {', '.join([f'<#{channel_id}>' for channel_id in channel_ids])}")
+		else:
+			return False
+
+	return True
+
+
+def must_be_channel(*channel_ids: int, guild_id: int = 994071728017899600) -> Callable[[T], T]:
+	async def predicate(ctx: commands.Context) -> bool:
+		return is_channel(ctx, *channel_ids, guild_id=guild_id, raise_exception=True)
 
 	return commands.check(predicate)
 
