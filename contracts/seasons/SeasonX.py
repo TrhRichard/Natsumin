@@ -18,11 +18,11 @@ async def _get_sheet_data() -> dict:
 				"valueRenderOption": "FORMATTED_VALUE",
 				"ranges": [
 					"Dashboard!A2:V508",
-					"Base!A2:AH516",
-					"Duality Special!A2:I291",
+					"Base!A2:AI516",
+					"Duality Special!A2:K291",
 					"Veteran Special!A2:J280",
-					"Epoch Special!A2:I237",
-					"Honzuki Special!A2:G171",
+					"Epoch Special!A2:K237",
+					"Honzuki Special!A2:I171",
 					"Aria Special!A2:G149",
 					"Arcana Special!A2:K588",
 					# TODO: Implement buddy
@@ -47,17 +47,16 @@ def get_url(row: list[str], i: int) -> str:
 
 
 NAME_MEDIUM_REGEX = r"(.*) \((.*)\)"
-DASHBOARD_ROW_NAMES = {
-	0: "Base Contract",
-	1: "Challenge Contract",
-	2: "Veteran Special",
-	3: "Duality Special",
-	4: "Epoch Special",
-	5: "Honzuki Special",
-	6: "Aria Special",
-	7: "Arcana Special",
-	8: "Base Buddy",
-	9: "Challenge Buddy",
+DASHBOARD_ROW_INDEXES: dict[int, tuple[str, int]] = {
+	2: ("Base Contract", 13),
+	3: ("Challenge Contract", 14),
+	4: ("Veteran Special", 15),
+	5: ("Duality Special", 16),
+	6: ("Epoch Special", 17),
+	7: ("Honzuki Special", 18),
+	8: ("Aria Special", 19),
+	10: ("Base Buddy", 20),
+	11: ("Challenge Buddy", 21),
 }
 OPTIONAL_CONTRACTS: list[str] = ["Aria Special"]
 
@@ -68,8 +67,6 @@ async def _sync_dashboard_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 	for row in dashboard_rows:
 		status = get_cell(row, 0, "")
 		username = get_cell(row, 1, "").strip().lower()
-		contract_names = row[2:11]
-		contract_passed = row[13:21]
 
 		user_id = ctx.get_user_id(username)
 		if not user_id:
@@ -96,23 +93,19 @@ async def _sync_dashboard_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 		user_contracts = ctx.get_user_contracts(user_id, True)
 
-		for i, contract_name in enumerate(contract_names):
-			contract_type = DASHBOARD_ROW_NAMES[i]
+		for column, (contract_type, passed_column) in DASHBOARD_ROW_INDEXES.items():
+			contract_name = get_cell(row, column, "-").strip().replace("\n", "")
 
 			if contract_name == "-":
 				continue
-			if re.match(r"\d+\/\d+", contract_name):  # Ignore Arcana Souls
-				continue
-
-			contract_name = contract_name.strip().replace("\n", "")
 
 			contract_status = (
 				ContractStatus.PASSED
-				if "PASSED" in get_cell(contract_passed, i, "", str)
+				if "PASSED" in get_cell(row, passed_column, "", str)
 				else ContractStatus.FAILED
-				if "FAILED" in get_cell(contract_passed, i, "", str)
+				if "FAILED" in get_cell(row, passed_column, "", str)
 				else ContractStatus.LATE_PASS
-				if "LATE PASS" in get_cell(contract_passed, i, "", str)
+				if "LATE PASS" in get_cell(row, passed_column, "", str)
 				else ContractStatus.PENDING
 			)
 
@@ -142,15 +135,15 @@ async def _sync_basechallenge_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 		if not season_user:
 			continue
 
-		if season_user.contractor != contractor or season_user.veto_used != (get_cell(row, 10) == "TRUE"):
+		if season_user.contractor != contractor or season_user.veto_used != (get_cell(row, 12) == "TRUE"):
 			ctx.update_user(
 				season_user,
 				contractor=contractor,
 				rep=get_rep(get_cell(row, 2, "")),
 				list_url=get_url(row, 8),
 				veto_used=get_cell(row, 12, "FALSE") == "TRUE",
-				preferences=get_cell(row, 18, "N/A").replace("\n", ", "),
-				bans=get_cell(row, 19, "N/A").replace("\n", ", "),
+				preferences=get_cell(row, 26, "N/A").replace("\n", ", "),
+				bans=get_cell(row, 27, "N/A").replace("\n", ", "),
 				accepting_manhwa=get_cell(row, 9, "N/A") == "Yes",
 				accepting_ln=get_cell(row, 10, "N/A") == "Yes",
 			)
@@ -163,31 +156,31 @@ async def _sync_basechallenge_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 		base_contract = user_contracts.get("Base Contract")
 
 		if (
-			base_contract.progress != get_cell(row, 31, "?/?").replace("\n", "")
-			or base_contract.rating != get_cell(row, 28, "0/10")
-			or base_contract.review_url != get_url(row, 33)
+			base_contract.progress != get_cell(row, 19, "?/?").replace("\n", "")
+			or base_contract.rating != get_cell(row, 20, "0/10")
+			or base_contract.review_url != get_url(row, 24)
 		):
 			ctx.update_contract(
 				base_contract,
 				contractor=contractor,
-				progress=get_cell(row, 31, "?/?").replace("\n", ""),
-				rating=get_cell(row, 28, "0/10"),
-				review_url=get_url(row, 33),
+				progress=get_cell(row, 19, "?/?").replace("\n", ""),
+				rating=get_cell(row, 20, "0/10"),
+				review_url=get_url(row, 24),
 				medium=get_cell(row, 7),
 				optional=False,
 			)
 		if challenge_contract := user_contracts.get("Challenge Contract"):
 			if (
-				challenge_contract.progress != get_cell(row, 32, "?/?").replace("\n", "")
-				or challenge_contract.rating != get_cell(row, 30, "0/10")
-				or challenge_contract.review_url != get_url(row, 34)
+				challenge_contract.progress != get_cell(row, 22, "?/?").replace("\n", "")
+				or challenge_contract.rating != get_cell(row, 23, "0/10")
+				or challenge_contract.review_url != get_url(row, 25)
 			):
 				ctx.update_contract(
 					challenge_contract,
 					contractor=contractor,
-					progress=get_cell(row, 32, "?/?").replace("\n", ""),
-					rating=get_cell(row, 30, "0/10"),
-					review_url=get_url(row, 34),
+					progress=get_cell(row, 22, "?/?").replace("\n", ""),
+					rating=get_cell(row, 23, "0/10"),
+					review_url=get_url(row, 25),
 					medium=get_cell(row, 15),
 					optional=False,
 				)
@@ -217,13 +210,13 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 		duality_special = user_contracts.get("Duality Special")
 		if (
 			duality_special.rating != get_cell(row, 9, "0/10")
-			or duality_special.progress != get_cell(row, 8, "")
+			or duality_special.progress != get_cell(row, 8, "").replace("\n", "")
 			or duality_special.review_url != get_url(row, 10)
 		):
 			ctx.update_contract(
 				duality_special,
 				contractor=get_cell(row, 6, "frazzle").strip().lower(),
-				progress=get_cell(row, 8, ""),
+				progress=get_cell(row, 8, "").replace("\n", ""),
 				rating=get_cell(row, 9, "0/10"),
 				review_url=get_url(row, 10),
 				optional=duality_special.type in OPTIONAL_CONTRACTS,
@@ -246,14 +239,14 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 		user_contracts = users_contracts.get(user_id)
 		veteran_special = user_contracts.get("Veteran Special")
 		if (
-			veteran_special.progress != get_cell(row, 7, "?/?")
+			veteran_special.progress != get_cell(row, 7, "?/?").replace("\n", "")
 			or veteran_special.rating != get_cell(row, 8, "0/10")
 			or veteran_special.review_url != get_url(row, 9)
 		):
 			ctx.update_contract(
 				veteran_special,
 				contractor=get_cell(row, 5).strip().lower(),
-				progress=get_cell(row, 7, "?/?"),
+				progress=get_cell(row, 7, "?/?").replace("\n", ""),
 				rating=get_cell(row, 8, "0/10"),
 				review_url=get_url(row, 9),
 				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4)),
@@ -277,13 +270,13 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 		epoch_special = user_contracts.get("Epoch Special")
 		if (
 			epoch_special.rating != get_cell(row, 9, "0/10")
-			or epoch_special.progress != get_cell(row, 8, "")
+			or epoch_special.progress != get_cell(row, 8, "").replace("\n", "")
 			or epoch_special.review_url != get_url(row, 10)
 		):
 			ctx.update_contract(
 				epoch_special,
 				contractor=get_cell(row, 6, "").strip().lower(),
-				progress=get_cell(row, 8, ""),
+				progress=get_cell(row, 8, "").replace("\n", ""),
 				rating=get_cell(row, 9, "0/10"),
 				review_url=get_url(row, 10),
 				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4)),
@@ -307,13 +300,13 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 		honzuki_special = user_contracts.get("Honzuki Special")
 		if (
 			honzuki_special.rating != get_cell(row, 5, "0/10")
-			or honzuki_special.progress != get_cell(row, 7, "")
+			or honzuki_special.progress != get_cell(row, 7, "").replace("\n", "")
 			or honzuki_special.review_url != get_url(row, 8)
 		):
 			ctx.update_contract(
 				honzuki_special,
 				rating=get_cell(row, 5, "0/10"),
-				progress=get_cell(row, 7, ""),
+				progress=get_cell(row, 7, "").replace("\n", ""),
 				review_url=get_url(row, 8),
 				medium="LN",
 				optional=epoch_special.type in OPTIONAL_CONTRACTS,
