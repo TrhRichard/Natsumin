@@ -69,7 +69,7 @@ async def _sync_dashboard_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 		status = get_cell(row, 0, "")
 		username = get_cell(row, 1, "").strip().lower()
 		contract_names = row[2:11]
-		contract_passed = row[12:21]
+		contract_passed = row[13:21]
 
 		user_id = ctx.get_user_id(username)
 		if not user_id:
@@ -215,12 +215,17 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 		user_contracts = users_contracts.get(user_id)
 		duality_special = user_contracts.get("Duality Special")
-		if duality_special.rating != get_cell(row, 7, "0/10") or duality_special.review_url != get_url(row, 8):
+		if (
+			duality_special.rating != get_cell(row, 9, "0/10")
+			or duality_special.progress != get_cell(row, 8, "")
+			or duality_special.review_url != get_url(row, 10)
+		):
 			ctx.update_contract(
 				duality_special,
 				contractor=get_cell(row, 6, "frazzle").strip().lower(),
-				rating=get_cell(row, 7, "0/10"),
-				review_url=get_url(row, 8),
+				progress=get_cell(row, 8, ""),
+				rating=get_cell(row, 9, "0/10"),
+				review_url=get_url(row, 10),
 				optional=duality_special.type in OPTIONAL_CONTRACTS,
 				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4)),
 			)
@@ -270,12 +275,17 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 		user_contracts = users_contracts.get(user_id)
 		epoch_special = user_contracts.get("Epoch Special")
-		if epoch_special.rating != get_cell(row, 7, "0/10") or epoch_special.review_url != get_url(row, 8):
+		if (
+			epoch_special.rating != get_cell(row, 9, "0/10")
+			or epoch_special.progress != get_cell(row, 8, "")
+			or epoch_special.review_url != get_url(row, 10)
+		):
 			ctx.update_contract(
 				epoch_special,
 				contractor=get_cell(row, 6, "").strip().lower(),
-				rating=get_cell(row, 7, "0/10"),
-				review_url=get_url(row, 8),
+				progress=get_cell(row, 8, ""),
+				rating=get_cell(row, 9, "0/10"),
+				review_url=get_url(row, 10),
 				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4)),
 				optional=epoch_special.type in OPTIONAL_CONTRACTS,
 			)
@@ -295,11 +305,16 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 		user_contracts = users_contracts.get(user_id)
 		honzuki_special = user_contracts.get("Honzuki Special")
-		if honzuki_special.rating != get_cell(row, 5, "0/10") or honzuki_special.review_url != get_url(row, 6):
+		if (
+			honzuki_special.rating != get_cell(row, 5, "0/10")
+			or honzuki_special.progress != get_cell(row, 7, "")
+			or honzuki_special.review_url != get_url(row, 8)
+		):
 			ctx.update_contract(
 				honzuki_special,
 				rating=get_cell(row, 5, "0/10"),
-				review_url=get_url(row, 6),
+				progress=get_cell(row, 7, ""),
+				review_url=get_url(row, 8),
 				medium="LN",
 				optional=epoch_special.type in OPTIONAL_CONTRACTS,
 			)
