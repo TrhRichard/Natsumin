@@ -27,6 +27,7 @@ class Contracts(commands.Cog):
 		self.change_user_status.start()
 
 	@commands.command(name="deadline", help="Get the current deadline in ur local time")
+	@utils.is_in_channel(1002056335845752864)
 	async def deadline(self, ctx: commands.Context):
 		await ctx.reply(f"The current deadline is <t:{config.deadline_timestamp}:f> (<t:{config.deadline_timestamp}:R>)")
 

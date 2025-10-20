@@ -2,6 +2,7 @@ from utils import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER
 from discord.ext import commands
 import logging
 import discord
+import utils
 
 
 class Errors(commands.Cog):
@@ -21,6 +22,7 @@ class Errors(commands.Cog):
 
 	@commands.Cog.listener()
 	async def on_command_error(self, ctx: commands.Context, error: Exception):
+		log_on_error = True
 		error_type, description = "", ""
 		if isinstance(error, commands.CommandNotFound):
 			return
@@ -44,18 +46,23 @@ class Errors(commands.Cog):
 		elif isinstance(error, commands.CommandOnCooldown):
 			error_type = "Cooldown"
 			description = f"You may retry again in **{error.retry_after:.2f}** seconds."
+		elif isinstance(error, utils.WrongChannel):
+			description = str(error)
+			log_on_error = False  # This will probably happen a lot so instead of spamming logs I decided to just disable logging for it
 		else:
 			error_type = type(error).__name__
 			description = str(error)
 
 		embed = discord.Embed(description=error, color=discord.Color.red())
-		embed.description = f"{error_type}: {description}"
+		embed.description = f"{error_type}: {description}" if error_type else description
 		await ctx.reply(embed=embed)
 
-		self.logger.error(f"@{ctx.author.name} -> Command error in {ctx.command}: {error_type} - {error}")
+		if log_on_error:
+			self.logger.error(f"@{ctx.author.name} -> Command error in {ctx.command}: {error_type} - {error}")
 
 	@commands.Cog.listener()
 	async def on_application_command_error(self, ctx: discord.ApplicationContext, error: Exception):
+		log_on_error = True
 		error = getattr(error, "original", error)
 		error_type, description = "", ""
 		if isinstance(error, commands.CommandOnCooldown):
@@ -75,15 +82,19 @@ class Errors(commands.Cog):
 		elif isinstance(error, discord.HTTPException):
 			error_type = "HTTP Exception"
 			description = f'An HTTP error occured: "{error.text}" ({error.status})'
+		elif isinstance(error, utils.WrongChannel):
+			description = str(error)
+			log_on_error = False  # This will probably happen a lot so instead of spamming logs I decided to just disable logging for it
 		else:
 			error_type = type(error).__name__
 			description = str(error)
 
 		embed = discord.Embed(color=discord.Color.red())
-		embed.description = f"{error_type}: {description}"
+		embed.description = f"{error_type}: {description}" if error_type else description
 		await ctx.respond(embed=embed)
 
-		self.logger.error(f"@{ctx.author.name} -> Application command error in {ctx.command}: {error_type} - {error}")
+		if log_on_error:
+			self.logger.error(f"@{ctx.author.name} -> Application command error in {ctx.command}: {error_type} - {error}")
 
 
 def setup(bot: commands.Bot):

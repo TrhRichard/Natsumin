@@ -166,6 +166,7 @@ class ContractsContracts(commands.Cog):  # yeah
 	)
 	@discord.option("season", description="Season to get stats from, defaults to active", default=None, choices=contracts.AVAILABLE_SEASONS)
 	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	@utils.is_in_channel(1002056335845752864)
 	async def stats(self, ctx: discord.ApplicationContext, rep: str = None, season: str = None, hidden: bool = False):
 		if season is None:
 			season = config.active_season
@@ -191,6 +192,7 @@ class ContractsContracts(commands.Cog):  # yeah
 		await ctx.respond(view=await StatsView.create(self.bot, ctx.author, rep, season), ephemeral=hidden)
 
 	@commands.command("stats", aliases=["s"], help="Fetch the stats of a season, optionally of a rep in that season")
+	@utils.is_in_channel(1002056335845752864)
 	async def text_stats(self, ctx: commands.Context, *, rep: str = None):
 		season = config.active_season
 
@@ -215,6 +217,7 @@ class ContractsContracts(commands.Cog):  # yeah
 		await ctx.reply(view=await StatsView.create(self.bot, ctx.author, rep, season))
 
 	@commands.command("users", hidden=True, aliases=["u"], help="Fetch all the users in a season, optionally with filters")
+	@utils.is_in_channel(1002056335845752864)
 	async def text_users(self, ctx: commands.Context, *, flags: FilterFlags):
 		await ctx.reply("Currently not implemented.")
 

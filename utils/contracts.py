@@ -96,6 +96,13 @@ def get_legacy_rank(exp: int | None) -> LegacyRank | None:
 		return LegacyRank.QUARTZ
 
 
+def is_season_ongoing() -> bool:
+	current_datetime = datetime.datetime.now(datetime.UTC)
+	difference = config.deadline_datetime - current_datetime
+	difference_seconds = max(difference.total_seconds(), 0)
+	return difference_seconds > 0
+
+
 @alru_cache(ttl=12 * 60 * 60)
 async def get_usernames(query: str = "", limit: int = None, *, season: str = None, seasonal: bool = True) -> list[str]:
 	if season is None:

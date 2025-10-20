@@ -59,20 +59,24 @@ class Other(commands.Cog):
 		return container
 
 	@commands.command(help="Fetch information on the bot")
+	@utils.is_in_channel(1002056335845752864)
 	async def botinfo(self, ctx: commands.Context):
 		await ctx.reply(view=discord.ui.View(self.get_bot_info_container()))
 
 	@commands.slash_command(name="botinfo", description="Fetch information on the bot")
+	@utils.is_in_channel(1002056335845752864)
 	async def slash_botinfo(self, ctx: discord.ApplicationContext):
 		await ctx.respond(view=discord.ui.View(self.get_bot_info_container()))
 
 	@commands.command(help="Check the bot's latency", aliases=["latency"])
+	@utils.is_in_channel(1002056335845752864)
 	async def ping(self, ctx: commands.Context):
 		embed = discord.Embed(color=config.base_embed_color)
 		embed.description = f":ping_pong: Pong! ({round(self.bot.latency * 1000)}ms)"
 		await ctx.reply(embed=embed)
 
 	@commands.slash_command(name="ping", description="Check the bot's latency")
+	@utils.is_in_channel(1002056335845752864)
 	async def slash_ping(self, ctx: discord.ApplicationContext):
 		embed = discord.Embed(color=config.base_embed_color)
 		embed.description = f":ping_pong: Pong! ({round(self.bot.latency * 1000)}ms)"

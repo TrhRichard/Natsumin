@@ -405,6 +405,7 @@ class ContractsUser(commands.Cog):
 	@user_group.command(name="profile", description="Fetch the global profile of a user")
 	@discord.option("user", description="The user to get profile of", default=None, autocomplete=usernames_autocomplete(False))
 	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	@utils.is_in_channel(1002056335845752864)
 	async def globalprofile(self, ctx: discord.ApplicationContext, user: str = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
@@ -420,6 +421,7 @@ class ContractsUser(commands.Cog):
 	@user_group.command(description="Fetch the badges of a user")
 	@discord.option("user", description="The user to see badges from", default=None, autocomplete=usernames_autocomplete(False))
 	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	@utils.is_in_channel(1002056335845752864)
 	async def badges(self, ctx: discord.ApplicationContext, user: str = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
@@ -443,6 +445,7 @@ class ContractsUser(commands.Cog):
 	)
 	@discord.option("season", description="Season to get data from, defaults to active", default=None, choices=contracts.AVAILABLE_SEASONS)
 	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	@utils.is_in_channel(1002056335845752864)
 	async def s_contracts(self, ctx: discord.ApplicationContext, user: str = None, season: str = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
@@ -478,6 +481,7 @@ class ContractsUser(commands.Cog):
 	)
 	@discord.option("season", description="Season to get data from, defaults to active", default=None, choices=contracts.AVAILABLE_SEASONS)
 	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	@utils.is_in_channel(1002056335845752864)
 	async def profile(self, ctx: discord.ApplicationContext, user: str = None, season: str = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
@@ -500,6 +504,7 @@ class ContractsUser(commands.Cog):
 		await ctx.respond(view=ContractsProfile(self.bot, ctx.author, selected_user, m_user, s_user, season=season), ephemeral=hidden)
 
 	@commands.command("badges", aliases=["b"], help="Fetch the badges of a user")
+	@utils.is_in_channel(1002056335845752864)
 	async def text_badges(self, ctx: commands.Context, user: str = None):
 		if user is None:
 			user = ctx.author
@@ -515,6 +520,7 @@ class ContractsUser(commands.Cog):
 		await ctx.reply(view=UserBadges(self.bot, ctx.author, selected_user, badges))
 
 	@commands.command("globalprofile", aliases=["gp"], help="Fetch the global profile of a user")
+	@utils.is_in_channel(1002056335845752864)
 	async def text_globalprofile(self, ctx: commands.Context, user: str = None):
 		if user is None:
 			user = ctx.author
@@ -528,6 +534,7 @@ class ContractsUser(commands.Cog):
 		await ctx.reply(view=MasterUserProfile(self.bot, ctx.author, selected_user, m_user, legacy_exp=legacy_exp))
 
 	@commands.command("contracts", aliases=["c"], help="Fetch the status of your contracts")
+	@utils.is_in_channel(1002056335845752864)
 	async def text_contracts(self, ctx: commands.Context, user: str = None, *, flags: ExtraFlags):
 		season = flags.season
 		if user is None:
@@ -552,6 +559,7 @@ class ContractsUser(commands.Cog):
 		await ctx.reply(view=UserContracts(self.bot, ctx.author, selected_user, s_user, m_user, season, user_contracts, order_data))
 
 	@commands.command("seasonprofile", aliases=["p", "profile"], help="Fetch the season profile of a user")
+	@utils.is_in_channel(1002056335845752864)
 	async def text_profile(self, ctx: commands.Context, user: str = None, *, flags: ExtraFlags):
 		season = flags.season
 		if user is None:
