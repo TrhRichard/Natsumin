@@ -218,7 +218,7 @@ class ReminderCog(commands.Cog):
 	async def on_ready(self):
 		await self.db.setup()
 
-	reminder_group = discord.SlashCommandGroup("reminder", "Reminder commands", guild_ids=config.guild_ids)
+	reminder_group = discord.SlashCommandGroup("reminder", "Reminder commands")
 
 	@reminder_group.command(description="Create a new reminder.")
 	@discord.option("when", str, required=True, parameter_name="remind_in", description="Example: 1d24h60m or 1 day 24 hours 60 minutes")
