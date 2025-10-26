@@ -12,18 +12,12 @@ class ErrorView(ui.DesignerView):
 		super().__init__(store=False)
 
 		if err_type:
-			error_display = ui.TextDisplay(f"### {err_type}\n-# {err_details}")
+			error_display = ui.TextDisplay(f"### {err_type}\n{err_details}")
 		else:
-			error_display = ui.TextDisplay(f"-# {err_details}")
+			error_display = ui.TextDisplay(f"{err_details}")
 
 		self.add_item(
-			ui.Container(
-				ui.TextDisplay("-# **ERROR**"),
-				error_display,
-				ui.Separator(),
-				ui.TextDisplay("-# If this error keeps happening, tell Richard."),
-				color=discord.Color.red(),
-			)
+			ui.Container(error_display, ui.Separator(), ui.TextDisplay("-# If this error keeps happening, tell Richard."), color=discord.Color.red())
 		)
 
 
