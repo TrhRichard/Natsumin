@@ -1,4 +1,4 @@
-from discord.ui import View, Container, TextDisplay, Separator, MediaGallery, Section, Thumbnail, Button
+from discord.ui import DesignerView, Container, TextDisplay, Separator, MediaGallery, Section, Thumbnail, ActionRow, Button
 from contracts import UserStatus, ContractStatus, UserKind
 from discord.ext import commands
 from typing import TYPE_CHECKING
@@ -56,9 +56,9 @@ class ExtraFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
 	season: str = commands.flag(aliases=["s"], default=config.active_season)
 
 
-class UserBadges(View):
+class UserBadges(DesignerView):
 	def __init__(self, bot: "Natsumin", invoker: discord.User, user: discord.Member | discord.User, badges: list[contracts.Badge]):
-		super().__init__(timeout=180, disable_on_timeout=True)
+		super().__init__(disable_on_timeout=True)
 
 		self.bot = bot
 		self.invoker = invoker
@@ -100,7 +100,7 @@ class UserBadges(View):
 		else:
 			badge_art = TextDisplay("No image available.")
 
-		page_buttons = (
+		page_buttons = ActionRow(
 			Button(style=discord.ButtonStyle.secondary, label="<--", disabled=False, custom_id="previous"),
 			Button(
 				style=discord.ButtonStyle.primary,
@@ -111,7 +111,7 @@ class UserBadges(View):
 			Button(style=discord.ButtonStyle.secondary, label="-->", disabled=False, custom_id="next"),
 		)
 
-		for button in page_buttons:
+		for button in page_buttons.children:
 			button.callback = self.button_callback
 
 		return Container(
@@ -120,13 +120,13 @@ class UserBadges(View):
 			badge_art,
 			badge_artist,
 			Separator(),
-			*page_buttons,
+			page_buttons,
 			# TextDisplay(f"-# Badge ID: {badge.id}"),
 			color=config.base_embed_color,
 		)
 
 
-class MasterUserProfile(View):
+class MasterUserProfile(DesignerView):
 	def __init__(
 		self,
 		bot: "Natsumin",
@@ -135,7 +135,7 @@ class MasterUserProfile(View):
 		master_user: contracts.MasterUser,
 		legacy_exp: int | None = None,
 	):
-		super().__init__(timeout=180, disable_on_timeout=True)
+		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
 		self.user = user
@@ -166,7 +166,7 @@ class MasterUserProfile(View):
 			Container(
 				Section(TextDisplay(header_content), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(header_content),
 				Separator(),
-				badges_button,
+				ActionRow(badges_button),
 				color=config.base_embed_color,
 			)
 		)
@@ -191,7 +191,7 @@ class MasterUserProfile(View):
 		await interaction.respond(view=UserBadges(self.bot, interaction.user, self.user, badges), ephemeral=True)
 
 
-class ContractsProfile(View):
+class ContractsProfile(DesignerView):
 	def __init__(
 		self,
 		bot: "Natsumin",
@@ -202,7 +202,7 @@ class ContractsProfile(View):
 		*,
 		season: str = config.active_season,
 	):
-		super().__init__(timeout=180, disable_on_timeout=True)
+		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
 		self.user = user
@@ -229,7 +229,7 @@ class ContractsProfile(View):
 
 		header_content = f"## {username}'s Profile\n{user_description}"
 
-		buttons = (
+		buttons = ActionRow(
 			Button(
 				style=discord.ButtonStyle.secondary,
 				label="Get Contractor",
@@ -240,14 +240,14 @@ class ContractsProfile(View):
 			Button(style=discord.ButtonStyle.secondary, label="Check Contracts", custom_id="get_contracts"),
 		)
 
-		for button in buttons:
+		for button in buttons.children:
 			button.callback = self.button_callback
 
 		self.add_item(
 			Container(
 				Section(TextDisplay(header_content), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(header_content),
 				Separator(),
-				*buttons,
+				buttons,
 				TextDisplay(f"-# <:Kirburger:998705274074435584> {utils.get_deadline_footer(season)}"),
 				color=config.base_embed_color,
 			)
@@ -299,7 +299,7 @@ class ContractsProfile(View):
 				return
 
 
-class UserContracts(View):
+class UserContracts(DesignerView):
 	def __init__(
 		self,
 		bot: "Natsumin",
@@ -311,7 +311,7 @@ class UserContracts(View):
 		user_contracts: list[contracts.Contract],
 		order_data: list[contracts.ContractOrderCategory] | None = None,
 	):
-		super().__init__(timeout=180, disable_on_timeout=True)
+		super().__init__(store=False)
 
 		username = f"<@{user.id}>" if user else master_user.username
 

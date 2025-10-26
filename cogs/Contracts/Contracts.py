@@ -1,4 +1,4 @@
-from discord.ui import View, Container, TextDisplay, Separator, Button
+from discord.ui import DesignerView, Container, TextDisplay, Separator, Button
 from contracts import UserStatus, ContractKind, ContractStatus
 from utils import get_percentage_formatted, filter_list
 from discord.ext import commands
@@ -26,9 +26,9 @@ class FilterFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
 	statuses: list[str] = commands.flag(name="status", aliases=["s"], default=None)
 
 
-class UsersView(View):
+class UsersView(DesignerView):
 	def __init__(self):
-		super().__init__(timeout=180, disable_on_timeout=True)
+		super().__init__(disable_on_timeout=True)
 
 	@classmethod
 	async def create(
@@ -62,9 +62,9 @@ class UsersView(View):
 		)
 
 
-class StatsView(View):
+class StatsView(DesignerView):
 	def __init__(self):
-		super().__init__(timeout=180, disable_on_timeout=True)
+		super().__init__(store=False)
 
 	# async initializer needed for this im not passing a billion values
 	@classmethod

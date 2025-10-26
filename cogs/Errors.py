@@ -7,9 +7,9 @@ import discord
 import utils
 
 
-class ErrorView(ui.View):
+class ErrorView(ui.DesignerView):
 	def __init__(self, err_type: str, err_details: str):
-		super().__init__()
+		super().__init__(store=False)
 
 		if err_type:
 			error_display = ui.TextDisplay(f"### {err_type}\n-# {err_details}")
@@ -67,14 +67,9 @@ class Errors(commands.Cog):
 		elif isinstance(error, utils.WrongChannel):
 			err_details = str(error)
 			should_log = False  # This will probably happen a lot so instead of spamming logs I decided to just disable logging for it
-		elif isinstance(error, commands.CommandInvokeError):  # Normal exceptions
-			error = error.original
-			if isinstance(error, aiosqlite.Error):
-				err_type = "SQLite Exception"
-				err_details = "Encountered a SQLite error, for more info check the console."
-			else:
-				err_type = type(error).__name__
-				err_details = str(error)
+		elif isinstance(error, aiosqlite.Error):
+			err_type = "SQLite Exception"
+			err_details = "Encountered a SQLite error, for more info check the console."
 		else:
 			err_type = type(error).__name__
 			err_details = str(error)
@@ -83,6 +78,8 @@ class Errors(commands.Cog):
 
 	@commands.Cog.listener()
 	async def on_command_error(self, ctx: commands.Context, error: Exception):
+		error = getattr(error, "original", error)
+
 		if isinstance(error, commands.CommandNotFound):
 			return
 

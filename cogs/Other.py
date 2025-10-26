@@ -55,16 +55,16 @@ class Other(commands.Cog):
 			f"**Maintainers**: {','.join(owner_names)}\n"
 			f"**Contributors**: {','.join(contributor_names)}\n"
 		)
-		container.add_item(discord.ui.Button(label="Repository", url=config.repository_link))
+		container.add_item(discord.ui.ActionRow(discord.ui.Button(label="Repository", url=config.repository_link)))
 		return container
 
 	@commands.command(help="Fetch information on the bot")
 	async def botinfo(self, ctx: commands.Context):
-		await ctx.reply(view=discord.ui.View(self.get_bot_info_container()))
+		await ctx.reply(view=discord.ui.DesignerView(self.get_bot_info_container(), store=False))
 
 	@commands.slash_command(name="botinfo", description="Fetch information on the bot")
 	async def slash_botinfo(self, ctx: discord.ApplicationContext):
-		await ctx.respond(view=discord.ui.View(self.get_bot_info_container()))
+		await ctx.respond(view=discord.ui.DesignerView(self.get_bot_info_container(), store=False))
 
 	@commands.command(help="Check the bot's latency", aliases=["latency"])
 	async def ping(self, ctx: commands.Context):

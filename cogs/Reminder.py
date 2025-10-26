@@ -1,4 +1,4 @@
-from discord.ui import View, Container, TextDisplay, Section, Thumbnail
+from discord.ui import DesignerView, Container, TextDisplay, Section, Thumbnail
 from utils.reminder import ReminderDB, Reminder, from_utc_timestamp
 from discord.ext import commands, tasks
 from typing import TYPE_CHECKING
@@ -114,9 +114,9 @@ async def get_user_reminders(ctx: discord.AutocompleteContext):
 	]
 
 
-class RemindersList(View):
+class RemindersList(DesignerView):
 	def __init__(self, bot: "Natsumin", user: discord.User, reminders: list[Reminder], show_hidden: bool):
-		super().__init__(timeout=180, disable_on_timeout=True)
+		super().__init__(store=False)
 		reminders = sorted(reminders, key=lambda r: r.remind_at)
 
 		reminder_str_list: list[str] = []
