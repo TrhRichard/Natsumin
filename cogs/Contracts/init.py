@@ -1,7 +1,7 @@
+from utils import FILE_LOGGING_FORMATTER, config
 from discord.ext import commands, tasks
 from contracts import UserStatus, UserKind
 from typing import TYPE_CHECKING
-from common import config
 import contracts
 import logging
 import discord
@@ -18,11 +18,8 @@ class Contracts(commands.Cog):
 
 		if not self.logger.handlers:
 			file_handler = logging.FileHandler("logs/contracts.log", encoding="utf-8")
-			file_handler.setFormatter(utils.FILE_LOGGING_FORMATTER)
-			console_handler = logging.StreamHandler()
-			console_handler.setFormatter(utils.CONSOLE_LOGGING_FORMATTER)
+			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
 			self.logger.addHandler(file_handler)
-			self.logger.addHandler(console_handler)
 			self.logger.setLevel(logging.INFO)
 		self.change_user_status.start()
 

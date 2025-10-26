@@ -1,4 +1,4 @@
-from utils import CONSOLE_LOGGING_FORMATTER, FILE_LOGGING_FORMATTER, config
+from utils import FILE_LOGGING_FORMATTER, config
 from discord.ext import commands
 from typing import TYPE_CHECKING
 from common import get_master_db
@@ -22,11 +22,7 @@ class Owner(commands.Cog):
 		if not self.logger.handlers:
 			file_handler = logging.FileHandler("logs/owner.log", encoding="utf-8")
 			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
-			console_handler = logging.StreamHandler()
-			console_handler.setFormatter(CONSOLE_LOGGING_FORMATTER)
 			self.logger.addHandler(file_handler)
-			self.logger.addHandler(console_handler)
-
 			self.logger.setLevel(logging.INFO)
 
 	@commands.command(hidden=True)

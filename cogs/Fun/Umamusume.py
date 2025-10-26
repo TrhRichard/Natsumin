@@ -2,7 +2,6 @@ from discord.ext import commands
 from typing import TYPE_CHECKING
 import logging
 import discord
-import utils
 
 if TYPE_CHECKING:
 	from main import Natsumin
@@ -12,15 +11,6 @@ class Umamusume(commands.Cog):
 	def __init__(self, bot: "Natsumin"):
 		self.bot = bot
 		self.logger = logging.getLogger("bot.other")
-
-		if not self.logger.handlers:
-			file_handler = logging.FileHandler("logs/other.log", encoding="utf-8")
-			file_handler.setFormatter(utils.FILE_LOGGING_FORMATTER)
-			console_handler = logging.StreamHandler()
-			console_handler.setFormatter(utils.CONSOLE_LOGGING_FORMATTER)
-			self.logger.addHandler(file_handler)
-			self.logger.addHandler(console_handler)
-			self.logger.setLevel(logging.INFO)
 
 	@commands.group("umamusume", help="uma uma uma uma uma", aliases=["uma"], hidden=True, invoke_without_command=True)
 	async def uma_group(self, ctx: commands.Context):

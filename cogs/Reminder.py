@@ -1,12 +1,11 @@
 from discord.ui import DesignerView, Container, TextDisplay, Section, Thumbnail
 from utils.reminder import ReminderDB, Reminder, from_utc_timestamp
+from utils import FILE_LOGGING_FORMATTER, config
 from discord.ext import commands, tasks
 from typing import TYPE_CHECKING
-from common import config
 import datetime
 import logging
 import discord
-import utils
 import re
 
 if TYPE_CHECKING:
@@ -145,11 +144,8 @@ class ReminderCog(commands.Cog):
 
 		if not self.logger.handlers:
 			file_handler = logging.FileHandler("logs/reminder.log", encoding="utf-8")
-			file_handler.setFormatter(utils.FILE_LOGGING_FORMATTER)
-			console_handler = logging.StreamHandler()
-			console_handler.setFormatter(utils.CONSOLE_LOGGING_FORMATTER)
+			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
 			self.logger.addHandler(file_handler)
-			self.logger.addHandler(console_handler)
 			self.logger.setLevel(logging.INFO)
 
 	async def create_reminder(self, user: discord.User, channel: discord.TextChannel, remind_in: str, message: str, hidden: bool) -> tuple[str, bool]:

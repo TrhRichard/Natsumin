@@ -5,7 +5,9 @@ from typing import TypeVar, Callable, overload
 from discord.ext import commands
 import discord
 import logging
+import time
 import math
+
 
 T = TypeVar("T")
 
@@ -85,4 +87,6 @@ def must_be_channel(*channel_ids: int, guild_id: int = 994071728017899600, bypas
 
 
 FILE_LOGGING_FORMATTER = logging.Formatter("[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s", "%Y-%m-%d %H:%M:%S")
+FILE_LOGGING_FORMATTER.converter = time.gmtime
 CONSOLE_LOGGING_FORMATTER = logging.Formatter("[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s", "%H:%M:%S")
+CONSOLE_LOGGING_FORMATTER.converter = time.gmtime

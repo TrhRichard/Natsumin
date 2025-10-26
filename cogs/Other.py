@@ -1,9 +1,8 @@
+from utils import FILE_LOGGING_FORMATTER, config
 from discord.ext import commands
 from typing import TYPE_CHECKING
-from common import config
 import logging
 import discord
-import utils
 import random
 
 if TYPE_CHECKING:
@@ -23,11 +22,8 @@ class Other(commands.Cog):
 
 		if not self.logger.handlers:
 			file_handler = logging.FileHandler("logs/other.log", encoding="utf-8")
-			file_handler.setFormatter(utils.FILE_LOGGING_FORMATTER)
-			console_handler = logging.StreamHandler()
-			console_handler.setFormatter(utils.CONSOLE_LOGGING_FORMATTER)
+			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
 			self.logger.addHandler(file_handler)
-			self.logger.addHandler(console_handler)
 			self.logger.setLevel(logging.INFO)
 
 	def get_bot_info_container(self) -> discord.ui.Container:

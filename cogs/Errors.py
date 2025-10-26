@@ -1,4 +1,4 @@
-from utils import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER
+from utils import FILE_LOGGING_FORMATTER
 from discord.ext import commands
 from discord import ui
 import aiosqlite
@@ -35,11 +35,7 @@ class Errors(commands.Cog):
 		if not self.logger.handlers:
 			file_handler = logging.FileHandler("logs/errors.log", encoding="utf-8")
 			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
-			console_handler = logging.StreamHandler()
-			console_handler.setFormatter(CONSOLE_LOGGING_FORMATTER)
 			self.logger.addHandler(file_handler)
-			self.logger.addHandler(console_handler)
-
 			self.logger.setLevel(logging.ERROR)
 
 	def get_error_info(self, error: Exception) -> tuple[str, str, bool]:

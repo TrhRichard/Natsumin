@@ -1,9 +1,11 @@
-from discord.ext import commands, tasks
+from utils import CONSOLE_LOGGING_FORMATTER, FILE_LOGGING_FORMATTER, config
 from typing import Mapping, Optional, overload, Literal
+from discord.ext import commands, tasks
+from common import get_master_db
 from dotenv import load_dotenv
-from common import config, get_master_db
 from async_lru import alru_cache
 import contracts
+import logging
 import discord
 import os
 import re
@@ -17,11 +19,21 @@ class Natsumin(commands.Bot):
 		self.sync_databases.start()
 		self.anicord: discord.Guild = None
 		self.master_db = get_master_db()
+		self.logger = logging.getLogger("bot")
+		if not self.logger.handlers:
+			file_handler = logging.FileHandler("logs/main.log", encoding="utf-8")
+			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
+			console_handler = logging.StreamHandler()
+			console_handler.setFormatter(CONSOLE_LOGGING_FORMATTER)
+			self.logger.addHandler(file_handler)
+			self.logger.addHandler(console_handler)
+
+			self.logger.setLevel(logging.INFO)
 
 	async def on_ready(self):
 		print("server successfully started")
 		os.system("cls" if os.name == "nt" else "clear")
-		print(f"Logged in as {self.user.name}#{self.user.discriminator}!")
+		self.logger.info(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 
 		self.anicord = self.get_guild(994071728017899600)
 
@@ -116,7 +128,11 @@ class Natsumin(commands.Bot):
 	@tasks.loop(minutes=10)
 	async def sync_databases(self):
 		if config.syncing_enabled:
-			await contracts.sync_season_db()
+			try:
+				await contracts.sync_season_db()
+			except Exception as err:
+				config.syncing_enabled = False  # Turn off auto sync the moment if it fails once
+				self.logger.error(f"Automatic syncing of {config.active_season} has failed!", exc_info=err)
 
 	@sync_databases.before_loop
 	async def before_sync(self):
