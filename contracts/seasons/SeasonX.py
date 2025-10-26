@@ -25,7 +25,7 @@ async def _get_sheet_data() -> dict:
 					"Honzuki Special!A2:I171",
 					"Aria Special!A2:G149",
 					"Arcana Special!A2:K588",
-					# TODO: Implement buddy
+					"Buddying!A2:N100",
 				],
 				"key": os.getenv("GOOGLE_API_KEY"),
 			},
@@ -220,7 +220,7 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 				rating=get_cell(row, 9, "0/10"),
 				review_url=get_url(row, 10),
 				optional=duality_special.type in OPTIONAL_CONTRACTS,
-				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4)),
+				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4, "")),
 			)
 
 	# Veteran Special
@@ -249,7 +249,7 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 				progress=get_cell(row, 7, "?/?").replace("\n", ""),
 				rating=get_cell(row, 8, "0/10"),
 				review_url=get_url(row, 9),
-				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4)),
+				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4, "")),
 				optional=veteran_special.type in OPTIONAL_CONTRACTS,
 			)
 
@@ -279,7 +279,7 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 				progress=get_cell(row, 8, "").replace("\n", ""),
 				rating=get_cell(row, 9, "0/10"),
 				review_url=get_url(row, 10),
-				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4)),
+				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4, "")),
 				optional=epoch_special.type in OPTIONAL_CONTRACTS,
 			)
 
@@ -334,7 +334,59 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 				rating=get_cell(row, 5, "0/10"),
 				review_url=get_url(row, 6),
 				medium="Game",
-				optional=epoch_special.type in OPTIONAL_CONTRACTS,
+				optional=aria_special.type in OPTIONAL_CONTRACTS,
+			)
+
+	await ctx.commit()
+
+
+async def _sync_buddies_data(sheet_data: dict, ctx: SeasonDBSyncContext):
+	users_contracts: dict[int, dict[str, Contract]] = {}
+	for contract in ctx.total_contracts:
+		users_contracts.setdefault(contract.contractee, {})[contract.type] = contract
+
+	rows: list[list[str]] = sheet_data["valueRanges"][8]["values"]
+	for row in rows:
+		username = get_cell(row, 2, "").strip().lower()
+
+		user_id = ctx.get_user_id(username)
+		if not user_id:
+			continue
+
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		base_buddy = user_contracts.get("Base Buddy")
+		if base_buddy and (
+			base_buddy.rating != get_cell(row, 10, "0/10")
+			or base_buddy.progress != get_cell(row, 8, "").replace("\n", "")
+			or base_buddy.review_url != get_url(row, 12)
+		):
+			ctx.update_contract(
+				base_buddy,
+				contractor=get_cell(row, 4, "").strip().lower(),
+				rating=get_cell(row, 10, "0/10"),
+				progress=get_cell(row, 8, "").replace("\n", ""),
+				review_url=get_url(row, 12),
+				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 5, "")),
+				optional=base_buddy.type in OPTIONAL_CONTRACTS,
+			)
+		challenge_buddy = user_contracts.get("Challenge Buddy")
+		if challenge_buddy and (
+			challenge_buddy.rating != get_cell(row, 11, "0/10")
+			or challenge_buddy.progress != get_cell(row, 9, "").replace("\n", "")
+			or challenge_buddy.review_url != get_url(row, 13)
+		):
+			ctx.update_contract(
+				challenge_buddy,
+				contractor=get_cell(row, 6, "").strip().lower(),
+				rating=get_cell(row, 11, "0/10"),
+				progress=get_cell(row, 9, "").replace("\n", ""),
+				review_url=get_url(row, 13),
+				medium=re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 7, "")),
+				optional=challenge_buddy.type in OPTIONAL_CONTRACTS,
 			)
 
 	await ctx.commit()
@@ -356,6 +408,7 @@ async def sync_to_latest(season_db: SeasonDB):
 	await _sync_dashboard_data(sheet_data, ctx)
 	await _sync_basechallenge_data(sheet_data, ctx)
 	await _sync_specials_data(sheet_data, ctx)
+	await _sync_buddies_data(sheet_data, ctx)
 	await _sync_arcana_data(sheet_data, ctx)
 
 
