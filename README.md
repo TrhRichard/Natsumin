@@ -1,26 +1,42 @@
 # Natsumin
 
-The Discord bot for the Anicord Event Server, held together by hopes and dreams.
+A Discord bot for the Anicord Event Server, held together by hopes and dreams.
 
 Maintained by [Richard](https://github.com/TrhRichard).
 
-## Setup
+## Installation
 
-1. Clone this project
-1. Install the packages from requirements.txt in a new virtual enviroment.
-1. Activate newly made enviroment if you haven't already.
-1. Create a `.env` file and add this in it:
+1. **Clone the repository:**
 
-```env
-DISCORD_TOKEN = "DISCORD-TOKEN-HERE"
-GOOGLE_API_KEY = "GOOGLE-API-KEY-HERE" # Required for fetching data from the sheet, only needs google sheets api
+```bash
+git clone https://github.com/TrhRichard/Natsumin
+cd Natsumin
 ```
 
-5. Run `py -m scripts.setup_masterdb` in the terminal to setup the master database.
+2. **Install Dependencies:**
 
-You should now be ready to start the bot if you did everything right.
-If for whatever reason it's not working either figure it out yourself
-or contact me on Discord.
+```bash
+uv sync
+```
+
+3. **Initialize Master Database**:
+
+```bash
+uv run -m scripts.setup_masterdb
+```
+
+### Dependencies
+
+-   [uv](https://docs.astral.sh/uv/): An extremely fast Python package and project manager, written in Rust.
+
+## Configuration
+
+Before being able to run the bot or any script you will need to create a `.env` file with the following content:
+
+```toml
+DISCORD_TOKEN = "DISCORD-TOKEN-HERE"
+GOOGLE_API_KEY = "GOOGLE-API-KEY-HERE" # Required for accessing Google Sheets data
+```
 
 ## License
 

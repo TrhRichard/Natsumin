@@ -1,8 +1,30 @@
 from utils import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER
 from discord.ext import commands
+from discord import ui
+import aiosqlite
 import logging
 import discord
 import utils
+
+
+class ErrorView(ui.View):
+	def __init__(self, err_type: str, err_details: str):
+		super().__init__()
+
+		if err_type:
+			error_display = ui.TextDisplay(f"### {err_type}\n-# {err_details}")
+		else:
+			error_display = ui.TextDisplay(f"-# {err_details}")
+
+		self.add_item(
+			ui.Container(
+				ui.TextDisplay("-# **ERROR**"),
+				error_display,
+				ui.Separator(),
+				ui.TextDisplay("-# If this error keeps happening, tell Richard."),
+				color=discord.Color.red(),
+			)
+		)
 
 
 class Errors(commands.Cog):
@@ -20,81 +42,78 @@ class Errors(commands.Cog):
 
 			self.logger.setLevel(logging.ERROR)
 
-	@commands.Cog.listener()
-	async def on_command_error(self, ctx: commands.Context, error: Exception):
-		log_on_error = True
-		error_type, description = "", ""
-		if isinstance(error, commands.CommandNotFound):
-			return
-		elif isinstance(error, commands.NotOwner):
-			error_type = "Owner-only command"
-			description = f"This command is restricted to {self.bot.user.name}'s owner."
+	def get_error_info(self, error: Exception) -> tuple[str, str, bool]:
+		err_type, err_details, should_log = "", "", True
+		if isinstance(error, commands.NotOwner):
+			err_type = "Owner-only command"
+			err_details = f"This command is restricted to {self.bot.user.name}'s owner."
 		elif isinstance(error, commands.MissingPermissions):
-			error_type = "Missing Permissions"
-			description = f"You do not have enough permissions to use this command.\nMissing permissions: {', '.join(error.missing_permissions)}"
+			err_type = "Missing Permissions"
+			err_details = f"You do not have enough permissions to use this command.\nMissing permissions: {', '.join(error.missing_permissions)}"
 		elif isinstance(error, commands.BotMissingPermissions):
-			error_type = "Bot Missing Permissions"
-			description = (
+			err_type = "Bot Missing Permissions"
+			err_details = (
 				f"The bot is missing the required permissions to perform this command.\nMissing permissions: {', '.join(error.missing_permissions)}"
 			)
 		elif isinstance(error, commands.MissingRequiredArgument):
-			error_type = "Missing Required Argument"
-			description = f"You are missing required argument ``{error.param.name}``."
+			err_type = "Missing Required Argument"
+			err_details = f"You are missing required argument ``{error.param.name}``."
 		elif isinstance(error, discord.HTTPException):
-			error_type = "HTTP Exception"
-			description = f'An HTTP error occured: "{error.text}" ({error.status})'
+			err_type = "HTTP Exception"
+			err_details = f'An HTTP error occured: "{error.text}" ({error.status})'
 		elif isinstance(error, commands.CommandOnCooldown):
-			error_type = "Cooldown"
-			description = f"You may retry again in **{error.retry_after:.2f}** seconds."
+			err_type = "Cooldown"
+			err_details = f"You may retry again in **{error.retry_after:.2f}** seconds."
 		elif isinstance(error, utils.WrongChannel):
-			description = str(error)
-			log_on_error = False  # This will probably happen a lot so instead of spamming logs I decided to just disable logging for it
+			err_details = str(error)
+			should_log = False  # This will probably happen a lot so instead of spamming logs I decided to just disable logging for it
+		elif isinstance(error, commands.CommandInvokeError):  # Normal exceptions
+			error = error.original
+			if isinstance(error, aiosqlite.Error):
+				err_type = "SQLite Exception"
+				err_details = "Encountered a SQLite error, for more info check the console."
+			else:
+				err_type = type(error).__name__
+				err_details = str(error)
 		else:
-			error_type = type(error).__name__
-			description = str(error)
+			err_type = type(error).__name__
+			err_details = str(error)
 
-		embed = discord.Embed(description=error, color=discord.Color.red())
-		embed.description = f"{error_type}: {description}" if error_type else description
-		await ctx.reply(embed=embed)
+		return err_type, err_details, should_log
 
-		if log_on_error:
-			self.logger.error(f"@{ctx.author.name} -> Command error in {ctx.command}: {error_type} - {error}")
+	@commands.Cog.listener()
+	async def on_command_error(self, ctx: commands.Context, error: Exception):
+		if isinstance(error, commands.CommandNotFound):
+			return
+
+		err_type, err_details, should_log = self.get_error_info(error)
+
+		if should_log:
+			self.logger.error(f"@{ctx.author.name} -> Command error in {ctx.command}", exc_info=error)
+
+		if ctx.channel.guild:
+			channel_perms = ctx.channel.permissions_for(ctx.channel.guild.me)
+			if not channel_perms.send_messages:
+				return
+
+		await ctx.reply(view=ErrorView(err_type, err_details))
 
 	@commands.Cog.listener()
 	async def on_application_command_error(self, ctx: discord.ApplicationContext, error: Exception):
-		log_on_error = True
 		error = getattr(error, "original", error)
-		error_type, description = "", ""
-		if isinstance(error, commands.CommandOnCooldown):
-			error_type = "Cooldown"
-			description = f"You may retry again in **{error.retry_after:.2f}** seconds."
-		elif isinstance(error, commands.NotOwner):
-			error_type = "Owner-only command"
-			description = f"This command is restricted to {self.bot.user.name}'s owner."
-		elif isinstance(error, commands.MissingPermissions):
-			error_type = "Missing Permissions"
-			description = f"You do not have enough permissions to use this command.\nMissing permissions: {', '.join(error.missing_permissions)}"
-		elif isinstance(error, commands.BotMissingPermissions):
-			error_type = "Bot Missing Permissions"
-			description = (
-				f"The bot is missing the required permissions to perform this command.\nMissing permissions: {', '.join(error.missing_permissions)}"
-			)
-		elif isinstance(error, discord.HTTPException):
-			error_type = "HTTP Exception"
-			description = f'An HTTP error occured: "{error.text}" ({error.status})'
-		elif isinstance(error, utils.WrongChannel):
-			description = str(error)
-			log_on_error = False  # This will probably happen a lot so instead of spamming logs I decided to just disable logging for it
-		else:
-			error_type = type(error).__name__
-			description = str(error)
+		err_type, err_details, should_log = self.get_error_info(error)
+		if err_type is None and err_details is None:
+			return
 
-		embed = discord.Embed(color=discord.Color.red())
-		embed.description = f"{error_type}: {description}" if error_type else description
-		await ctx.respond(embed=embed)
+		if should_log:
+			self.logger.error(f"@{ctx.author.name} -> Application command error in {ctx.command}", exc_info=error)
 
-		if log_on_error:
-			self.logger.error(f"@{ctx.author.name} -> Application command error in {ctx.command}: {error_type} - {error}")
+		is_ephemeral = False
+		if ctx.channel.guild:
+			channel_perms = ctx.channel.permissions_for(ctx.channel.guild.me)
+			is_ephemeral = not channel_perms.send_messages
+
+		await ctx.respond(view=ErrorView(err_type, err_details), ephemeral=is_ephemeral)
 
 
 def setup(bot: commands.Bot):

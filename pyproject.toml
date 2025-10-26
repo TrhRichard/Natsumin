@@ -1,0 +1,28 @@
+[project]
+name = "natsumin"
+version = "1.0.0"
+description = "Discord bot for Anicord Event Server"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiofiles>=25.1.0",
+    "aiosqlite>=0.21.0",
+    "async-lru>=2.0.5",
+    "py-cord==2.7.0rc1",
+    "python-dotenv>=1.1.1",
+    "pyyaml>=6.0.3",
+    "thefuzz>=0.22.1",
+]
+
+[tool.ruff]
+line-length = 150
+fix = true
+show-fixes = true
+target-version = "py312"
+
+[tool.ruff.format]
+indent-style = "tab"
+skip-magic-trailing-comma = true
+
+[tool.ruff.analyze]
+detect-string-imports = true
