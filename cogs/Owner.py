@@ -259,19 +259,21 @@ class Owner(commands.Cog):
 				conn.row_factory = aiosqlite.Row
 
 			try:
-				async with conn.execute(query) as cursor:
-					rows = await cursor.fetchall()
+				statements = [s.strip() for s in query.split(";") if s.strip()]
+				rows = []
+
+				for i, statement in enumerate(statements, start=1):
+					async with conn.execute(statement) as cursor:
+						if i == len(statements):
+							rows = await cursor.fetchall()
+
+				await conn.commit()
 			except aiosqlite.Error as err:
 				await conn.rollback()
 				return await ctx.reply(view=SQLOutputView(err))
 
 		formatted_rows = (dict(row) for row in rows) if flags.row_factory else (list(row) for row in rows)
-
-		output = []
-		for row in formatted_rows:
-			output.append(row)
-
-		str_output = json.dumps(output, indent=4)
+		str_output = json.dumps(list(formatted_rows), indent=4)
 
 		if len(str_output) < 1900:
 			await ctx.reply(view=SQLOutputView(str_output))
