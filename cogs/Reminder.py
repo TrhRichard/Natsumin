@@ -11,7 +11,8 @@ import re
 if TYPE_CHECKING:
 	from main import Natsumin
 
-TIMESTAMP_REGEX = r"<t:(\d+):(\w+)>"
+TIMESTAMP_PATTERN = r"<t:(\d+):(\w+)>"
+DURATION_PATTERN = r"(\d+)\s*((?:second|minute|hour|day|month|year)s?|s|m|h|d|y)"
 
 
 def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime) -> str:
@@ -49,50 +50,36 @@ def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime) -> str:
 
 
 def parse_duration_str(duration_str: str) -> datetime.timedelta:
-	UNIT_CANONICAL = {"y", "M", "d", "h", "m", "s"}
-	ALIASES = {
-		"year": "y",
-		"years": "y",
-		"month": "M",
-		"months": "M",
-		"day": "d",
-		"days": "d",
-		"hour": "h",
-		"hours": "h",
-		"minute": "m",
-		"minutes": "m",
-		"second": "s",
-		"seconds": "s",
-	}
-	pattern = r"(\d+)\s*(\w+)"
-	matches = re.findall(pattern, duration_str.lower())
+	matches: list[tuple[str, str]] = re.findall(DURATION_PATTERN, duration_str.strip(), re.IGNORECASE)
 	if not matches:
 		raise ValueError("Invalid duration format")
 
-	total_days = 0
+	weeks = 0
+	days = 0
 	hours = 0
 	minutes = 0
 	seconds = 0
 
-	for value, unit_word in matches:
-		unit = ALIASES.get(unit_word, unit_word)
-		if unit not in UNIT_CANONICAL:
-			raise ValueError(f"Unknown time unit: {unit_word}")
+	for value, unit in matches:
 		v = int(value)
-		if unit == "y":
-			total_days += v * 365
-		elif unit == "M":
-			total_days += v * 30
-		elif unit == "d":
-			total_days += v
-		elif unit == "h":
-			hours += v
-		elif unit == "m":
-			minutes += v
-		elif unit == "s":
-			seconds += v
+		unit = unit.strip().lower()
+		match unit:
+			case "s" | "second" | "seconds":
+				seconds += v
+			case "m" | "minute", "minutes":
+				minutes += v
+			case "h" | "hour" | "hours":
+				hours += v
+			case "d" | "day" | "days":
+				days += v
+			case "w" | "week" | "weeks":
+				weeks += v
+			case "month" | "months":
+				days += v * 30
+			case "y" | "year" | "years":
+				days += v * 365
 
-	return datetime.timedelta(days=total_days, hours=hours, minutes=minutes, seconds=seconds)
+	return datetime.timedelta(weeks=weeks, days=days, hours=hours, minutes=minutes, seconds=seconds)
 
 
 def shorten(text: str, max_len: int = 32) -> str:
@@ -148,8 +135,10 @@ class ReminderCog(commands.Cog):
 			self.logger.addHandler(file_handler)
 			self.logger.setLevel(logging.INFO)
 
-	async def create_reminder(self, user: discord.User, channel: discord.TextChannel, remind_in: str, message: str, hidden: bool) -> tuple[str, bool]:
-		if match := re.match(TIMESTAMP_REGEX, remind_in):
+	async def create_reminder(
+		self, user: discord.User, channel: discord.TextChannel, remind_in: str, message: str, hidden: bool = False
+	) -> tuple[str, bool]:
+		if match := re.match(TIMESTAMP_PATTERN, remind_in):
 			try:
 				timestamp = int(match.group(1))
 			except ValueError:
@@ -177,7 +166,7 @@ class ReminderCog(commands.Cog):
 		self.logger.info(f"@{user.name} created reminder id={new_reminder.id} message={new_reminder.message}, due in {time_diff_str}.")
 		return response, hidden
 
-	async def delete_reminder(self, user: discord.User, id: int, hidden: bool) -> tuple[str, bool]:
+	async def delete_reminder(self, user: discord.User, id: int, hidden: bool = False) -> tuple[str, bool]:
 		user_reminders = await self.db.get_reminders(user_id=user.id)
 
 		has_reminder_with_id = any([reminder.id == id for reminder in user_reminders])
@@ -286,13 +275,11 @@ class ReminderCog(commands.Cog):
 
 		for reminder in due_reminders:
 			try:
-				user = await self.bot.get_or_fetch_user(reminder.user_id)
+				user = await self.bot.get_or_fetch(discord.User, reminder.user_id)
 				if not user:
 					continue
 
-				channel = self.bot.get_channel(reminder.channel_id)
-				if not channel:
-					channel = await self.bot.fetch_channel(reminder.channel_id)
+				channel = await self.bot.get_or_fetch(discord.TextChannel, reminder.channel_id)
 
 				channelless_response = (
 					f"Reminder from <t:{reminder.created_timestamp()}:R>{f': `{reminder.message}`' if reminder.message.strip() else ''}"
