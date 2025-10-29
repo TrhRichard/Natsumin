@@ -15,7 +15,12 @@ import re
 if TYPE_CHECKING:
 	from main import Natsumin
 
-DATABASE_PATHS = {"master": "data/master.db", "winter_2025": "data/seasons/Winter2025.db", "season_x": "data/seasons/SeasonX.db"}
+DATABASE_PATHS = {
+	"master": "data/master.db",
+	"reminder": "data/reminders.db",
+	"winter_2025": "data/seasons/Winter2025.db",
+	"season_x": "data/seasons/SeasonX.db",
+}
 CODEBLOCK_PATTERN = r"(?<!\\)(?P<start>```)(?<=```)(?:(?P<lang>[a-z][a-z0-9]*)\s)?(?P<content>.*?)(?<!\\)(?=```)(?P<end>(?:\\\\)*```)"
 
 
