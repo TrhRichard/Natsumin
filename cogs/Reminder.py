@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 	from main import Natsumin
 
 TIMESTAMP_PATTERN = r"<t:(\d+):(\w+)>"
-DURATION_PATTERN = r"(\d+)\s*((?:second|minute|hour|day|month|year)s?|s|m|h|d|y)"
+DURATION_PATTERN = r"(\d+)\s*((?:second|minute|hour|day|week|month|year)s?|s|m|h|d|w|y)"
 
 
 def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime) -> str:
