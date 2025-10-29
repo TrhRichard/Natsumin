@@ -1,6 +1,7 @@
 from ..classes import SeasonDB, ContractKind, ContractStatus, UserStatus, UserKind, MasterDB, Contract, SeasonDBSyncContext
 from utils import get_cell, get_rep
 from async_lru import alru_cache
+from typing import Literal
 import aiohttp
 import re
 import os
@@ -24,7 +25,7 @@ async def _get_sheet_data() -> dict:
 					"Epoch Special!A2:K237",
 					"Honzuki Special!A2:I171",
 					"Aria Special!A2:G149",
-					"Arcana Special!A2:K588",
+					"Arcana Special!A2:L1350",
 					"Buddying!A2:N100",
 				],
 				"key": os.getenv("GOOGLE_API_KEY"),
@@ -393,7 +394,103 @@ async def _sync_buddies_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 
 async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
-	pass
+	users_contracts: dict[int, dict[str, Contract]] = {}
+	for contract in ctx.total_contracts:
+		users_contracts.setdefault(contract.contractee, {})[contract.type] = contract
+
+	rows: list[list[str]] = sheet_data["valueRanges"][7]["values"]
+
+	def get_row_type(row: list[str]) -> Literal["user", "contract", "empty"]:
+		binding_cell = get_cell(row, 1, "").strip()
+		user_cell = get_cell(row, 3, "").strip().lower()
+		contract_cell = get_cell(row, 4, "").strip()
+		if not binding_cell and contract_cell:
+			return "contract"
+		elif binding_cell and user_cell:
+			return "user"
+		return "empty"
+
+	i = 0
+	while i < len(rows):
+		row = rows[i]
+		row_type = get_row_type(row)
+
+		if row_type == "user":
+			username = get_cell(row, 3, "").strip().lower()
+			if not username:
+				i += 1
+				continue
+
+			user_id = ctx.get_user_id(username)
+			if not user_id:
+				i += 1
+				continue
+
+			season_user = ctx.get_user(user_id)
+			if not season_user:
+				i += 1
+				continue
+
+			user_contracts = users_contracts.get(user_id)
+			arcana_count = 1
+			i += 1
+			while i < len(rows) and get_row_type(rows[i]) == "contract":
+				contract_row = rows[i]
+				contract_name = get_cell(contract_row, 4, "").strip().replace("\n", ", ")
+				contract_soul_quota = get_cell(contract_row, 5, "N/A").strip()
+
+				if not contract_name or contract_soul_quota == "N/A":
+					i += 1
+					continue
+
+				contract_review = get_url(contract_row, 11)
+				contract_rating = get_cell(contract_row, 10, "0/10")
+				raw_contract_status = get_cell(contract_row, 0, "").strip()
+				match raw_contract_status:
+					case "PASSED", "PURIFIED", "ENLIGHTENMENT":
+						contract_status = ContractStatus.PASSED
+					case "DEATH":
+						contract_status = ContractStatus.FAILED
+					case _:
+						contract_status = ContractStatus.PENDING
+
+				existing_contract: Contract | None = None
+				for contract in user_contracts.values():
+					if contract.type.startswith("Arcana Special") and contract.name == contract_name:
+						existing_contract = contract
+						break
+
+				medium_match = re.search(NAME_MEDIUM_REGEX, contract_name)
+				contract_medium = medium_match.group(2) if medium_match else ""
+
+				if existing_contract is None:
+					ctx.create_contract(
+						name=contract_name,
+						type=f"Arcana Special {arcana_count}",
+						kind=ContractKind.NORMAL,
+						status=contract_status,
+						contractee=user_id,
+						contractor="?",
+						rating=contract_rating,
+						review_url=contract_review,
+						medium=contract_medium,
+					)
+				elif (
+					existing_contract.status != contract_status
+					or existing_contract.rating != contract_rating
+					or existing_contract.review_url != contract_review
+				):
+					ctx.update_contract(status=contract_status, rating=contract_rating, review_url=contract_review, medium=contract_medium)
+
+				arcana_count += 1
+				i += 1
+			continue
+		elif row_type == "empty":
+			break
+
+		i += 1
+
+	await ctx.commit()
 
 
 async def _sync_aids_data(sheet_data: dict, ctx: SeasonDBSyncContext):
