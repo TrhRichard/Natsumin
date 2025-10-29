@@ -90,7 +90,7 @@ async def get_user_reminders(ctx: discord.AutocompleteContext):
 	db: ReminderDB = ctx.cog.db
 	if not db:
 		return []
-	user_reminders = await db.get_reminders(user_id=ctx.interaction.user.id)
+	user_reminders: list[Reminder] = sorted(await db.get_reminders(user_id=ctx.interaction.user.id), key=lambda r: r.remind_at)
 
 	return [
 		discord.OptionChoice(
