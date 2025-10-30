@@ -25,7 +25,7 @@ async def _get_sheet_data() -> dict:
 					"Epoch Special!A2:K237",
 					"Honzuki Special!A2:I171",
 					"Aria Special!A2:G149",
-					"Arcana Special!A2:L1350",
+					"Arcana Special!A2:M1350",
 					"Buddying!A2:N100",
 				],
 				"key": os.getenv("GOOGLE_API_KEY"),
@@ -437,14 +437,14 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 			while i < len(rows) and get_row_type(rows[i]) == "contract":
 				contract_row = rows[i]
 				contract_name = get_cell(contract_row, 4, "").strip().replace("\n", ", ")
-				contract_soul_quota = get_cell(contract_row, 5, "N/A").strip()
+				contract_soul_quota = get_cell(contract_row, 6, "N/A").strip()
 
 				if not contract_name or contract_soul_quota == "N/A":
 					i += 1
 					continue
 
-				contract_review = get_url(contract_row, 11)
-				contract_rating = get_cell(contract_row, 10, "0/10")
+				contract_review = get_url(contract_row, 12)
+				contract_rating = get_cell(contract_row, 11, "0/10")
 				raw_contract_status = get_cell(contract_row, 0, "").strip()
 				match raw_contract_status:
 					case "PASSED" | "PURIFIED" | "ENLIGHTENMENT":
