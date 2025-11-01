@@ -18,7 +18,7 @@ async def _get_sheet_data() -> dict:
 				"majorDimension": "ROWS",
 				"valueRenderOption": "FORMATTED_VALUE",
 				"ranges": [
-					"Dashboard!A2:V508",
+					"Dashboard!A2:Y508",
 					"Base!A2:AI516",
 					"Duality Special!A2:K291",
 					"Veteran Special!A2:J280",
@@ -49,15 +49,16 @@ def get_url(row: list[str], i: int) -> str:
 
 NAME_MEDIUM_REGEX = r"(.*) \((.*)\)"
 DASHBOARD_ROW_INDEXES: dict[int, tuple[str, int]] = {
-	2: ("Base Contract", 13),
-	3: ("Challenge Contract", 14),
-	4: ("Veteran Special", 15),
-	5: ("Duality Special", 16),
-	6: ("Epoch Special", 17),
-	7: ("Honzuki Special", 18),
-	8: ("Aria Special", 19),
-	10: ("Base Buddy", 20),
-	11: ("Challenge Buddy", 21),
+	2: ("Base Contract", 14),
+	3: ("Challenge Contract", 15),
+	4: ("Veteran Special", 16),
+	5: ("Duality Special", 17),
+	6: ("Epoch Special", 18),
+	7: ("Honzuki Special", 19),
+	8: ("Aria Special", 20),
+	10: ("Base Buddy", 21),
+	11: ("Challenge Buddy", 22),
+	12: ("Sumira's Challenge", 23),
 }
 OPTIONAL_CONTRACTS: list[str] = ["Aria Special"]
 

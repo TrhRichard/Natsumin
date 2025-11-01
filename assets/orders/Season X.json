@@ -19,6 +19,10 @@
 		]
 	},
 	{
+		"name": "Mid-Season Drops",
+		"order": ["sumira's challenge"]
+	},
+	{
 		"name": "Arcana Quests",
 		"order": ["arcana special \\d+"]
 	},
