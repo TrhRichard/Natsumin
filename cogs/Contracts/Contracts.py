@@ -117,15 +117,24 @@ class StatsView(DesignerView):
 
 			for category_name, category_contracts in contracts_in_categories.items():
 				type_contracts: dict[str, list[contracts.Contract]] = {}
+				optional_contracts: dict[str, bool] = {}
 				for contract in category_contracts:
 					type_contracts.setdefault(contract.type, []).append(contract)
+					if contract.type not in optional_contracts:
+						optional_contracts[contract.type] = contract.optional
 
-				text_contract_stats: list[str] = [
-					f"> **{c_type}**: {get_percentage_formatted(len(filter_list(c_list, status=ContractStatus.PASSED)), len(c_list))}"
-					for c_type, c_list in type_contracts.items()
-				]
+				category_passed_count = 0
+				category_total_count = 0
+				text_contract_stats: list[str] = []
+				for c_type, c_list in type_contracts.items():
+					passed_count = len(filter_list(c_list, status=ContractStatus.PASSED))
+					total_count = len(c_list)
+					text_contract_stats.append(f"> **{c_type}**: {get_percentage_formatted(passed_count, total_count)}")
+					if not optional_contracts[c_type]:
+						category_passed_count += passed_count
+						category_total_count += total_count
 
-				category_text += f"### {category_name}\n{'\n'.join(text_contract_stats)}\n"
+				category_text += f"### {category_name} ({category_passed_count}/{category_total_count})\n{'\n'.join(text_contract_stats)}\n"
 
 		else:
 			category_text = "### Contracts\n"
