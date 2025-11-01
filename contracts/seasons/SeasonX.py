@@ -435,8 +435,67 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 				i += 1
 				continue
 
+			user_soul_quota = get_cell(row, 7, 0, int)
+
+			if match := re.match(r"(\d+)\/(\d+)", get_cell(row, 4, "0/14")):
+				user_quest_count = int(match.group(1))
+			else:
+				user_quest_count = 0
+
 			user_contracts = users_contracts.get(user_id)
 			arcana_count = 0
+
+			if user_quest_count < user_soul_quota:
+				min_contract_name = get_cell(row, 6, "PLEASE SELECT").strip().replace("\n", ", ")
+				if not min_contract_name:
+					min_contract_name = "PLEASE SELECT"
+				min_contract_review = get_url(row, arcana_special_columns["review_url"])
+				min_contract_rating = get_cell(row, arcana_special_columns["rating"], "0/10")
+
+				raw_contract_status = get_cell(row, 0, "").strip()
+				match raw_contract_status:
+					case "PASSED" | "PURIFIED" | "ENLIGHTENMENT":
+						min_contract_status = ContractStatus.PASSED
+					case "DEATH":
+						min_contract_status = ContractStatus.FAILED
+					case _:
+						min_contract_status = ContractStatus.PENDING
+
+				existing_contract: Contract | None = None
+				for contract in user_contracts.values():
+					if contract.type.startswith("Arcana Special") and (contract.name == min_contract_name or contract.name == "PLEASE SELECT"):
+						existing_contract = contract
+						break
+
+				medium_match = re.search(NAME_MEDIUM_REGEX, min_contract_name)
+				contract_medium = medium_match.group(2) if medium_match else ""
+				arcana_count += 1
+				if existing_contract is None:
+					ctx.create_contract(
+						name=min_contract_name,
+						type=f"Arcana Special {arcana_count}",
+						kind=ContractKind.NORMAL,
+						status=min_contract_status,
+						contractee=user_id,
+						contractor="?",
+						rating=min_contract_rating,
+						review_url=min_contract_review,
+						medium=contract_medium,
+					)
+				elif (
+					existing_contract.status != min_contract_status
+					or existing_contract.name != min_contract_name
+					or existing_contract.rating != min_contract_rating
+					or existing_contract.review_url != min_contract_review
+				):
+					ctx.update_contract(
+						existing_contract,
+						name=min_contract_name,
+						status=min_contract_status,
+						rating=min_contract_rating,
+						review_url=min_contract_review,
+					)
+
 			i += 1
 			while i < len(rows) and get_row_type(rows[i]) == "contract":
 				contract_row = rows[i]
@@ -484,54 +543,11 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 					or existing_contract.rating != contract_rating
 					or existing_contract.review_url != contract_review
 				):
-					ctx.update_contract(status=contract_status, rating=contract_rating, review_url=contract_review, medium=contract_medium)
+					ctx.update_contract(
+						existing_contract, status=contract_status, rating=contract_rating, review_url=contract_review, medium=contract_medium
+					)
 
 				i += 1
-
-			if arcana_count == 0:  # This should only happen if the user won 0 quests in the raffle
-				min_contract_name = get_cell(row, 6, "").strip().replace("\n", ", ")
-				if not min_contract_name:  # If it's empty just continue don't bother
-					continue
-
-				min_contract_review = get_url(row, arcana_special_columns["review_url"])
-				min_contract_rating = get_cell(row, arcana_special_columns["rating"], "0/10")
-
-				raw_contract_status = get_cell(contract_row, 0, "").strip()
-				match raw_contract_status:
-					case "PASSED" | "PURIFIED" | "ENLIGHTENMENT":
-						min_contract_status = ContractStatus.PASSED
-					case "DEATH":
-						min_contract_status = ContractStatus.FAILED
-					case _:
-						min_contract_status = ContractStatus.PENDING
-
-				existing_contract: Contract | None = None
-				for contract in user_contracts.values():
-					if contract.type.startswith("Arcana Special") and contract.name == min_contract_name:
-						existing_contract = contract
-						break
-
-				medium_match = re.search(NAME_MEDIUM_REGEX, min_contract_name)
-				contract_medium = medium_match.group(2) if medium_match else ""
-				arcana_count += 1
-				if existing_contract is None:
-					ctx.create_contract(
-						name=min_contract_name,
-						type=f"Arcana Special {arcana_count}",
-						kind=ContractKind.NORMAL,
-						status=min_contract_status,
-						contractee=user_id,
-						contractor="?",
-						rating=min_contract_rating,
-						review_url=min_contract_review,
-						medium=contract_medium,
-					)
-				elif (
-					existing_contract.status != min_contract_status
-					or existing_contract.rating != min_contract_rating
-					or existing_contract.review_url != min_contract_review
-				):
-					ctx.update_contract(status=min_contract_status, rating=min_contract_rating, review_url=min_contract_review)
 
 			continue
 		elif row_type == "empty":
