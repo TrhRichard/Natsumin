@@ -25,7 +25,7 @@ async def _get_sheet_data() -> dict:
 					"Epoch Special!A2:K237",
 					"Honzuki Special!A2:I171",
 					"Aria Special!A2:G149",
-					"Arcana Special!A2:M1350",
+					"Arcana Special!A2:N1400",
 					"Buddying!A2:N100",
 				],
 				"key": os.getenv("GOOGLE_API_KEY"),
@@ -394,6 +394,9 @@ async def _sync_buddies_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 	await ctx.commit()
 
 
+arcana_special_columns = {"rating": 12, "review_url": 13}
+
+
 async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 	users_contracts: dict[int, dict[str, Contract]] = {}
 	for contract in ctx.total_contracts:
@@ -433,19 +436,19 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 				continue
 
 			user_contracts = users_contracts.get(user_id)
-			arcana_count = 1
+			arcana_count = 0
 			i += 1
 			while i < len(rows) and get_row_type(rows[i]) == "contract":
 				contract_row = rows[i]
 				contract_name = get_cell(contract_row, 4, "").strip().replace("\n", ", ")
-				contract_soul_quota = get_cell(contract_row, 6, "N/A").strip()
+				contract_soul_quota = get_cell(contract_row, 7, "N/A").strip()
 
 				if not contract_name or contract_soul_quota == "N/A":
 					i += 1
 					continue
 
-				contract_review = get_url(contract_row, 12)
-				contract_rating = get_cell(contract_row, 11, "0/10")
+				contract_review = get_url(contract_row, arcana_special_columns["review_url"])
+				contract_rating = get_cell(contract_row, arcana_special_columns["rating"], "0/10")
 				raw_contract_status = get_cell(contract_row, 0, "").strip()
 				match raw_contract_status:
 					case "PASSED" | "PURIFIED" | "ENLIGHTENMENT":
@@ -463,7 +466,7 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 				medium_match = re.search(NAME_MEDIUM_REGEX, contract_name)
 				contract_medium = medium_match.group(2) if medium_match else ""
-
+				arcana_count += 1
 				if existing_contract is None:
 					ctx.create_contract(
 						name=contract_name,
@@ -483,8 +486,53 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 				):
 					ctx.update_contract(status=contract_status, rating=contract_rating, review_url=contract_review, medium=contract_medium)
 
-				arcana_count += 1
 				i += 1
+
+			if arcana_count == 0:  # This should only happen if the user won 0 quests in the raffle
+				min_contract_name = get_cell(row, 6, "").strip().replace("\n", ", ")
+				if not min_contract_name:  # If it's empty just continue don't bother
+					continue
+
+				min_contract_review = get_url(row, arcana_special_columns["review_url"])
+				min_contract_rating = get_cell(row, arcana_special_columns["rating"], "0/10")
+
+				raw_contract_status = get_cell(contract_row, 0, "").strip()
+				match raw_contract_status:
+					case "PASSED" | "PURIFIED" | "ENLIGHTENMENT":
+						min_contract_status = ContractStatus.PASSED
+					case "DEATH":
+						min_contract_status = ContractStatus.FAILED
+					case _:
+						min_contract_status = ContractStatus.PENDING
+
+				existing_contract: Contract | None = None
+				for contract in user_contracts.values():
+					if contract.type.startswith("Arcana Special") and contract.name == min_contract_name:
+						existing_contract = contract
+						break
+
+				medium_match = re.search(NAME_MEDIUM_REGEX, min_contract_name)
+				contract_medium = medium_match.group(2) if medium_match else ""
+				arcana_count += 1
+				if existing_contract is None:
+					ctx.create_contract(
+						name=contract_name,
+						type=f"Arcana Special {arcana_count}",
+						kind=ContractKind.NORMAL,
+						status=min_contract_status,
+						contractee=user_id,
+						contractor="?",
+						rating=min_contract_rating,
+						review_url=min_contract_review,
+						medium=contract_medium,
+					)
+				elif (
+					existing_contract.status != min_contract_status
+					or existing_contract.rating != min_contract_rating
+					or existing_contract.review_url != min_contract_review
+				):
+					ctx.update_contract(status=min_contract_status, rating=min_contract_rating, review_url=min_contract_review)
+
 			continue
 		elif row_type == "empty":
 			break
