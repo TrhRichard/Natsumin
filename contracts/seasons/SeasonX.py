@@ -516,7 +516,7 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 				arcana_count += 1
 				if existing_contract is None:
 					ctx.create_contract(
-						name=contract_name,
+						name=min_contract_name,
 						type=f"Arcana Special {arcana_count}",
 						kind=ContractKind.NORMAL,
 						status=min_contract_status,
