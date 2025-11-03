@@ -66,7 +66,7 @@ def parse_duration_str(duration_str: str) -> datetime.timedelta:
 		match unit:
 			case "s" | "second" | "seconds":
 				seconds += v
-			case "m" | "minute", "minutes":
+			case "m" | "minute" | "minutes":
 				minutes += v
 			case "h" | "hour" | "hours":
 				hours += v
