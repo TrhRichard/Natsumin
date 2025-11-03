@@ -84,7 +84,7 @@ class Natsumin(commands.Bot):
 			if match := re.match(r"<@!?(\d+)>", username):
 				discord_id = int(match.group(1))
 				if self.anicord:
-					discord_user = self.anicord.get_or_fetch(discord.Member, discord_id)
+					discord_user = await self.anicord.get_or_fetch(discord.Member, discord_id)
 
 				if not discord_user:
 					discord_user = await self.get_or_fetch(discord.User, discord_id)  # lol
@@ -103,7 +103,7 @@ class Natsumin(commands.Bot):
 
 		if discord_user is None:
 			if master_user.discord_id and self.anicord:
-				discord_user = self.anicord.get_or_fetch(discord.Member, master_user.discord_id)
+				discord_user = await self.anicord.get_or_fetch(discord.Member, master_user.discord_id)
 
 			if not discord_user and master_user.discord_id:
 				discord_user = await self.get_or_fetch(discord.User, master_user.discord_id)
