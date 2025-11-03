@@ -138,7 +138,7 @@ bot = Natsumin(
 )
 
 
-class Help(commands.HelpCommand):
+class NatsuminHelp(commands.HelpCommand):
 	def get_command_signature(self, command: commands.Command):
 		return "**%s%s**%s" % (
 			self.context.clean_prefix,
@@ -147,7 +147,11 @@ class Help(commands.HelpCommand):
 		)
 
 	async def send_bot_help(self, mapping: Mapping[Optional[commands.Cog], list[commands.Command]]):
-		embed = discord.Embed(color=config.base_embed_color, description="")
+		embed = discord.Embed(
+			color=config.base_embed_color,
+			title=f"{self.context.me.name}'s commands",
+			description=f"-# For more information about a command you can run: `{self.context.clean_prefix}help [command-name]`",
+		)
 
 		for cog, cog_commands in mapping.items():
 			filtered: list[commands.Command] = await self.filter_commands(cog_commands, sort=True)
@@ -202,7 +206,7 @@ class Help(commands.HelpCommand):
 		await channel.send(embed=embed)
 
 
-bot.help_command = Help()
+bot.help_command = NatsuminHelp()
 os.makedirs("logs", exist_ok=True)
 os.makedirs("data", exist_ok=True)
 bot.load_extension("cogs", recursive=True)

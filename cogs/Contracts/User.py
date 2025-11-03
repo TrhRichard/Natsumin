@@ -478,7 +478,7 @@ class ContractsUser(commands.Cog):
 			view=UserContracts(self.bot, ctx.author, selected_user, s_user, m_user, season, user_contracts, order_data), ephemeral=hidden
 		)
 
-	@contracts_subgroup.command(name="profile", description="Fetch the season profile of a user")
+	@contracts_subgroup.command(name="profile", description="Fetch the seasonal profile of a user")
 	@discord.option(
 		"user",
 		description="The user to see profile of, only autocompletes from active season",
@@ -566,7 +566,7 @@ class ContractsUser(commands.Cog):
 
 		await ctx.reply(view=UserContracts(self.bot, ctx.author, selected_user, s_user, m_user, season, user_contracts, order_data))
 
-	@commands.command("seasonprofile", aliases=["p", "profile"], help="Fetch the season profile of a user")
+	@commands.command("seasonprofile", aliases=["sp", "p", "profile"], help="Fetch the seasonal profile of a user")
 	@utils.must_be_channel(1002056335845752864)
 	async def text_profile(self, ctx: commands.Context, user: str = None, *, flags: ExtraFlags):
 		season = flags.season

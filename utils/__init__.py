@@ -3,21 +3,19 @@ from .rep import get_rep, RepName  # noqa: F401
 from common import config  # noqa: F401
 from typing import TypeVar, Callable, overload
 from discord.ext import commands
-import discord
 import logging
 import time
-import math
 
 
 T = TypeVar("T")
 
 
-def get_percentage(num: float, total: float) -> int:
-	return math.floor(100 * float(num) / float(total))
+def get_percentage(num: float, total: float) -> float:
+	return 100 * float(num) / float(total)
 
 
 def get_percentage_formatted(num: int | float, total: int | float) -> str:
-	return f"{num}/{total} ({get_percentage(num, total)}%)"
+	return f"{num}/{total} ({get_percentage(num, total):.2f}%)"
 
 
 def filter_list(to_filter: list[T], **kwargs) -> list[T]:
