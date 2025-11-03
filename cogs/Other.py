@@ -3,22 +3,15 @@ from discord.ext import commands
 from typing import TYPE_CHECKING
 import logging
 import discord
-import random
 
 if TYPE_CHECKING:
 	from main import Natsumin
-
-FISH_STICKER_ID = 1073965395595235358
 
 
 class Other(commands.Cog):
 	def __init__(self, bot: "Natsumin"):
 		self.bot = bot
 		self.logger = logging.getLogger("bot.other")
-
-		self.fish_sticker: discord.GuildSticker = self.bot.get_sticker(FISH_STICKER_ID)
-		self.fish_messages_since_last: int = 0
-		self.fish_event_forced = False
 
 		if not self.logger.handlers:
 			file_handler = logging.FileHandler("logs/other.log", encoding="utf-8")
@@ -73,52 +66,6 @@ class Other(commands.Cog):
 		embed = discord.Embed(color=config.base_embed_color)
 		embed.description = f":ping_pong: Pong! ({round(self.bot.latency * 1000)}ms)"
 		await ctx.respond(embed=embed)
-
-	@commands.Cog.listener()
-	async def on_message(self, message: discord.Message):
-		if not message.guild or message.guild.id != 994071728017899600:
-			return
-		if message.author.id != 551441930773331978:
-			return
-
-		self.fish_messages_since_last += 1
-
-		bot_perms_in_channel = message.channel.permissions_for(message.guild.me)
-		if not bot_perms_in_channel.send_messages:
-			return
-
-		if not self.fish_sticker:
-			self.fish_sticker = await self.bot.fetch_sticker(FISH_STICKER_ID)
-
-		if not self.fish_event_forced:
-			if self.fish_messages_since_last >= 1000:
-				if random.randint(1, 100) != 15:
-					return
-			else:
-				if random.randint(1, 10000) != 15:
-					return
-
-		self.logger.info(f"A fish event has been triggered in #{message.channel.name} after {self.fish_messages_since_last} messages")
-		self.fish_messages_since_last = 0
-		self.fish_event_forced = False
-		try:
-			await message.reply(
-				None,
-				stickers=[self.fish_sticker],
-				allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=False, replied_user=True),
-			)
-		except (discord.HTTPException, discord.Forbidden) as e:
-			self.logger.error(f"Could not send a fish event: {e}")
-
-	@commands.command(hidden=True)
-	async def fish_count(self, ctx: commands.Context):
-		await ctx.reply(f"Current fish messages count since bot startup and last chisato: {self.fish_messages_since_last}")
-
-	@commands.command(hidden=True)
-	@commands.is_owner()
-	async def force_fish(self, ctx: commands.Context):
-		self.fish_event_forced = True
-		await ctx.reply("Next fish message will forcefully be a fish event.")
 
 	@commands.command("richardpoggers", hidden=True, help="why", aliases=["richardpog"])
 	async def richard_poggers(self, ctx: commands.Context):
