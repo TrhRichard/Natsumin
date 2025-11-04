@@ -17,6 +17,7 @@ __all__ = [
 	"get_contract_category",
 	"sort_contract_categories",
 	"get_deadline_footer",
+	"is_season_ongoing",
 ]
 
 
@@ -199,4 +200,4 @@ def get_deadline_footer(season: str = None) -> str:
 		else:
 			return "This season has ended."
 	else:
-		return f"Data from {season}"
+		return f"Archived data from {season}."

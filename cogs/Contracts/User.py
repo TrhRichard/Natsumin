@@ -329,6 +329,7 @@ class UserContracts(DesignerView):
 
 		contracts_in_categories: dict[str, list[contracts.Contract]] = {}
 		category_counts: dict[str, list[int]] = {}
+		unselected_contracts: list[contracts.Contract] = []
 
 		for contract in user_contracts:
 			category_name = utils.get_contract_category(order_data, contract.type)
@@ -351,6 +352,7 @@ class UserContracts(DesignerView):
 				if contract.name.strip().lower() in NEED_TO_SELECT_STRINGS:
 					status_emote = "⚠️"
 					contract_name = f"**__{contract_name}__**"
+					unselected_contracts.append(contract)
 				else:
 					status_emote = get_status_emote(contract.status, contract.optional)
 
@@ -365,6 +367,18 @@ class UserContracts(DesignerView):
 		sorted_categories_text = "\n".join(
 			category_texts[category_name] for category_name in utils.sort_contract_categories(order_data) if category_name in category_texts
 		)
+
+		if unselected_contracts:
+			formatted_unselected = [f"**{contract.type}**" for contract in unselected_contracts]
+			if len(unselected_contracts) == 1:
+				types_unselected_str = formatted_unselected[0]
+			elif len(unselected_contracts) == 2:
+				types_unselected_str = " and ".join(formatted_unselected)
+			else:
+				types_unselected_str = f"{', '.join(formatted_unselected[:-1])} and {formatted_unselected[-1]}"
+			footer_messages.append(
+				f"{"You haven't" if invoker.name == master_user.username else "This user hasn't"} picked anything for {types_unselected_str}!"
+			)
 
 		container = Container(
 			Section(TextDisplay(header_content), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(header_content),
