@@ -325,50 +325,26 @@ class UserContracts(DesignerView):
 
 		header_content = f"## {username}'s Contracts\n{user_description}"
 
-		category_text: str = ""
-		if order_data is not None:
-			contracts_in_categories: dict[str, list[contracts.Contract]] = {}
-			category_counts: dict[str, list[int]] = {}
+		category_texts: dict[str, str] = {}
 
-			for contract in user_contracts:
-				category_name = utils.get_contract_category(order_data, contract.type)
-				category_counts[category_name] = [0, 0]  # (TotalContracts, PassedContracts)
-				contracts_in_categories.setdefault(category_name, []).append(contract)
+		contracts_in_categories: dict[str, list[contracts.Contract]] = {}
+		category_counts: dict[str, list[int]] = {}
 
-			for category_name, category_contracts in contracts_in_categories.items():
-				type_contracts: dict[str, contracts.Contract] = {}
-				for contract in category_contracts:
-					category_counts[category_name][0] += 1
-					if contract.status in (ContractStatus.PASSED, ContractStatus.LATE_PASS):
-						category_counts[category_name][1] += 1
-					type_contracts[contract.type] = contract
+		for contract in user_contracts:
+			category_name = utils.get_contract_category(order_data, contract.type)
+			category_counts[category_name] = [0, 0]  # (TotalContracts, PassedContracts)
+			contracts_in_categories.setdefault(category_name, []).append(contract)
 
-				text_contract_stats: list[str] = []
-				for contract in type_contracts.values():
-					contract_name = f"[{contract.name}]({contract.review_url})" if contract.review_url else contract.name
-
-					status_emote: str = None
-					if contract.name.strip().lower() in NEED_TO_SELECT_STRINGS:
-						status_emote = "⚠️"
-						contract_name = f"**__{contract_name}__**"
-					else:
-						status_emote = get_status_emote(contract.status, contract.optional)
-
-					text_contract_stats.append(f"> {status_emote} **{contract.type}**: {contract_name}")
-
-				category_text += f"### {category_name} ({category_counts[category_name][1]}/{category_counts[category_name][0]})\n{'\n'.join(text_contract_stats)}\n"
-				if category_counts[category_name][1] == category_counts[category_name][0]:
-					footer_messages.append(f"This user has finished all **{category_name}**!")
-		else:
-			contracts_passed = len(utils.filter_list(user_contracts, status=ContractStatus.PASSED)) + len(
-				utils.filter_list(user_contracts, status=ContractStatus.LATE_PASS)
-			)  # idc
-			category_text = f"### Contracts ({len(user_contracts)}/{len(contracts_passed)})\n"
+		for category_name, category_contracts in contracts_in_categories.items():
 			type_contracts: dict[str, contracts.Contract] = {}
-			for contract in user_contracts:
+			for contract in category_contracts:
+				category_counts[category_name][0] += 1
+				if contract.status in (ContractStatus.PASSED, ContractStatus.LATE_PASS):
+					category_counts[category_name][1] += 1
 				type_contracts[contract.type] = contract
 
-			for contract in sorted(type_contracts.values()):
+			text_contract_stats: list[str] = []
+			for contract in type_contracts.values():
 				contract_name = f"[{contract.name}]({contract.review_url})" if contract.review_url else contract.name
 
 				status_emote: str = None
@@ -378,12 +354,22 @@ class UserContracts(DesignerView):
 				else:
 					status_emote = get_status_emote(contract.status, contract.optional)
 
-				category_text += f"> {status_emote} **{contract.type}**: {contract_name}\n"
+				text_contract_stats.append(f"> {status_emote} **{contract.type}**: {contract_name}")
+
+			category_texts[category_name] = (
+				f"### {category_name} ({category_counts[category_name][1]}/{category_counts[category_name][0]})\n{'\n'.join(text_contract_stats)}"
+			)
+			if category_counts[category_name][1] == category_counts[category_name][0]:
+				footer_messages.append(f"This user has finished all **{category_name}**!")
+
+		sorted_categories_text = "\n".join(
+			category_texts[category_name] for category_name in utils.sort_contract_categories(order_data) if category_name in category_texts
+		)
 
 		container = Container(
 			Section(TextDisplay(header_content), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(header_content),
 			Separator(),
-			TextDisplay(category_text),
+			TextDisplay(sorted_categories_text),
 			color=config.base_embed_color,
 		)
 		if footer_messages:

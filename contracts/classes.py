@@ -218,13 +218,13 @@ class SeasonDB:
 			await db.executescript(season_script)
 			await db.commit()
 
-	async def get_order_data(self) -> list[ContractOrderCategory] | None:
+	async def get_order_data(self) -> list[ContractOrderCategory]:
 		if self._order_data is not None:
 			return self._order_data
 
 		file_path = f"assets/orders/{self.name}.json"
 		if not os.path.isfile(file_path):
-			return None
+			return []
 
 		async with aiofiles.open(file_path, "r") as f:
 			self._order_data = json.loads(await f.read())

@@ -8,7 +8,16 @@ import re
 if TYPE_CHECKING:
 	from contracts import ContractOrderCategory
 
-__all__ = ["LegacyRank", "get_rank_emoteid", "get_legacy_rank", "get_usernames", "get_reps", "get_contract_category", "get_deadline_footer"]
+__all__ = [
+	"LegacyRank",
+	"get_rank_emoteid",
+	"get_legacy_rank",
+	"get_usernames",
+	"get_reps",
+	"get_contract_category",
+	"sort_contract_categories",
+	"get_deadline_footer",
+]
 
 
 class LegacyRank(StrEnum):
@@ -164,6 +173,10 @@ def get_contract_category(order_data: "list[ContractOrderCategory]", c_type: str
 				return category["name"]
 
 	return "Other"
+
+
+def sort_contract_categories(order_data: "list[ContractOrderCategory]") -> list[str]:
+	return [*[category["name"] for category in order_data], "Other"]
 
 
 def get_deadline_footer(season: str = None) -> str:

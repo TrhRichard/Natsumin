@@ -108,43 +108,37 @@ class StatsView(DesignerView):
 			)
 		)
 
-		category_text: str = ""
-		if order_data is not None:
-			contracts_in_categories: dict[str, list[contracts.Contract]] = {}
+		category_texts: dict[str, str] = {}
 
-			for contract in total_contracts:
-				contracts_in_categories.setdefault(utils.get_contract_category(order_data, contract.type), []).append(contract)
+		contracts_in_categories: dict[str, list[contracts.Contract]] = {}
 
-			for category_name, category_contracts in contracts_in_categories.items():
-				type_contracts: dict[str, list[contracts.Contract]] = {}
-				optional_contracts: dict[str, bool] = {}
-				for contract in category_contracts:
-					type_contracts.setdefault(contract.type, []).append(contract)
-					if contract.type not in optional_contracts:
-						optional_contracts[contract.type] = contract.optional
+		for contract in total_contracts:
+			contracts_in_categories.setdefault(utils.get_contract_category(order_data, contract.type), []).append(contract)
 
-				category_passed_count = 0
-				category_total_count = 0
-				text_contract_stats: list[str] = []
-				for c_type, c_list in type_contracts.items():
-					passed_count = len(filter_list(c_list, status=ContractStatus.PASSED))
-					total_count = len(c_list)
-					text_contract_stats.append(f"> **{c_type}**: {get_percentage_formatted(passed_count, total_count)}")
-					if not optional_contracts[c_type]:
-						category_passed_count += passed_count
-						category_total_count += total_count
-
-				category_text += f"### {category_name} ({category_passed_count}/{category_total_count})\n{'\n'.join(text_contract_stats)}\n"
-
-		else:
-			category_text = "### Contracts\n"
+		for category_name, category_contracts in contracts_in_categories.items():
 			type_contracts: dict[str, list[contracts.Contract]] = {}
-			for c in total_contracts:
-				type_contracts.setdefault(c.type, []).append(c)
+			optional_contracts: dict[str, bool] = {}
+			for contract in category_contracts:
+				type_contracts.setdefault(contract.type, []).append(contract)
+				if contract.type not in optional_contracts:
+					optional_contracts[contract.type] = contract.optional
 
-			for c_type in sorted(type_contracts.keys()):
-				all_contracts_of_type = type_contracts.get(c_type, [])
-				category_text += f"> **{c_type}**: {get_percentage_formatted(len(filter_list(all_contracts_of_type, status=ContractStatus.PASSED)), len(all_contracts_of_type))}\n"
+			category_passed_count = 0
+			category_total_count = 0
+			text_contract_stats: list[str] = []
+			for c_type, c_list in type_contracts.items():
+				passed_count = len(filter_list(c_list, status=ContractStatus.PASSED))
+				total_count = len(c_list)
+				text_contract_stats.append(f"> **{c_type}**: {get_percentage_formatted(passed_count, total_count)}")
+				if not optional_contracts[c_type]:
+					category_passed_count += passed_count
+					category_total_count += total_count
+
+			category_texts[category_name] = f"### {category_name} ({category_passed_count}/{category_total_count})\n{'\n'.join(text_contract_stats)}"
+
+		sorted_categories_text = "\n".join(
+			category_texts[category_name] for category_name in utils.sort_contract_categories(order_data) if category_name in category_texts
+		)
 
 		s_view.add_item(
 			Container(
@@ -152,7 +146,7 @@ class StatsView(DesignerView):
 				Separator(),
 				stats_display,
 				Separator(),
-				TextDisplay(category_text),
+				TextDisplay(sorted_categories_text),
 				Separator(),
 				TextDisplay(f"-# <:Kirburger:998705274074435584> {utils.get_deadline_footer(season)}"),
 				color=config.base_embed_color,
