@@ -78,7 +78,8 @@ class SeasonUser:
 	accepting_ln: bool = field(default=False, repr=False)
 	preferences: str | None = field(default=None, repr=False)
 	bans: str | None = field(default=None, repr=False)
-	_db: SeasonDB = None
+
+	_db: SeasonDB = field(default=None, repr=False)
 
 	def __hash__(self):
 		return hash((self.id, self._db.name))
@@ -157,7 +158,8 @@ class Contract:
 	rating: str | None = field(default=None, repr=False)
 	review_url: str | None = field(default=None, repr=False)
 	medium: str | None = field(default=None, repr=False)
-	_db: SeasonDB = None
+
+	_db: SeasonDB = field(default=None, repr=False)
 
 	def __hash__(self):
 		return hash((self.name, self.type, self.contractee))
@@ -447,7 +449,7 @@ class MasterUser:
 	username: str
 	rep: str | None
 	gen: int | None
-	_db: MasterDB = field(repr=False, default=None)
+	_db: MasterDB = field(default=None, repr=False)
 
 	def __hash__(self):
 		return hash((self.id))
