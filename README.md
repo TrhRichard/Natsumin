@@ -25,13 +25,9 @@ uv sync
 uv run -m scripts.setup_masterdb
 ```
 
-### Dependencies
-
--   [uv](https://docs.astral.sh/uv/): An extremely fast Python package and project manager, written in Rust.
-
 ## Configuration
 
-Before being able to run the bot or any script you will need to create a `.env` file with the following content:
+Before being able to run the bot or any of the scripts you will need to create a `.env` file with the following content:
 
 ```toml
 DISCORD_TOKEN = "DISCORD-TOKEN-HERE"
