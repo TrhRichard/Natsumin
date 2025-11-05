@@ -52,6 +52,7 @@ class ContractStatus(Enum):
 	PASSED = 1
 	FAILED = 2
 	LATE_PASS = 3
+	UNVERIFIED = 4
 
 
 class ContractKind(Enum):

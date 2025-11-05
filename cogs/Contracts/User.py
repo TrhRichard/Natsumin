@@ -48,6 +48,8 @@ def get_status_emote(status: UserStatus | ContractStatus, is_optional: bool = Fa
 			return "☑️"
 		case UserStatus.FAILED | UserStatus.INCOMPLETE | ContractStatus.FAILED:
 			return "❌"
+		case ContractStatus.UNVERIFIED:
+			return "❓"
 		case _:
 			return "❔"
 

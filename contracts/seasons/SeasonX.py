@@ -458,6 +458,8 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 						min_contract_status = ContractStatus.PASSED
 					case "DEATH":
 						min_contract_status = ContractStatus.FAILED
+					case "UNVERIFIED":
+						min_contract_status = ContractStatus.UNVERIFIED
 					case _:
 						min_contract_status = ContractStatus.PENDING
 
@@ -514,6 +516,8 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 						contract_status = ContractStatus.PASSED
 					case "DEATH":
 						contract_status = ContractStatus.FAILED
+					case "UNVERIFIED":
+						contract_status = ContractStatus.UNVERIFIED
 					case _:
 						contract_status = ContractStatus.PENDING
 
