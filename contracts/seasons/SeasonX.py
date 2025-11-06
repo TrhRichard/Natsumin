@@ -25,7 +25,7 @@ async def _get_sheet_data() -> dict:
 					"Epoch Special!A2:K237",
 					"Honzuki Special!A2:I171",
 					"Aria Special!A2:G149",
-					"Arcana Special!A2:N1400",
+					"Arcana Special!A2:N1427",
 					"Buddying!A2:N100",
 				],
 				"key": os.getenv("GOOGLE_API_KEY"),
@@ -394,7 +394,7 @@ async def _sync_buddies_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 	await ctx.commit()
 
 
-arcana_special_columns = {"rating": 12, "review_url": 13}
+arcana_special_columns = {"status": 0, "user": 3, "quests": 4, "soul_quota": 5, "minimum_quest": 7, "rating": 12, "review_url": 13}
 
 
 async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
@@ -420,7 +420,7 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 		row_type = get_row_type(row)
 
 		if row_type == "user":
-			username = get_cell(row, 3, "").strip().lower()
+			username = get_cell(row, arcana_special_columns["user"], "").strip().lower()
 			if not username:
 				i += 1
 				continue
@@ -435,9 +435,9 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 				i += 1
 				continue
 
-			user_soul_quota = get_cell(row, 7, 0, int)
+			user_soul_quota = get_cell(row, arcana_special_columns["soul_quota"], 0, int)
 
-			if match := re.match(r"(\d+)\/(\d+)", get_cell(row, 4, "0/14")):
+			if match := re.match(r"(\d+)\/(\d+)", get_cell(row, arcana_special_columns["quests"], "0/14")):
 				user_quest_count = int(match.group(1))
 			else:
 				user_quest_count = 0
@@ -446,13 +446,13 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 			arcana_count = 0
 
 			if user_quest_count < user_soul_quota:
-				min_contract_name = get_cell(row, 6, "PLEASE SELECT").strip().replace("\n", ", ")
+				min_contract_name = get_cell(row, arcana_special_columns["minimum_quest"], "PLEASE SELECT").strip().replace("\n", ", ")
 				if not min_contract_name:
 					min_contract_name = "PLEASE SELECT"
 				min_contract_review = get_url(row, arcana_special_columns["review_url"])
 				min_contract_rating = get_cell(row, arcana_special_columns["rating"], "0/10")
 
-				raw_contract_status = get_cell(row, 0, "").strip()
+				raw_contract_status = get_cell(row, arcana_special_columns["status"], "").strip()
 				match raw_contract_status:
 					case "PASSED" | "PURIFIED" | "ENLIGHTENMENT":
 						min_contract_status = ContractStatus.PASSED
@@ -501,8 +501,8 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 			i += 1
 			while i < len(rows) and get_row_type(rows[i]) == "contract":
 				contract_row = rows[i]
-				contract_name = get_cell(contract_row, 4, "").strip().replace("\n", ", ")
-				contract_soul_quota = get_cell(contract_row, 7, "N/A").strip()
+				contract_name = get_cell(contract_row, arcana_special_columns["quests"], "").strip().replace("\n", ", ")
+				contract_soul_quota = get_cell(contract_row, arcana_special_columns["soul_quota"], "N/A").strip()
 
 				if not contract_name or contract_soul_quota == "N/A":
 					i += 1
@@ -510,7 +510,7 @@ async def _sync_arcana_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 				contract_review = get_url(contract_row, arcana_special_columns["review_url"])
 				contract_rating = get_cell(contract_row, arcana_special_columns["rating"], "0/10")
-				raw_contract_status = get_cell(contract_row, 0, "").strip()
+				raw_contract_status = get_cell(contract_row, arcana_special_columns["status"], "").strip()
 				match raw_contract_status:
 					case "PASSED" | "PURIFIED" | "ENLIGHTENMENT":
 						contract_status = ContractStatus.PASSED
