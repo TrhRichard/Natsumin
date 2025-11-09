@@ -1,23 +1,12 @@
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from utils.time import to_utc_timestamp, from_utc_timestamp
 import aiosqlite
 import datetime
 import os
 
 with open("assets/schemas/Reminder.sql") as f:
 	db_script = f.read()
-
-
-def to_utc_timestamp(dt: datetime.datetime) -> int:
-	if dt.tzinfo is None:
-		dt = dt.replace(tzinfo=datetime.timezone.utc)
-	else:
-		dt = dt.astimezone(datetime.timezone.utc)
-	return int(dt.timestamp())
-
-
-def from_utc_timestamp(ts: int) -> datetime.datetime:
-	return datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc)
 
 
 @dataclass

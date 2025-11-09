@@ -1,11 +1,11 @@
 from .contracts import *  # noqa: F403
 from .rep import get_rep, RepName  # noqa: F401
+from .time import *  # noqa: F403
 from common import config  # noqa: F401
 from typing import TypeVar, Callable, overload
 from discord.ext import commands
 import logging
 import time
-
 
 T = TypeVar("T")
 
@@ -25,6 +25,10 @@ def filter_list(to_filter: list[T], **kwargs) -> list[T]:
 			filtered.append(item)
 
 	return filtered
+
+
+def shorten(text: str, max_len: int = 32) -> str:
+	return text if len(text) <= max_len else text[: max_len - 3] + "..."
 
 
 @overload
