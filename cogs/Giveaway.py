@@ -1,11 +1,17 @@
 from utils.time import parse_duration_str, from_utc_timestamp, to_utc_timestamp
 from utils import FILE_LOGGING_FORMATTER, config, shorten
+from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING, Literal
 from discord.ext import commands, tasks
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
 import discord.ui as ui
+import aiosqlite
+import aiofiles
 import datetime
+import asyncio
 import logging
 import discord
+import random
 import re
 
 if TYPE_CHECKING:
@@ -14,11 +20,88 @@ if TYPE_CHECKING:
 TIMESTAMP_PATTERN = r"<t:(\d+):(\w+)>"
 
 
+@dataclass(slots=True, kw_only=True)
+class GiveawayEvent:
+	update_type: Literal["user_joined", "user_left", "ended", "winner_rerolled"]
+	giveaway_id: int
+
+
+@dataclass(slots=True, kw_only=True)
+class GiveawayUserJoinedEvent(GiveawayEvent):
+	update_type: Literal["user_joined"] = "user_joined"
+	user_id: int
+
+
+@dataclass(slots=True, kw_only=True)
+class GiveawayUserLeftEvent(GiveawayEvent):
+	update_type: Literal["user_left"] = "user_left"
+	user_id: int
+
+
+@dataclass(slots=True, kw_only=True)
+class GiveawayEndedEvent(GiveawayEvent):
+	update_type: Literal["ended"] = "ended"
+	users_entered: list[int]
+	winners: list[int]
+
+
+@dataclass(slots=True, kw_only=True)
+class GiveawayWinnerRerolledEvent(GiveawayEvent):
+	update_type: Literal["winner_rerolled"] = "winner_rerolled"
+	user_id: int
+	index_rerolled: int
+
+
+def get_giveaway_embed(
+	prize: str,
+	winners_amount: int,
+	ends_at_timestamp: int,
+	tags: list[str] = None,
+	role_requirements: list[int] = None,
+	has_ended: bool = False,
+	winners: list[int] = None,
+) -> discord.Embed:
+	if role_requirements is None:
+		role_requirements = []
+	if winners is None:
+		winners = []
+	if tags is None:
+		tags = []
+
+	embed = discord.Embed(title=prize, description="", color=config.base_embed_color)
+	if not has_ended:
+		embed.description = f"""Click 🎉 button to enter!
+Winners: **{winners_amount}**
+Ends: <t:{ends_at_timestamp}:R>
+"""
+		if role_requirements:
+			embed.description += (
+				f"\n\nMust have the role{'s' if len(role_requirements) > 1 else ''}: {', '.join(f'<@&{role_id}>' for role_id in role_requirements)}"
+			)
+	else:
+		if winners:
+			embed.description = f"Winner{'s' if len(winners) > 1 else ''}: {', '.join(f'<@&{user_id}>' for user_id in winners)}"
+		else:
+			embed.description = "No winner."
+
+	if tags:
+		embed.set_footer(text=shorten(", ".join(tags), 128))  # in what world will this reach more than 128 characters
+
+	return embed
+
+
 class GiveawayCog(commands.Cog):
 	def __init__(self, bot: "Natsumin"):
 		self.bot = bot
 		self.logger = logging.getLogger("bot.giveaway")
-		self.giveaway_loop.start()
+
+		self.giveaway_ending_check.before_loop = self.before_loops
+		self.giveaway_message_updates.before_loop = self.before_loops
+
+		self.giveaway_ending_check.start()
+		self.giveaway_message_updates.start()
+
+		self.giveaway_events: asyncio.Queue[GiveawayEvent] = asyncio.Queue()
 
 		if not self.logger.handlers:
 			file_handler = logging.FileHandler("logs/giveaway.log", encoding="utf-8")
@@ -26,14 +109,25 @@ class GiveawayCog(commands.Cog):
 			self.logger.addHandler(file_handler)
 			self.logger.setLevel(logging.INFO)
 
+	@asynccontextmanager
+	async def connect(self):  # experimenting with NOT making a class for each db
+		async with aiosqlite.connect("data/giveaway.db") as conn:
+			conn.row_factory = aiosqlite.Row
+			try:
+				yield conn
+			except aiosqlite.Error as err:
+				self.logger.error(err, exc_info=err)
+			finally:
+				pass
+
 	giveaway_group = discord.SlashCommandGroup("giveaway", "Giveaway commands", guild_ids=config.guild_ids)
 
 	@giveaway_group.command(description="Create a new giveaway", contexts=[discord.InteractionContextType.guild])
 	@commands.has_permissions(manage_guild=True)
 	@discord.option("duration", str, required=True, description="Valid durations: 1d24h60m or 1 day 24 hours 60 minutes, UTC timestamp")
-	@discord.option("prize", str, required=True, description="The prize of the giveaway")
-	@discord.option("winners", int, default=1, description="Amount of winners, defaults to 1")
-	@discord.option("host", str, default=None, description="Host of the giveaway, defaults to giveaway creator's username")
+	@discord.option("prize", str, min_length=1, required=True, description="The prize of the giveaway")
+	@discord.option("winners", int, min_value=1, default=1, description="Amount of winners, defaults to 1")
+	@discord.option("host", str, min_length=3, default=None, description="Host of the giveaway, defaults to giveaway creator's username")
 	@discord.option("channel", discord.TextChannel, default=None, description="Channel in which the giveaway is in, defaults to current channel")
 	@discord.option("role_required", discord.Role, default=None, description="Role required to enter the giveaway, defaults to None")
 	@discord.option("roles_required", str, default="", description="Roles required to enter the giveaway, separated by a comma")
@@ -50,9 +144,6 @@ class GiveawayCog(commands.Cog):
 		roles_required: str,
 		tags: str,
 	):
-		if winners < 1:
-			return await ctx.respond("Winners count cannot be lower than 1.", ephemeral=True)
-
 		if host is None:
 			host = ctx.author.name
 		if channel is None:
@@ -119,10 +210,20 @@ class GiveawayCog(commands.Cog):
 	@commands.has_permissions(manage_guild=True)
 	@discord.option("message_id", int, required=True, description="The Message Id for what giveaway to end")
 	async def end(self, ctx: discord.ApplicationContext, message_id: int):
+		async with self.connect() as conn:
+			async with conn.execute("SELECT * FROM giveaways WHERE message_id = ? AND ended = FALSE", (message_id,)) as cursor:
+				row = await cursor.fetchone()
+				if not row:
+					return await ctx.respond("Could not find a active giveaway with that id", ephemeral=False)
+
 		await ctx.respond(f"wip {message_id=}", ephemeral=True)
 
 	@commands.message_command(name="End giveaway", guilds_ids=config.guild_ids)
 	async def message_end(self, ctx: discord.ApplicationContext, target: discord.Message):
+		async with self.connect() as conn:
+			async with conn.execute("SELECT * FROM giveaways WHERE message_id = ?", (target.id,)) as cursor:
+				pass
+
 		await ctx.respond(f"wip {target=}", ephemeral=True)
 
 	@commands.message_command(name="Leave giveaway", guilds_ids=config.guild_ids)
@@ -135,7 +236,7 @@ class GiveawayCog(commands.Cog):
 	@discord.option("host", str, default=None, description="Filter by host")
 	@discord.option("role_required", discord.Role, default=None, description="Filter by role required to enter, for more roles use roles_required")
 	@discord.option("roles_required", str, default="", description="Filter by roles required to enter, each id separated by a comma")
-	@discord.option("tags", str, default="", description="Filter by giveaway tags, each tagseparated by a comma")
+	@discord.option("tags", str, default="", description="Filter by giveaway tags, each tag separated by a comma")
 	async def list(
 		self,
 		ctx: discord.ApplicationContext,
@@ -178,7 +279,7 @@ class GiveawayCog(commands.Cog):
 	@discord.option("host", str, default=None, description="Filter by host")
 	@discord.option("role_required", discord.Role, default=None, description="Filter by role required to enter, for more roles use roles_required")
 	@discord.option("roles_required", str, default="", description="Filter by roles required to enter, each id separated by a comma")
-	@discord.option("tags", str, default="", description="Filter by giveaway tags, each tagseparated by a comma")
+	@discord.option("tags", str, default="", description="Filter by giveaway tags, each tag separated by a comma")
 	async def entered(
 		self,
 		ctx: discord.ApplicationContext,
@@ -224,12 +325,123 @@ class GiveawayCog(commands.Cog):
 	async def text_reroll(self, ctx: commands.Context, message_id: int, winner_index: int = 1):
 		await ctx.reply(f"wip {message_id=} {winner_index=}")
 
-	@tasks.loop(seconds=5)
-	async def giveaway_loop(self):
-		pass
+	@commands.Cog.listener()
+	async def on_ready(self):
+		async with aiofiles.open("assets/schemas/Giveaway.sql") as f:
+			script = await f.read()
 
-	@giveaway_loop.before_loop
-	async def before_loop(self):
+		async with self.connect() as conn:
+			await conn.executescript(script)
+			await conn.commit()
+
+	@commands.Cog.listener()
+	async def on_message_delete(self, message: discord.Message):
+		async with self.connect() as conn:
+			async with conn.execute("DELETE FROM giveaways WHERE message_id = ? RETURNING author_id, host", (message.id,)) as cursor:
+				row = await cursor.fetchone()
+				if not row:
+					return  # No giveaway
+			await conn.commit()
+
+		giveaway_author = await self.bot.get_or_fetch(discord.User, row["host"])
+
+		self.logger.info(f"Giveaway {message.id} by {giveaway_author.id if giveaway_author else row['host']} has been deleted")
+
+	async def get_message_from_row(self, guild_id: int, channel_id: int, message_id: int) -> discord.Message | None:
+		giveaway_guild = await self.bot.get_or_fetch(discord.Guild, guild_id)
+		if not giveaway_guild:
+			return None
+		giveaway_channel = await giveaway_guild.get_or_fetch(discord.TextChannel, channel_id)
+		if not giveaway_channel:
+			return None
+
+		try:
+			giveaway_message = self.bot.get_message(message_id)
+			if not giveaway_message:
+				giveaway_message = await giveaway_channel.fetch_message(message_id)
+
+			return giveaway_message
+		except (discord.HTTPException, discord.Forbidden, discord.NotFound):
+			return None
+
+	@tasks.loop(seconds=5)
+	async def giveaway_ending_check(self):
+		async with self.connect() as conn:
+			async with conn.execute("UPDATE giveaways SET ended = TRUE WHERE ends_at > created_at AND ended = FALSE RETURNING *") as cursor:
+				rows = await cursor.fetchall()
+				await conn.commit()
+
+				for row in rows:
+					giveaway_message = await self.get_message_from_row(row["guild_id"], row["channel_id"], row["message_id"])
+					if not giveaway_message:
+						self.logger.error(f"Could not process the ending of giveaway {row['message_id']}: Message not found")
+						return
+
+					users_entered: list[int] = None
+					async with conn.execute("SELECT user_id FROM users_entered WHERE giveaway_id = ?", (row["message_id"],)) as cursor:
+						user_rows = await cursor.fetchall()
+						users_entered = [user_row["user_id"] for user_row in user_rows]
+
+					valid_users_entered: list[int] = []
+
+					for user_id in users_entered:
+						discord_user = await self.bot.get_or_fetch(discord.User, user_id)
+						if discord_user:
+							valid_users_entered.append(discord_user.id)
+
+					if valid_users_entered:
+						valid_winners = random.sample(valid_users_entered, min(row["winners"], len(valid_users_entered)))
+
+						winner_inserts = [(row["message_id"], index + 1, user_id) for index, user_id in enumerate(valid_winners)]
+						await conn.executemany("INSERT INTO winners (giveaway_id, winner_index, user_id) VALUES (?, ?, ?)", winner_inserts)
+						await conn.commit()
+					else:
+						valid_winners = []
+
+					self.giveaway_events.put(
+						GiveawayEndedEvent(
+							update_type="ended", giveaway_id=row["message_id"], users_entered=valid_users_entered, winners=valid_winners
+						)
+					)
+
+	@tasks.loop(seconds=5)
+	async def giveaway_message_updates(self):
+		try:
+			while True:
+				event = self.giveaway_events.get_nowait()
+
+				async with self.connect() as conn:
+					async with conn.execute("SELECT * FROM giveaways WHERE message_id = ?", (event.giveaway_id,)) as cursor:
+						row = await cursor.fetchone()
+						if not row:  # ?
+							continue
+
+					async with conn.execute("SELECT role_id FROM role_requirements WHERE giveaway_id = ?", (event.giveaway_id,)) as cursor:
+						role_requirements: list[int] = [r["role_id"] for r in await cursor.fetchall()]
+
+					async with conn.execute("SELECT tag FROM tags WHERE giveaway_id = ?", (event.giveaway_id,)) as cursor:
+						giveaway_tags: list[int] = [t["tag"] for t in await cursor.fetchall()]
+
+				giveaway_message = await self.get_message_from_row(row["guild_id"], row["channel_id"], row["message_id"])
+				if not giveaway_message:
+					self.logger.warning(f"Could not update giveaway {event.giveaway_id}: Message not found")
+					continue
+
+				if isinstance(event, GiveawayEndedEvent):
+					await giveaway_message.edit(
+						embed=get_giveaway_embed(row["prize"], row["winners"], row["ends_at"], giveaway_tags, role_requirements, True, event.winners),
+						view=None,
+					)
+					await giveaway_message.reply(
+						f"Congratulations! ok winners since this isnt done: {', '.join(f'<@{user_id}>' for user_id in event.winners)}"
+					)
+				else:
+					self.logger.warning(f"Unhandled event type: {event.update_type}")
+
+		except asyncio.QueueEmpty:
+			pass
+
+	async def before_loops(self):
 		await self.bot.wait_until_ready()
 
 
