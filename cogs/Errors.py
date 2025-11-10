@@ -78,7 +78,7 @@ class Errors(commands.Cog):
 		if should_log:
 			self.logger.error(f"@{ctx.author.name} -> Command error in {ctx.command}", exc_info=error)
 
-		if ctx.channel.guild:
+		if not isinstance(ctx.channel, discord.DMChannel) and ctx.channel.guild:
 			channel_perms = ctx.channel.permissions_for(ctx.channel.guild.me)
 			if not channel_perms.send_messages:
 				return
@@ -96,7 +96,7 @@ class Errors(commands.Cog):
 			self.logger.error(f"@{ctx.author.name} -> Application command error in {ctx.command}", exc_info=error)
 
 		is_ephemeral = False
-		if ctx.channel.guild:
+		if not isinstance(ctx.channel, discord.DMChannel) and ctx.channel.guild:
 			channel_perms = ctx.channel.permissions_for(ctx.channel.guild.me)
 			is_ephemeral = not channel_perms.send_messages
 
