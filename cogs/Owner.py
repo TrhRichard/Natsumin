@@ -1,4 +1,5 @@
-from utils import FILE_LOGGING_FORMATTER, config
+from utils import FILE_LOGGING_FORMATTER
+from common import config, STRINGS
 from discord.ext import commands
 from typing import TYPE_CHECKING
 from common import get_master_db
@@ -143,6 +144,13 @@ class Owner(commands.Cog):
 		await config.update_from_file()
 
 		await ctx.reply("Config has been updated to the latest version available on the system.")
+
+	@commands.command(hidden=True, aliases=["rsf"])
+	@commands.is_owner()
+	async def reload_strings_file(self, ctx: commands.Context):
+		await STRINGS.update_from_file()
+
+		await ctx.reply("Strings has been updated to the latest version available on the system.")
 
 	@commands.command(hidden=True, aliases=["mui", "masteruserinfo"])
 	@commands.is_owner()

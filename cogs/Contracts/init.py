@@ -1,4 +1,5 @@
-from utils import FILE_LOGGING_FORMATTER, config
+from utils import FILE_LOGGING_FORMATTER
+from common import config, STRINGS
 from discord.ext import commands, tasks
 from contracts import UserStatus, UserKind
 from typing import TYPE_CHECKING
@@ -26,7 +27,7 @@ class Contracts(commands.Cog):
 	@commands.command(name="deadline", help="Get the current deadline in ur local time")
 	@utils.must_be_channel(1002056335845752864)
 	async def deadline(self, ctx: commands.Context):
-		await ctx.reply(f"The current deadline is <t:{config.deadline_timestamp}:f> (<t:{config.deadline_timestamp}:R>)")
+		await ctx.reply(STRINGS("contracts.get_deadline", timestamp=config.deadline_timestamp))
 
 	@tasks.loop(minutes=30)
 	async def change_user_status(self):

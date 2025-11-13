@@ -1,0 +1,82 @@
+deadline:
+    active: "Season deadline in {duration}"
+    ended: "This season has ended."
+    archive: "Archived data from {season}."
+    unknown: "Deadline unknown."
+
+generic:
+    user_not_found: "User not found!"
+    season_not_found: "Attempted to get data from a season that doesn't exist!"
+    user_not_in_season: "{user} has not participated in {season}!"
+    badges_not_found: "%<(is_author:You have|This user has)> no badges!"
+    rep_not_found: "**{rep}** is not a valid rep!"
+    no_rep_members: "**{rep}** has 0 members participating in {season}!"
+    unimplemented: "Unimplemented."
+
+status:
+    user:
+        passed: "Passed"
+        late_pass: "Passed late"
+        failed: "Failed"
+        incomplete: "Incomplete"
+        pending: "Pending"
+        unknown: "N/A"
+
+contracts:
+    get:
+        description:
+            header: "## {user}'s Contracts"
+            common: |
+                - **Status**: {status_name} {status_emote}
+            kind:
+                normal: |
+                    - **Contractor**: {contractor}
+                aid: ""
+        categories:
+            header: "### {name} ({passed}/{total})"
+            entry: "> {status_emote} **{type}**: %<(link:[{name}](<{link}>)|{name})>"
+        footer_messages:
+            category_finished: "%<(is_author:You have|This user has)> finished all **{name}**!"
+            contract_unselected: "%<(is_author:You haven't|This user hasn't)> picked anything for {unselected_types}!"
+    globalprofile:
+        description:
+            header: "## {user}'s Profile"
+            normal: |
+                - **Rep**: %<(rep:{rep}|Unknown)>
+                - **Generation**: %<(gen:{gen}|Unknown)>
+            legacy_lb: |
+                ### Legacy Leaderboard
+                - **Rank**: {rank} <a:{rank}:{rank_emote_id}>
+                - **EXP**: {exp}
+        buttons:
+            check_badges: "Check badges"
+    seasonprofile:
+        description:
+            header: "## {user}'s Profile\n"
+            common: |
+                - **Status**: {status_name} {status_emote}
+            kind:
+                normal: |
+                    - **Rep**: %<(rep:{rep}|Unknown)>
+                    - **Contractor**: %<(contractor:{contractor}|None)>
+                    - **List**: %<(list_url:{list_url}|N/A)>
+                    - **Preferences**: %<(preferences:{preferences}|N/A)>
+                    - **Bans**: %<(bans:{bans}|N/A)>
+                    - **Accepting**: LN=%<(accepting_ln:Yes|No)>; MANHWA=%<(accepting_manhwa:Yes|No)>
+                    - **Veto used**: %<(veto_used:Yes|No)>
+                aid: "-# Information limited for people that joined this season from aids."
+        buttons:
+            get_contractor_profile: "Get Contractor"
+            get_contractee_profile: "Get Contractee" # unused
+            get_contracts: "Check Contracts"
+    badges:
+        description: |
+            # {name}
+            {description}
+        no_image: "No image available."
+        artist: "-# Artist: %<(artist:{artist}|N/A)>"
+        buttons:
+            previous: "<--"
+            change_page: "{current}/{total}"
+            next: "-->"
+    get_deadline: "The current deadline is <t:{timestamp}:f> (<t:{timestamp}:R>)"

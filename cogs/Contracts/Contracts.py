@@ -1,9 +1,9 @@
 from discord.ui import DesignerView, Container, TextDisplay, Separator, Button
 from contracts import UserStatus, ContractKind, ContractStatus
 from utils import get_percentage_formatted, filter_list
+from common import config, STRINGS
 from discord.ext import commands
 from typing import TYPE_CHECKING
-from common import config
 import contracts
 import logging
 import discord
@@ -190,9 +190,9 @@ class ContractsContracts(commands.Cog):  # yeah
 			if rep is None:
 				global_rep = utils.get_rep(original_rep_query, min_confidence=90)
 				if global_rep is None:
-					return await ctx.respond(f"{original_rep_query} is not a valid rep.", ephemeral=True)
+					return await ctx.respond(STRINGS("generic.rep_not_found", rep=original_rep_query), ephemeral=True)
 				else:
-					return await ctx.respond(f"0 members of {global_rep.value} participated in {season}.", ephemeral=True)
+					return await ctx.respond(STRINGS("generic.no_rep_members", rep=global_rep.value, season=season), ephemeral=True)
 
 		await ctx.respond(view=await StatsView.create(self.bot, ctx.author, rep, season), ephemeral=hidden)
 
@@ -215,16 +215,16 @@ class ContractsContracts(commands.Cog):  # yeah
 			if rep is None:
 				global_rep = utils.get_rep(original_rep_query, min_confidence=90)
 				if global_rep is None:
-					return await ctx.reply(f"{original_rep_query} is not a valid rep.")
+					return await ctx.reply(STRINGS("generic.rep_not_found", rep=original_rep_query))
 				else:
-					return await ctx.reply(f"0 members of {global_rep.value} participated in {season}.")
+					return await ctx.reply(STRINGS("generic.no_rep_members", rep=global_rep.value, season=season))
 
 		await ctx.reply(view=await StatsView.create(self.bot, ctx.author, rep, season))
 
 	@commands.command("users", hidden=True, aliases=["u"], help="Fetch all the users in a season, optionally with filters")
 	@utils.must_be_channel(1002056335845752864)
 	async def text_users(self, ctx: commands.Context, *, flags: FilterFlags):
-		await ctx.reply("Currently not implemented.")
+		await ctx.reply(STRINGS("generic.unimplemented"))
 
 		return
 

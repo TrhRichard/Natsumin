@@ -1,8 +1,8 @@
 from discord.ui import DesignerView, Container, TextDisplay, Separator, MediaGallery, Section, Thumbnail, ActionRow, Button
 from contracts import UserStatus, ContractStatus, UserKind
+from common import config, STRINGS
 from discord.ext import commands
 from typing import TYPE_CHECKING
-from common import config
 import contracts
 import logging
 import discord
@@ -24,17 +24,17 @@ def usernames_autocomplete(seasonal: bool = True):
 def get_user_status_name(status: UserStatus) -> str:
 	match status:
 		case UserStatus.PASSED:
-			return "Passed"
+			return STRINGS("status.user.passed")
 		case UserStatus.LATE_PASS:
-			return "Passed late"
+			return STRINGS("status.user.late_pass")
 		case UserStatus.FAILED:
-			return "Failed"
+			return STRINGS("status.user.failed")
 		case UserStatus.INCOMPLETE:
-			return "Incomplete"
+			return STRINGS("status.user.incomplete")
 		case UserStatus.PENDING:
-			return "Pending"
+			return STRINGS("status.user.pending")
 		case _:
-			return "N/A"
+			return STRINGS("status.user.unknown")
 
 
 def get_status_emote(status: UserStatus | ContractStatus, is_optional: bool = False) -> str:
@@ -95,29 +95,29 @@ class UserBadges(DesignerView):
 		await interaction.edit(view=self)
 
 	def get_badge_container(self, badge: contracts.Badge) -> Container:
-		badge_artist = TextDisplay(f"-# Artist: {badge.artist}" if badge.artist else "-# No artist")
+		badge_artist = TextDisplay(STRINGS("contracts.badges.artist", artist=badge.artist))
 		if badge.url:
 			badge_art = MediaGallery()
 			badge_art.add_item(badge.url, description=badge.artist)
 		else:
-			badge_art = TextDisplay("No image available.")
+			badge_art = TextDisplay(STRINGS("contracts.badges.no_image"))
 
 		page_buttons = ActionRow(
 			Button(style=discord.ButtonStyle.secondary, label="<--", disabled=False, custom_id="previous"),
 			Button(
 				style=discord.ButtonStyle.primary,
-				label=f"{self.current_badge_selected + 1}/{len(self.badges)}",
+				label=STRINGS("contracts.badges.buttons.change_page", current=self.current_badge_selected + 1, total=len(self.badges)),
 				disabled=True,  # len(self.badges) == 1,
 				custom_id="change_page",
 			),
-			Button(style=discord.ButtonStyle.secondary, label="-->", disabled=False, custom_id="next"),
+			Button(style=discord.ButtonStyle.secondary, label=STRINGS("contracts.badges.buttons.next"), disabled=False, custom_id="next"),
 		)
 
 		for button in page_buttons.children:
 			button.callback = self.button_callback
 
 		return Container(
-			TextDisplay(f"# {badge.name}\n{badge.description}"),
+			TextDisplay(STRINGS("contracts.badges.description", name=badge.name, description=badge.description)),
 			Separator(),
 			badge_art,
 			badge_artist,
@@ -146,27 +146,27 @@ class MasterUserProfile(DesignerView):
 		legacy_rank = utils.get_legacy_rank(legacy_exp)
 		username = f"<@{self.user.id}>" if user else master_user.username
 
-		profile_data = (
-			(f"- **Rep**: {master_user.rep}\n" if master_user.rep else "")
-			+ (f"- **Generation**: {master_user.gen}\n" if master_user.gen else "")
-			+ (
-				(
-					"### Legacy Leaderboard\n"
-					+ f"- **Rank**: {legacy_rank} <a:{legacy_rank.value}:{utils.get_rank_emoteid(legacy_rank)}>\n"
-					+ f"- **EXP**: {legacy_exp}"
-				)
-				if legacy_exp
-				else ""
-			)
+		user_details = (
+			STRINGS("contracts.globalprofile.description.header", user=username)
+			+ "\n"
+			+ STRINGS("contracts.globalprofile.description.normal", rep=master_user.rep, gen=master_user.gen)
 		)
-		header_content = f"# {username}'s Profile\n{profile_data.strip() or 'No information available.'}"
+		if legacy_exp:
+			user_details += STRINGS(
+				"contracts.globalprofile.description.legacy_lb",
+				rank=legacy_rank.value,
+				rank_emote_id=utils.get_rank_emoteid(legacy_rank),
+				exp=legacy_exp,
+			)
 
-		badges_button = Button(style=discord.ButtonStyle.secondary, label="Check badges", custom_id="check_badges")
+		badges_button = Button(
+			style=discord.ButtonStyle.secondary, label=STRINGS("contracts.globalprofile.buttons.check_badges"), custom_id="check_badges"
+		)
 		badges_button.callback = self.button_callback
 
 		self.add_item(
 			Container(
-				Section(TextDisplay(header_content), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(header_content),
+				Section(TextDisplay(user_details), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(user_details),
 				Separator(),
 				ActionRow(badges_button),
 				color=config.base_embed_color,
@@ -188,7 +188,9 @@ class MasterUserProfile(DesignerView):
 
 		badges = await self.master_user.get_badges()
 		if len(badges) == 0:
-			return await interaction.respond("No badges found.", ephemeral=True)
+			return await interaction.respond(
+				STRINGS("generic.badges_not_found", is_author=self.master_user.discord_id == interaction.user.id), ephemeral=True
+			)
 
 		await interaction.respond(view=UserBadges(self.bot, interaction.user, self.user, badges), ephemeral=True)
 
@@ -213,33 +215,40 @@ class ContractsProfile(DesignerView):
 		self.season = season
 
 		username = f"<@{user.id}>" if user else master_user.username
-		user_description = (
-			f"- **Status**: {get_user_status_name(UserStatus(season_user.status))} {get_status_emote(UserStatus(season_user.status))}\n"
-		)
-		if season_user.kind == UserKind.NORMAL:
-			user_description += f"- **Rep**: {season_user.rep or 'Unknown'}\n"
-			user_description += f"- **Contractor**: {season_user.contractor or 'None'}\n"
-			user_description += f"- **List**: {season_user.list_url or 'N/A'}\n"
-			user_description += f"- **Preferences**: {(season_user.preferences or 'N/A').replace('\n', ', ')}\n"
-			user_description += f"- **Bans**: {(season_user.bans or 'N/A').replace('\n', ', ')}\n"
-			user_description += (
-				f"- **Accepting**: LN={'Yes' if season_user.accepting_ln else 'No'}; MANHWA={'Yes' if season_user.accepting_manhwa else 'No'}\n"
+		user_details = (
+			STRINGS("contracts.seasonprofile.description.header", user=username)
+			+ "\n"
+			+ STRINGS(
+				"contracts.seasonprofile.description.common",
+				status_name=get_user_status_name(UserStatus(season_user.status)),
+				status_emote=get_status_emote(UserStatus(season_user.status)),
 			)
-			user_description += f"- **Veto used**: {'Yes' if season_user.veto_used else 'No'}\n"
-		else:
-			user_description += "-# Information limited for people that joined this season for aids."
+		)
 
-		header_content = f"## {username}'s Profile\n{user_description}"
+		if season_user.kind == UserKind.AID:
+			user_details += STRINGS("contracts.seasonprofile.description.kind.aid")
+		else:
+			user_details += STRINGS(
+				"contracts.seasonprofile.description.kind.normal",
+				rep=season_user.rep,
+				contractor=season_user.contractor,
+				list_url=season_user.list_url,
+				preferences=season_user.preferences,
+				bans=season_user.bans,
+				accepting_ln=season_user.accepting_ln,
+				accepting_manhwa=season_user.accepting_manhwa,
+				veto_used=season_user.veto_used,
+			)
 
 		buttons = ActionRow(
 			Button(
 				style=discord.ButtonStyle.secondary,
-				label="Get Contractor",
+				label=STRINGS("contracts.seasonprofile.buttons.get_contractor_profile"),
 				disabled=season_user.contractor is None,
 				custom_id="get_contractor_profile",
 			),
-			# Button(style=discord.ButtonStyle.secondary, label="Get Contractee", disabled=True, custom_id="get_contractee_profile"),
-			Button(style=discord.ButtonStyle.secondary, label="Check Contracts", custom_id="get_contracts"),
+			# Button(style=discord.ButtonStyle.secondary, label=STRINGS("contracts.seasonprofile.buttons.get_contractee_profile"), disabled=True, custom_id="get_contractee_profile"),
+			Button(style=discord.ButtonStyle.secondary, label=STRINGS("contracts.seasonprofile.buttons.get_contracts"), custom_id="get_contracts"),
 		)
 
 		for button in buttons.children:
@@ -247,7 +256,7 @@ class ContractsProfile(DesignerView):
 
 		self.add_item(
 			Container(
-				Section(TextDisplay(header_content), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(header_content),
+				Section(TextDisplay(user_details), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(user_details),
 				Separator(),
 				buttons,
 				TextDisplay(f"-# <:Kirburger:998705274074435584> {utils.get_deadline_footer(season)}"),
@@ -286,7 +295,7 @@ class ContractsProfile(DesignerView):
 					view=ContractsProfile(self.bot, interaction.user, user, master_user, season_user, season=self.season), ephemeral=True
 				)
 			case "get_contractee_profile":
-				await interaction.respond("Currenlty not implemented, how did you even reach this.", ephemeral=True)
+				await interaction.respond(STRINGS("generic.unimplemented"), ephemeral=True)
 			case "get_contracts":
 				order_data = await self.season_user._db.get_order_data()
 				user_contracts = await self.season_user.get_contracts()
@@ -319,13 +328,19 @@ class UserContracts(DesignerView):
 
 		footer_messages: list[str] = []
 
-		user_description = (
-			f"- **Status**: {get_user_status_name(UserStatus(season_user.status))} {get_status_emote(UserStatus(season_user.status))}\n"
-		)
-		if season_user.kind == UserKind.NORMAL:
-			user_description += f"- **Contractor**: {season_user.contractor}"
+		user_status_name = get_user_status_name(UserStatus(season_user.status))
+		user_status_emote = get_status_emote(UserStatus(season_user.status))
 
-		header_content = f"## {username}'s Contracts\n{user_description}"
+		user_details = (
+			STRINGS("contracts.get.description.header", user=username)
+			+ "\n"
+			+ STRINGS("contracts.get.description.common", status_name=user_status_name, status_emote=user_status_emote)
+		)
+
+		if season_user.kind == UserKind.AID:
+			user_details += STRINGS("contracts.get.description.kind.aid")
+		else:
+			user_details += STRINGS("contracts.get.description.kind.normal", contractor=season_user.contractor)
 
 		category_texts: dict[str, str] = {}
 
@@ -348,7 +363,7 @@ class UserContracts(DesignerView):
 
 			text_contract_stats: list[str] = []
 			for contract in type_contracts.values():
-				contract_name = f"[{contract.name}]({contract.review_url})" if contract.review_url else contract.name
+				contract_name = contract.name
 
 				status_emote: str = None
 				if contract.name.strip().lower() in NEED_TO_SELECT_STRINGS:
@@ -357,33 +372,43 @@ class UserContracts(DesignerView):
 					unselected_contracts.append(contract)
 				else:
 					status_emote = get_status_emote(contract.status, contract.optional)
-
-				text_contract_stats.append(f"> {status_emote} **{contract.type}**: {contract_name}")
+				text_contract_stats.append(
+					STRINGS(
+						"contracts.get.categories.entry", status_emote=status_emote, type=contract.type, name=contract_name, link=contract.review_url
+					)
+				)
 
 			category_texts[category_name] = (
-				f"### {category_name} ({category_counts[category_name][1]}/{category_counts[category_name][0]})\n{'\n'.join(text_contract_stats)}"
+				STRINGS(
+					"contracts.get.categories.header",
+					name=category_name,
+					passed=category_counts[category_name][1],
+					total=category_counts[category_name][0],
+				)
+				+ f"\n{'\n'.join(text_contract_stats)}"
 			)
+
 			if category_counts[category_name][1] == category_counts[category_name][0]:
-				footer_messages.append(f"This user has finished all **{category_name}**!")
+				footer_messages.append(
+					STRINGS("contracts.get.footer_messages.category_finished", is_author=invoker.name == master_user.username, name=category_name)
+				)
 
 		sorted_categories_text = "\n".join(
 			category_texts[category_name] for category_name in utils.sort_contract_categories(order_data) if category_name in category_texts
 		)
 
 		if unselected_contracts:
-			formatted_unselected = [f"**{contract.type}**" for contract in unselected_contracts]
-			if len(unselected_contracts) == 1:
-				types_unselected_str = formatted_unselected[0]
-			elif len(unselected_contracts) == 2:
-				types_unselected_str = " and ".join(formatted_unselected)
-			else:
-				types_unselected_str = f"{', '.join(formatted_unselected[:-1])} and {formatted_unselected[-1]}"
+			formatted_unselected = utils.format_list([f"**{contract.type}**" for contract in unselected_contracts])
 			footer_messages.append(
-				f"{"You haven't" if invoker.name == master_user.username else "This user hasn't"} picked anything for {types_unselected_str}!"
+				STRINGS(
+					"contracts.get.footer_messages.contract_unselected",
+					is_author=invoker.name == master_user.username,
+					unselected_types=formatted_unselected,
+				)
 			)
 
 		container = Container(
-			Section(TextDisplay(header_content), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(header_content),
+			Section(TextDisplay(user_details), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(user_details),
 			Separator(),
 			TextDisplay(sorted_categories_text),
 			color=config.base_embed_color,
@@ -416,7 +441,7 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.respond("User not found!", ephemeral=True)
+			return await ctx.respond(STRINGS("generic.user_not_found"), ephemeral=True)
 
 		legacy_exp = await m_user.get_legacy_exp()
 
@@ -434,11 +459,11 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.respond("User not found!", ephemeral=True)
+			return await ctx.respond(STRINGS("generic.user_not_found"), ephemeral=True)
 
 		badges = await m_user.get_badges()
 		if len(badges) == 0:
-			return await ctx.respond("No badges found.", ephemeral=True)
+			return await ctx.respond(STRINGS("generic.badges_not_found", is_author=m_user.discord_id == ctx.author.id), ephemeral=True)
 
 		await ctx.respond(view=UserBadges(self.bot, ctx.author, selected_user, badges), ephemeral=hidden)
 
@@ -462,16 +487,16 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.respond("User not found!", ephemeral=True)
+			return await ctx.respond(STRINGS("generic.user_not_found"), ephemeral=True)
 
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError:
-			return await ctx.respond(f"There is no {season} in Ba Sing Se.", ephemeral=True)
+			return await ctx.respond(STRINGS("generic.season_not_found", season=season), ephemeral=True)
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
-			return await ctx.respond(f"User has not participated in {season}!", ephemeral=True)
+			return await ctx.respond(STRINGS("generic.user_not_in_season", season=season, user=m_user.username), ephemeral=True)
 
 		order_data = await season_db.get_order_data()
 		user_contracts = await s_user.get_contracts()
@@ -500,16 +525,16 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.respond("User not found!", ephemeral=True)
+			return await ctx.respond(STRINGS("generic.user_not_found"), ephemeral=True)
 
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError:
-			return await ctx.respond(f"There is no {season} in Ba Sing Se.", ephemeral=True)
+			return await ctx.respond(STRINGS("generic.season_not_found", season=season), ephemeral=True)
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
-			return await ctx.respond(f"User has not participated in {season}!", ephemeral=True)
+			return await ctx.respond(STRINGS("generic.user_not_in_season", season=season, user=m_user.username), ephemeral=True)
 
 		await ctx.respond(view=ContractsProfile(self.bot, ctx.author, selected_user, m_user, s_user, season=season), ephemeral=hidden)
 
@@ -521,11 +546,11 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.reply("User not found!")
+			return await ctx.reply(STRINGS("generic.user_not_found"))
 
 		badges = await m_user.get_badges()
 		if len(badges) == 0:
-			return await ctx.reply("No badges found.")
+			return await ctx.reply(STRINGS("generic.badges_not_found", is_author=m_user.discord_id == ctx.author.id))
 
 		await ctx.reply(view=UserBadges(self.bot, ctx.author, selected_user, badges))
 
@@ -537,7 +562,7 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.reply("User not found!")
+			return await ctx.reply(STRINGS("generic.user_not_found"))
 
 		legacy_exp = await m_user.get_legacy_exp()
 
@@ -552,16 +577,16 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.reply("User not found!")
+			return await ctx.reply(STRINGS("generic.user_not_found"))
 
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError:
-			return await ctx.reply(f"There is no {season} in Ba Sing Se.")
+			return await ctx.reply(STRINGS("generic.season_not_found", season=season))
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
-			return await ctx.reply(f"User has not participated in {season}!")
+			return await ctx.reply(STRINGS("generic.user_not_in_season", season=season, user=m_user.username))
 
 		order_data = await season_db.get_order_data()
 		user_contracts = await s_user.get_contracts()
@@ -577,16 +602,16 @@ class ContractsUser(commands.Cog):
 
 		selected_user, m_user = await self.bot.get_targeted_user(user, return_as_master=True)
 		if not m_user:
-			return await ctx.reply("User not found!")
+			return await ctx.reply(STRINGS("generic.user_not_found"))
 
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError:
-			return await ctx.reply(f"There is no {season} in Ba Sing Se.")
+			return await ctx.reply(STRINGS("generic.season_not_found", season=season))
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
-			return await ctx.reply(f"User has not participated in {season}!")
+			return await ctx.reply(STRINGS("generic.user_not_in_season", season=season, user=m_user.username))
 
 		await ctx.reply(view=ContractsProfile(self.bot, ctx.author, selected_user, m_user, s_user, season=season))
 

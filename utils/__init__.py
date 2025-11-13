@@ -27,6 +27,22 @@ def filter_list(to_filter: list[T], **kwargs) -> list[T]:
 	return filtered
 
 
+def format_list(items: list) -> str:
+	if not items:
+		return ""
+
+	formatted_list = ""
+
+	if len(items) == 1:
+		formatted_list = items[0]
+	elif len(items) == 2:
+		formatted_list = " and ".join(items)
+	else:
+		formatted_list = f"{', '.join(items[:-1])} and {items[-1]}"
+
+	return formatted_list
+
+
 @overload
 def get_cell(row: list, index: int, default: None = ..., return_type: None = ...) -> str | None: ...
 @overload

@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 from async_lru import alru_cache
-from common import config, get_master_db
+from common import config, STRINGS, get_master_db
 from enum import StrEnum
 import datetime
 import re
@@ -180,13 +180,55 @@ def sort_contract_categories(order_data: "list[ContractOrderCategory]") -> list[
 	return [*[category["name"] for category in order_data], "Other"]
 
 
+def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime) -> str:
+	if dt1 > dt2:
+		delta = dt1 - dt2
+	else:
+		delta = dt2 - dt1
+
+	total_seconds = int(delta.total_seconds())
+
+	years, remaining = divmod(total_seconds, 365 * 86400)
+	months, remaining = divmod(remaining, 30 * 86400)
+	days, remaining = divmod(remaining, 86400)
+	hours, remaining = divmod(remaining, 3600)
+	minutes, seconds = divmod(remaining, 60)
+
+	parts = []
+	if years > 0:
+		parts.append(f"{years} year{'s' if years != 1 else ''}")
+	if months > 0:
+		parts.append(f"{months} month{'s' if months != 1 else ''}")
+	if days > 0:
+		parts.append(f"{days} day{'s' if days != 1 else ''}")
+	if hours > 0:
+		parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+	if minutes > 0:
+		parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+
+	if not parts and seconds > 0:
+		parts.append(f"{seconds} second{'s' if seconds != 1 else ''}")
+	elif not parts:
+		return "0 seconds"
+
+	formatted_time = ""
+	if len(parts) == 1:
+		formatted_time = parts[0]
+	elif len(parts) == 2:
+		formatted_time = " and ".join(parts)
+	else:
+		formatted_time = f"{', '.join(parts[:-1])} and {parts[-1]}"
+
+	return formatted_time
+
+
 def get_deadline_footer(season: str = None) -> str:
 	if season is None:
 		season = config.active_season
 
 	if season == config.active_season:
 		if config.deadline_timestamp == 0:
-			return "Deadline unknown."
+			return STRINGS("deadline.unknown")
 
 		current_datetime = datetime.datetime.now(datetime.UTC)
 		difference = config.deadline_datetime - current_datetime
@@ -196,8 +238,8 @@ def get_deadline_footer(season: str = None) -> str:
 			days, remainder = divmod(difference_seconds, 86400)
 			hours, remainder = divmod(remainder, 3600)
 			minutes, _ = divmod(remainder, 60)
-			return config.deadline_footer.format(days=int(days), hours=int(hours), minutes=int(minutes))
+			return STRINGS("deadline.active", duration=diff_to_str(config.deadline_datetime, current_datetime))
 		else:
-			return "This season has ended."
+			return STRINGS("deadline.ended")
 	else:
-		return f"Archived data from {season}."
+		return STRINGS("deadline.archive", season=season)
