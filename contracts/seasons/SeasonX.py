@@ -25,7 +25,7 @@ async def _get_sheet_data() -> dict:
 					"Epoch Special!A2:K237",
 					"Honzuki Special!A2:I171",
 					"Aria Special!A2:G149",
-					"Arcana Special!A2:N1427",
+					"Arcana Special!A2:N1461",
 					"Buddying!A2:N100",
 				],
 				"key": os.getenv("GOOGLE_API_KEY"),
