@@ -101,15 +101,15 @@ async def _sync_dashboard_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 			if contract_name == "-":
 				continue
 
-			contract_status = (
-				ContractStatus.PASSED
-				if "PASSED" in get_cell(row, passed_column, "", str)
-				else ContractStatus.FAILED
-				if "FAILED" in get_cell(row, passed_column, "", str)
-				else ContractStatus.LATE_PASS
-				if "LATE PASS" in get_cell(row, passed_column, "", str)
-				else ContractStatus.PENDING
-			)
+			match get_cell(row, passed_column, "").upper().strip():
+				case "PASSED" | "BADGE":
+					contract_status = ContractStatus.PASSED
+				case "FAILED":
+					contract_status = ContractStatus.FAILED
+				case "LATE PASS":
+					contract_status = ContractStatus.LATE_PASS
+				case _:
+					contract_status = ContractStatus.PENDING
 
 			if contract_data := user_contracts.get(contract_type):
 				if contract_data.status != contract_status:
