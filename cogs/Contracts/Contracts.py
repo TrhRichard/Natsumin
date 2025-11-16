@@ -190,9 +190,9 @@ class ContractsContracts(commands.Cog):  # yeah
 			if rep is None:
 				global_rep = utils.get_rep(original_rep_query, min_confidence=90)
 				if global_rep is None:
-					return await ctx.respond(f"{original_rep_query} is not a valid rep.", ephemeral=True)
+					return await ctx.respond(f"**{original_rep_query}** is not a valid rep!", ephemeral=True)
 				else:
-					return await ctx.respond(f"0 members of {global_rep.value} participated in {season}.", ephemeral=True)
+					return await ctx.respond(f"**{global_rep.value}** has 0 members participating in {season}!", ephemeral=True)
 
 		await ctx.respond(view=await StatsView.create(self.bot, ctx.author, rep, season), ephemeral=hidden)
 
@@ -224,7 +224,7 @@ class ContractsContracts(commands.Cog):  # yeah
 	@commands.command("users", hidden=True, aliases=["u"], help="Fetch all the users in a season, optionally with filters")
 	@utils.must_be_channel(1002056335845752864)
 	async def text_users(self, ctx: commands.Context, *, flags: FilterFlags):
-		await ctx.reply("Currently not implemented.")
+		await ctx.reply("Unimplemented.", delete_after=5)
 
 		return
 

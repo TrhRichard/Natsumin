@@ -188,7 +188,9 @@ class MasterUserProfile(DesignerView):
 
 		badges = await self.master_user.get_badges()
 		if len(badges) == 0:
-			return await interaction.respond("No badges found.", ephemeral=True)
+			return await interaction.respond(
+				f"{"You don't" if interaction.user.id == self.master_user.discord_id else "This user doesn't"} have any badges.", ephemeral=True
+			)
 
 		await interaction.respond(view=UserBadges(self.bot, interaction.user, self.user, badges), ephemeral=True)
 
@@ -371,15 +373,9 @@ class UserContracts(DesignerView):
 		)
 
 		if unselected_contracts:
-			formatted_unselected = [f"**{contract.type}**" for contract in unselected_contracts]
-			if len(unselected_contracts) == 1:
-				types_unselected_str = formatted_unselected[0]
-			elif len(unselected_contracts) == 2:
-				types_unselected_str = " and ".join(formatted_unselected)
-			else:
-				types_unselected_str = f"{', '.join(formatted_unselected[:-1])} and {formatted_unselected[-1]}"
+			formatted_unselected = utils.format_list([f"**{contract.type}**" for contract in unselected_contracts])
 			footer_messages.append(
-				f"{"You haven't" if invoker.name == master_user.username else "This user hasn't"} picked anything for {types_unselected_str}!"
+				f"{"You haven't" if invoker.name == master_user.username else "This user hasn't"} picked anything for {formatted_unselected}!"
 			)
 
 		container = Container(
@@ -438,7 +434,7 @@ class ContractsUser(commands.Cog):
 
 		badges = await m_user.get_badges()
 		if len(badges) == 0:
-			return await ctx.respond("No badges found.", ephemeral=True)
+			return await ctx.respond(f"{"You don't" if ctx.author.id == m_user.discord_id else "This user doesn't"} have any badges.", ephemeral=True)
 
 		await ctx.respond(view=UserBadges(self.bot, ctx.author, selected_user, badges), ephemeral=hidden)
 
@@ -467,11 +463,13 @@ class ContractsUser(commands.Cog):
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError:
-			return await ctx.respond(f"There is no {season} in Ba Sing Se.", ephemeral=True)
+			return await ctx.respond(
+				f"Could not find **{season}**. If this is a real season it's likely the bot does not have any data about it.", ephemeral=True
+			)
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
-			return await ctx.respond(f"User has not participated in {season}!", ephemeral=True)
+			return await ctx.respond(f"{m_user.username} has not participated in {season}!", ephemeral=True)
 
 		order_data = await season_db.get_order_data()
 		user_contracts = await s_user.get_contracts()
@@ -505,11 +503,13 @@ class ContractsUser(commands.Cog):
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError:
-			return await ctx.respond(f"There is no {season} in Ba Sing Se.", ephemeral=True)
+			return await ctx.respond(
+				f"Could not find **{season}**. If this is a real season it's likely the bot does not have any data about it.", ephemeral=True
+			)
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
-			return await ctx.respond(f"User has not participated in {season}!", ephemeral=True)
+			return await ctx.respond(f"{m_user.username} has not participated in {season}!", ephemeral=True)
 
 		await ctx.respond(view=ContractsProfile(self.bot, ctx.author, selected_user, m_user, s_user, season=season), ephemeral=hidden)
 
@@ -525,7 +525,7 @@ class ContractsUser(commands.Cog):
 
 		badges = await m_user.get_badges()
 		if len(badges) == 0:
-			return await ctx.reply("No badges found.")
+			return await ctx.reply(f"{"You don't" if ctx.author.id == m_user.discord_id else "This user doesn't"} have any badges.")
 
 		await ctx.reply(view=UserBadges(self.bot, ctx.author, selected_user, badges))
 
@@ -557,11 +557,11 @@ class ContractsUser(commands.Cog):
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError:
-			return await ctx.reply(f"There is no {season} in Ba Sing Se.")
+			return await ctx.reply(f"Could not find **{season}**. If this is a real season it's likely the bot does not have any data about it.")
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
-			return await ctx.reply(f"User has not participated in {season}!")
+			return await ctx.reply(f"{m_user.username} has not participated in {season}!")
 
 		order_data = await season_db.get_order_data()
 		user_contracts = await s_user.get_contracts()
@@ -582,11 +582,11 @@ class ContractsUser(commands.Cog):
 		try:
 			season_db = await contracts.get_season_db(season)
 		except ValueError:
-			return await ctx.reply(f"There is no {season} in Ba Sing Se.")
+			return await ctx.reply(f"Could not find **{season}**. If this is a real season it's likely the bot does not have any data about it.")
 		s_user = await season_db.fetch_user(m_user.id)
 
 		if not s_user:
-			return await ctx.reply(f"User has not participated in {season}!")
+			return await ctx.reply(f"{m_user.username} has not participated in {season}!")
 
 		await ctx.reply(view=ContractsProfile(self.bot, ctx.author, selected_user, m_user, s_user, season=season))
 

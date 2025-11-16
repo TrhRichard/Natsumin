@@ -18,6 +18,7 @@ __all__ = [
 	"sort_contract_categories",
 	"get_deadline_footer",
 	"is_season_ongoing",
+	"format_list",
 ]
 
 
@@ -180,6 +181,56 @@ def sort_contract_categories(order_data: "list[ContractOrderCategory]") -> list[
 	return [*[category["name"] for category in order_data], "Other"]
 
 
+def format_list(items: list) -> str:
+	if not items:
+		return ""
+
+	formatted_list = ""
+
+	if len(items) == 1:
+		formatted_list = items[0]
+	elif len(items) == 2:
+		formatted_list = " and ".join(items)
+	else:
+		formatted_list = f"{', '.join(items[:-1])} and {items[-1]}"
+
+	return formatted_list
+
+
+def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime) -> str:
+	if dt1 > dt2:
+		delta = dt1 - dt2
+	else:
+		delta = dt2 - dt1
+
+	total_seconds = int(delta.total_seconds())
+
+	years, remaining = divmod(total_seconds, 365 * 86400)
+	months, remaining = divmod(remaining, 30 * 86400)
+	days, remaining = divmod(remaining, 86400)
+	hours, remaining = divmod(remaining, 3600)
+	minutes, seconds = divmod(remaining, 60)
+
+	parts = []
+	if years > 0:
+		parts.append(f"{years} year{'s' if years != 1 else ''}")
+	if months > 0:
+		parts.append(f"{months} month{'s' if months != 1 else ''}")
+	if days > 0:
+		parts.append(f"{days} day{'s' if days != 1 else ''}")
+	if hours > 0:
+		parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+	if minutes > 0:
+		parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+
+	if not parts and seconds > 0:
+		parts.append(f"{seconds} second{'s' if seconds != 1 else ''}")
+	elif not parts:
+		return "0 seconds"
+
+	return format_list(parts)
+
+
 def get_deadline_footer(season: str = None) -> str:
 	if season is None:
 		season = config.active_season
@@ -193,10 +244,7 @@ def get_deadline_footer(season: str = None) -> str:
 		difference_seconds = max(difference.total_seconds(), 0)
 
 		if difference_seconds > 0:
-			days, remainder = divmod(difference_seconds, 86400)
-			hours, remainder = divmod(remainder, 3600)
-			minutes, _ = divmod(remainder, 60)
-			return config.deadline_footer.format(days=int(days), hours=int(hours), minutes=int(minutes))
+			return config.deadline_footer.format(time_till=diff_to_str(current_datetime, config.deadline_datetime))
 		else:
 			return "This season has ended."
 	else:
