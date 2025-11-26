@@ -3,6 +3,7 @@ from utils.reminder import ReminderDB, Reminder, from_utc_timestamp
 from utils import FILE_LOGGING_FORMATTER, config
 from discord.ext import commands, tasks
 from typing import TYPE_CHECKING
+import parsedatetime
 import datetime
 import logging
 import discord
@@ -12,7 +13,6 @@ if TYPE_CHECKING:
 	from main import Natsumin
 
 TIMESTAMP_PATTERN = r"<t:(\d+):(\w+)>"
-DURATION_PATTERN = r"(\d+)\s*((?:second|minute|hour|day|week|month|year)s?|s|m|h|d|w|y)"
 
 
 def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime) -> str:
@@ -49,39 +49,6 @@ def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime) -> str:
 	return " ".join(parts)
 
 
-def parse_duration_str(duration_str: str) -> datetime.timedelta:
-	matches: list[tuple[str, str]] = re.findall(DURATION_PATTERN, duration_str.strip(), re.IGNORECASE)
-	if not matches:
-		raise ValueError("Invalid duration format")
-
-	weeks = 0
-	days = 0
-	hours = 0
-	minutes = 0
-	seconds = 0
-
-	for value, unit in matches:
-		v = int(value)
-		unit = unit.strip().lower()
-		match unit:
-			case "s" | "second" | "seconds":
-				seconds += v
-			case "m" | "minute" | "minutes":
-				minutes += v
-			case "h" | "hour" | "hours":
-				hours += v
-			case "d" | "day" | "days":
-				days += v
-			case "w" | "week" | "weeks":
-				weeks += v
-			case "month" | "months":
-				days += v * 30
-			case "y" | "year" | "years":
-				days += v * 365
-
-	return datetime.timedelta(weeks=weeks, days=days, hours=hours, minutes=minutes, seconds=seconds)
-
-
 def shorten(text: str, max_len: int = 32) -> str:
 	return text if len(text) <= max_len else text[: max_len - 3] + "..."
 
@@ -94,7 +61,7 @@ async def get_user_reminders(ctx: discord.AutocompleteContext):
 
 	return [
 		discord.OptionChoice(
-			name=f"{shorten(reminder.message, 24)} (in {diff_to_str(datetime.datetime.now(datetime.UTC), reminder.remind_at)})", value=reminder.id
+			name=f"{shorten(reminder.message, 24)} ({diff_to_str(datetime.datetime.now(datetime.UTC), reminder.remind_at)})", value=reminder.id
 		)
 		for reminder in user_reminders
 	]
@@ -138,6 +105,7 @@ class ReminderCog(commands.Cog):
 	async def create_reminder(
 		self, user: discord.User, channel: discord.TextChannel, remind_in: str, message: str, hidden: bool = False
 	) -> tuple[str, bool]:
+		current_datetime = datetime.datetime.now(datetime.UTC)
 		if match := re.match(TIMESTAMP_PATTERN, remind_in):
 			try:
 				timestamp = int(match.group(1))
@@ -145,16 +113,19 @@ class ReminderCog(commands.Cog):
 				return "Invalid timestamp.", True
 
 			remind_at = from_utc_timestamp(timestamp)
-			current_datetime = datetime.datetime.now(datetime.UTC)
-			if remind_at <= current_datetime:
-				return "Invalid timestamp, timestamp must be in the future not the past.", True
 		else:
-			try:
-				delta = parse_duration_str(remind_in)
-			except ValueError:
-				return "Invalid duration format, please use something like: `1d24h60m` or `1 day 24 hours 60 minutes`", True
+			calender = parsedatetime.Calendar()
 
-			remind_at = datetime.datetime.now(datetime.UTC) + delta
+			remind_at, parse_result = calender.parseDT(remind_in, sourceTime=current_datetime, tzinfo=datetime.UTC)
+
+			if parse_result == 0:
+				return (
+					"Invalid duration format, please use something like: `1d24h60m` or `1 day 24 hours 60 minutes`, alternatively use a UTC timestamp",
+					True,
+				)
+
+		if remind_at <= current_datetime:
+			return "Invalid timestamp, it seems that you've attempted to set the reminder to end in the past.", True
 
 		new_reminder = await self.db.create_reminder(user.id, channel.id, remind_at, message, hidden)
 

@@ -6,6 +6,8 @@ aiosqlite==0.21.0
     # via natsumin (pyproject.toml)
 async-lru==2.0.5
     # via natsumin (pyproject.toml)
+parsedatetime==2.6
+    # via natsumin (pyproject.toml)
 py-cord==2.7.0rc2
     # via natsumin (pyproject.toml)
 python-dotenv==1.1.1
