@@ -230,7 +230,7 @@ class ReminderCog(commands.Cog):
 		if isinstance(response, RemindersList):
 			await ctx.respond(view=response, ephemeral=ephemeral)
 		else:
-			await ctx.response(response, ephemeral=ephemeral)
+			await ctx.respond(response, ephemeral=ephemeral)
 
 	@commands.group(name="reminder", aliases=["remind", "reminders"], invoke_without_command=True, help="Reminder related commands")
 	async def reminder_textgroup(self, ctx: commands.Context):
