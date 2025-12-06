@@ -27,6 +27,8 @@ async def _get_sheet_data() -> dict:
 					"Aria Special!A2:G149",
 					"Arcana Special!A2:N1539",
 					"Buddying!A2:N100",
+					"Sumira's Challenge!A2:F508",
+					"Hitome's Challenge!A2:F508",
 				],
 				"key": os.getenv("GOOGLE_API_KEY"),
 			},
@@ -49,16 +51,17 @@ def get_url(row: list[str], i: int) -> str:
 
 NAME_MEDIUM_REGEX = r"(.*) \((.*)\)"
 DASHBOARD_ROW_INDEXES: dict[int, tuple[str, int]] = {
-	2: ("Base Contract", 14),
-	3: ("Challenge Contract", 15),
-	4: ("Veteran Special", 16),
-	5: ("Duality Special", 17),
-	6: ("Epoch Special", 18),
-	7: ("Honzuki Special", 19),
-	8: ("Aria Special", 20),
-	10: ("Base Buddy", 21),
-	11: ("Challenge Buddy", 22),
-	12: ("Sumira's Challenge", 23),
+	2: ("Base Contract", 15),
+	3: ("Challenge Contract", 16),
+	4: ("Veteran Special", 17),
+	5: ("Duality Special", 18),
+	6: ("Epoch Special", 19),
+	7: ("Honzuki Special", 20),
+	8: ("Aria Special", 21),
+	10: ("Base Buddy", 22),
+	11: ("Challenge Buddy", 23),
+	12: ("Sumira's Challenge", 24),
+	13: ("Hitome's Challenge", 25),
 }
 OPTIONAL_CONTRACTS: list[str] = ["Aria Special"]
 
@@ -210,6 +213,9 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 		user_contracts = users_contracts.get(user_id)
 		duality_special = user_contracts.get("Duality Special")
+		if duality_special is None:
+			continue
+
 		if (
 			duality_special.rating != get_cell(row, 9, "0/10")
 			or duality_special.progress != get_cell(row, 8, "").replace("\n", "")
@@ -240,6 +246,9 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 		user_contracts = users_contracts.get(user_id)
 		veteran_special = user_contracts.get("Veteran Special")
+		if veteran_special is None:
+			continue
+
 		if (
 			veteran_special.progress != get_cell(row, 7, "?/?").replace("\n", "")
 			or veteran_special.rating != get_cell(row, 8, "0/10")
@@ -270,6 +279,9 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 		user_contracts = users_contracts.get(user_id)
 		epoch_special = user_contracts.get("Epoch Special")
+		if epoch_special is None:
+			continue
+
 		if (
 			epoch_special.rating != get_cell(row, 9, "0/10")
 			or epoch_special.progress != get_cell(row, 8, "").replace("\n", "")
@@ -300,6 +312,9 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 		user_contracts = users_contracts.get(user_id)
 		honzuki_special = user_contracts.get("Honzuki Special")
+		if honzuki_special is None:
+			continue
+
 		if (
 			honzuki_special.rating != get_cell(row, 5, "0/10")
 			or honzuki_special.progress != get_cell(row, 7, "").replace("\n", "")
@@ -329,6 +344,9 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 
 		user_contracts = users_contracts.get(user_id)
 		aria_special = user_contracts.get("Aria Special")
+		if aria_special is None:
+			continue
+
 		if aria_special.rating != get_cell(row, 5, "0/10") or aria_special.review_url != get_url(row, 6):
 			ctx.update_contract(
 				aria_special,
@@ -337,6 +355,60 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 				review_url=get_url(row, 6),
 				medium="Game",
 				optional=aria_special.type in OPTIONAL_CONTRACTS,
+			)
+
+	# Sumira's Challenge
+	rows: list[list[str]] = sheet_data["valueRanges"][9]["values"]
+	for row in rows:
+		username = get_cell(row, 2, "").strip().lower()
+
+		user_id = ctx.get_user_id(username)
+		if not user_id:
+			continue
+
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		sumira_challenge = user_contracts.get("Sumira's Challenge")
+		if sumira_challenge is None:
+			continue
+
+		if sumira_challenge.rating != get_cell(row, 4, "0/10") or sumira_challenge.review_url != get_url(row, 5):
+			ctx.update_contract(
+				sumira_challenge,
+				rating=get_cell(row, 4, "0/10"),
+				review_url=get_url(row, 5),
+				medium="Manga",
+				optional=sumira_challenge.type in OPTIONAL_CONTRACTS,
+			)
+
+	# Hitome's Challenge
+	rows: list[list[str]] = sheet_data["valueRanges"][10]["values"]
+	for row in rows:
+		username = get_cell(row, 2, "").strip().lower()
+
+		user_id = ctx.get_user_id(username)
+		if not user_id:
+			continue
+
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		user_contracts = users_contracts.get(user_id)
+		hitome_challenge = user_contracts.get("Hitome's Challenge")
+		if hitome_challenge is None:
+			continue
+
+		if hitome_challenge.rating != get_cell(row, 4, "0/10") or hitome_challenge.review_url != get_url(row, 5):
+			ctx.update_contract(
+				hitome_challenge,
+				rating=get_cell(row, 4, "0/10"),
+				review_url=get_url(row, 5),
+				medium="Movie",
+				optional=hitome_challenge.type in OPTIONAL_CONTRACTS,
 			)
 
 	await ctx.commit()

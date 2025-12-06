@@ -378,6 +378,12 @@ class UserContracts(DesignerView):
 				f"{"You haven't" if invoker.name == master_user.username else "This user hasn't"} picked anything for {formatted_unselected}!"
 			)
 
+		if len(sorted_categories_text) >= 3700:
+			sorted_categories_text = sorted_categories_text[:3697] + "..."
+			footer_messages.append(
+				f"⚠️ It appears that {'you have' if invoker.name == master_user.username else 'this user has'} **too many contracts** to display in one message... why."
+			)
+
 		container = Container(
 			Section(TextDisplay(header_content), accessory=Thumbnail(user.display_avatar.url)) if user else TextDisplay(header_content),
 			Separator(),
