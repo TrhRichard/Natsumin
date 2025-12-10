@@ -71,6 +71,7 @@ class SeasonUser:
 	status: UserStatus
 	kind: UserKind
 	rep: str | None = None
+	contractor_id: int | None = field(default=None, repr=False)
 	contractor: str | None = field(default=None, repr=False)
 	list_url: str | None = field(default=None, repr=False)
 	veto_used: bool = field(default=False, repr=False)
@@ -113,16 +114,38 @@ class SeasonUser:
 
 	@alru_cache(ttl=CACHE_DURATION)
 	async def get_contractor(self) -> tuple[MasterUser | None, SeasonUser | None]:
-		if not self.contractor:
-			return None, None
-
 		master_db = self._db._master_db
-		contractor_md = await master_db.fetch_user_fuzzy(self.contractor)
-		if not contractor_md:
-			return None, None
+		if self.contractor_id is not None:
+			contractor_md = await master_db.fetch_user(id=self.contractor_id)
+			if not contractor_md:
+				return None, None
+		elif self.contractor:
+			contractor_md = await master_db.fetch_user_fuzzy(self.contractor)
+			if not contractor_md:
+				return None, None
 
 		contractor_sd = await self._db.fetch_user(contractor_md.id)
 		return contractor_md, contractor_sd
+
+	@alru_cache(ttl=CACHE_DURATION)
+	async def get_contractee(self) -> tuple[MasterUser | None, SeasonUser | None]:
+		master_db = self._db._master_db
+
+		async with self._db.connect() as conn:
+			async with conn.execute("SELECT id FROM users WHERE contractor_id = ?", (self.id,)) as cursor:
+				ids_found = await cursor.fetchall()
+
+			if not ids_found:
+				return None, None
+
+		first_id: int = ids_found[0]["id"]
+
+		contractee_md = await master_db.fetch_user(id=first_id)
+		if not contractee_md:
+			return None, None
+
+		contractee_sd = await self._db.fetch_user(contractee_md.id)
+		return contractee_md, contractee_sd
 
 	async def to_dict(self, *, include_contracts: bool = False):
 		master_user = await self.get_master_data()

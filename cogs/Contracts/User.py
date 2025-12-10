@@ -240,7 +240,7 @@ class ContractsProfile(DesignerView):
 				disabled=season_user.contractor is None,
 				custom_id="get_contractor_profile",
 			),
-			# Button(style=discord.ButtonStyle.secondary, label="Get Contractee", disabled=True, custom_id="get_contractee_profile"),
+			Button(style=discord.ButtonStyle.secondary, label="Get Contractee", custom_id="get_contractee_profile"),
 			Button(style=discord.ButtonStyle.secondary, label="Check Contracts", custom_id="get_contracts"),
 		)
 
@@ -274,21 +274,39 @@ class ContractsProfile(DesignerView):
 	async def button_callback(self, interaction: discord.Interaction):
 		match interaction.custom_id:
 			case "get_contractor_profile":
-				if not self.season_user.contractor:
-					return await interaction.respond("This user does not have a contractor!", ephemeral=True)
-				user, master_user = await self.bot.get_targeted_user(self.season_user.contractor, return_as_master=True)
-				if not master_user:
-					return await interaction.respond("Could not find the contractor!", ephemeral=True)
+				m_contractor, s_contractor = await self.season_user.get_contractor()
 
-				season_user = await self.season_user._db.fetch_user(master_user.id)
-				if not season_user:
-					return await interaction.respond("Could not find the contractor!", ephemeral=True)
+				if m_contractor is None or s_contractor is None:
+					return await interaction.respond("This user does not have a contractor!", ephemeral=True)
+
+				discord_user = None
+				if m_contractor.discord_id is not None:
+					if self.bot.anicord is not None:
+						discord_user = await self.bot.anicord.get_or_fetch(discord.Member, m_contractor.discord_id)
+
+					if discord_user is None:
+						discord_user = await self.bot.get_or_fetch(discord.User, m_contractor.discord_id)
 
 				await interaction.respond(
-					view=ContractsProfile(self.bot, interaction.user, user, master_user, season_user, season=self.season), ephemeral=True
+					view=ContractsProfile(self.bot, interaction.user, discord_user, m_contractor, s_contractor, season=self.season), ephemeral=True
 				)
 			case "get_contractee_profile":
-				await interaction.respond("Currenlty not implemented, how did you even reach this.", ephemeral=True)
+				m_contractee, s_contractee = await self.season_user.get_contractee()
+
+				if m_contractee is None or s_contractee is None:
+					return await interaction.respond("This user does not have a contractee!", ephemeral=True)
+
+				discord_user = None
+				if m_contractee.discord_id is not None:
+					if self.bot.anicord is not None:
+						discord_user = await self.bot.anicord.get_or_fetch(discord.Member, m_contractee.discord_id)
+
+					if discord_user is None:
+						discord_user = await self.bot.get_or_fetch(discord.User, m_contractee.discord_id)
+
+				await interaction.respond(
+					view=ContractsProfile(self.bot, interaction.user, discord_user, m_contractee, s_contractee, season=self.season), ephemeral=True
+				)
 			case "get_contracts":
 				order_data = await self.season_user._db.get_order_data()
 				user_contracts = await self.season_user.get_contracts()
