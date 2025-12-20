@@ -18,7 +18,7 @@ async def _get_sheet_data() -> dict:
 				"majorDimension": "ROWS",
 				"valueRenderOption": "FORMATTED_VALUE",
 				"ranges": [
-					"Dashboard!A2:Y508",
+					"Dashboard!A2:AB508",
 					"Base!A2:AI516",
 					"Duality Special!A2:K291",
 					"Veteran Special!A2:J280",
