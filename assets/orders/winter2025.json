@@ -1,0 +1,20 @@
+[
+	{
+		"name": "Contracts",
+		"order": [
+			"base contract",
+			"challenge contract",
+			"veteran special",
+			"movie special",
+			"vn special",
+			"indie special",
+			"extreme special",
+			"base buddy",
+			"challenge buddy"
+		]
+	},
+	{
+		"name": "Aid Contracts",
+		"order": ["aid contract \\d+"]
+	}
+]

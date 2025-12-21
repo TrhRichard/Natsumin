@@ -1,12 +1,17 @@
-.env
-**__pycache__**
-.ruff_cache
-*.pyc
-**venv**
-cache/
-*.log
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Other
 data/
 logs/
+.env
+*.sqlite
 *.db
-start.ps1
-/cogs/_secret
