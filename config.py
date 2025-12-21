@@ -1,0 +1,21 @@
+from __future__ import annotations
+
+from dotenv import load_dotenv
+
+import os
+
+load_dotenv()
+
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+DEV_DISCORD_TOKEN = os.getenv("DEV_DISCORD_TOKEN")
+BOT_PREFIX = "%"
+DEV_BOT_PREFIX = ";"
+
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+
+GUILD_IDS = (974344703266938911, 1272945842319261746, 994071728017899600)
+OWNER_IDS = (546659584727580692,)
+CONTRIBUTOR_IDS = (961063229168164864,)
+REPOSITORY_URL = "https://github.com/TrhRichard/Natsumin"
+
+DISABLED_EXTENSIONS = ()

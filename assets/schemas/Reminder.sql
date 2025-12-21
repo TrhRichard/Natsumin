@@ -1,9 +1,11 @@
 CREATE TABLE IF NOT EXISTS reminders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER NOT NULL AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     channel_id INTEGER NOT NULL,
     message TEXT NOT NULL,
     remind_at INTEGER NOT NULL,
-    hidden INTEGER DEFAULT 0,
-    created_at INTEGER DEFAULT (strftime('%s','now'))
+    hidden INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER DEFAULT (strftime('%s','now')),
+
+    PRIMARY KEY (id)
 );
