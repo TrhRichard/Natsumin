@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS user_alias (
 
 
 CREATE TABLE IF NOT EXISTS leaderboard_legacy (
-	user_id	INTEGER NOT NULL,         
+	user_id	TEXT NOT NULL,         
 	exp    	INTEGER NOT NULL,
 
 	PRIMARY KEY (user_id),
@@ -37,8 +37,8 @@ CREATE TABLE IF NOT EXISTS leaderboard_legacy (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS leaderboard_new (
-	user_id	INTEGER NOT NULL,
-	score	INTEGER NOT NULL,
+	user_id			TEXT NOT NULL,
+	contract_score	INTEGER NOT NULL,
 
 	PRIMARY KEY (user_id),
 	FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
@@ -113,7 +113,13 @@ CREATE TABLE IF NOT EXISTS season_contract (
 	FOREIGN KEY (contractee_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
 ) STRICT;
 
+-- Add default config
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.active_season", "season_x");
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_datetime", "2026-01-18T00:00:00Z");
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_footer", "Season deadline in {time_till}.");
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.syncing_enabled", "0");
+
+-- Add supported seasons 
+INSERT OR IGNORE INTO season (id, name) VALUES ("fall_2024", "Fall 2024");
+INSERT OR IGNORE INTO season (id, name) VALUES ("winter_2025", "Winter 2025");
+INSERT OR IGNORE INTO season (id, name) VALUES ("season_x", "Season X");
