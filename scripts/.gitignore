@@ -1,1 +1,4 @@
 add_madfigs_ids.py
+generate_seasondb.py
+master_db_to_json.py
+setup_masterdb.py
