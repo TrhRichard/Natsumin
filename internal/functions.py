@@ -131,7 +131,7 @@ async def get_user_id(conn: aiosqlite.Connection, username: str) -> str | None:
 
 	async with conn.execute(
 		"""
-		SELECT id FROM user WHERE username = ?1 
+		SELECT id FROM user WHERE username = ?1 OR id = ?1 
 		UNION ALL 
 		SELECT user_id as id FROM user_alias WHERE username = ?1
 		""",

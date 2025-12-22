@@ -84,25 +84,14 @@ class NatsuminBot(commands.Bot):
 
 		return await super().is_owner(user)
 
-	async def get_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> str | None:
-		async with self.database.connect(db_conn) as conn:
-			async with conn.execute("SELECT value FROM bot_config WHERE key = ?", (key,)) as cursor:
-				row = await cursor.fetchone()
+	async def get_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> str | None:  # Shortcut
+		return await self.database.get_config(key, db_conn=db_conn)
 
-		return None if row is None else row["value"]
+	async def set_config(self, key: str, value: str, *, db_conn: aiosqlite.Connection | None = None):  # Shortcut
+		return await self.database.set_config(key, value, db_conn=db_conn)
 
-	async def set_config(self, key: str, value: str, *, db_conn: aiosqlite.Connection | None = None):
-		async with self.database.connect(db_conn) as conn:
-			await conn.execute("INSERT OR REPLACE INTO bot_config (key, value) VALUES (?, ?)", (key, value))
-			await conn.commit()
-
-	async def remove_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> bool:
-		async with self.database.connect(db_conn) as conn:
-			async with conn.execute("DELETE FROM bot_config WHERE key = ?", (key,)) as cursor:
-				row_count = cursor.rowcount
-			await conn.commit()
-
-		return True if row_count == 1 else False
+	async def remove_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> bool:  # Shortcut
+		return await self.database.remove_config(key, db_conn=db_conn)
 
 	async def fetch_user_from_database(
 		self, user: str | int | discord.abc.User, *, db_conn: aiosqlite.Connection
@@ -128,9 +117,9 @@ class NatsuminBot(commands.Bot):
 				return None, None
 
 			user = discord_user.name
-		elif isinstance(user, (discord.User, discord.Member)):
+		elif isinstance(user, (discord.User, discord.Member, discord.abc.User)):
 			discord_user = user
-			user: str = discord_user.name
+			user = discord_user.name
 
 		async with self.database.connect(db_conn) as conn:
 			user_id = await get_user_id(conn, user)

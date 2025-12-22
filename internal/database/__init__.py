@@ -10,6 +10,7 @@ class NatsuminDatabase:
 	def __init__(self, production: bool = False):
 		self.logger = logging.getLogger("bot")
 		self.production = production
+		self.available_seasons: tuple[str, ...] = tuple()
 
 	async def open(self) -> aiosqlite.Connection:
 		conn = await aiosqlite.connect("data/database-prod.sqlite" if self.production else "data/database-dev.sqlite")
@@ -40,3 +41,29 @@ class NatsuminDatabase:
 		async with self.connect() as conn:
 			await conn.executescript(schema)
 			await conn.commit()
+
+			async with conn.execute("SELECT DISTINCT(id) FROM season") as cursor:
+				self.available_seasons = tuple(row["id"] for row in await cursor.fetchall())
+
+	async def get_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> str | None:
+		async with self.connect(db_conn) as conn:
+			async with conn.execute("SELECT value FROM bot_config WHERE key = ?", (key,)) as cursor:
+				row = await cursor.fetchone()
+
+		return row["value"] if row is not None else None
+
+	async def set_config(self, key: str, value: str, *, db_conn: aiosqlite.Connection | None = None) -> bool:
+		async with self.connect(db_conn) as conn:
+			async with conn.execute("INSERT OR REPLACE INTO bot_config (key, value) VALUES (?, ?)", (key, value)) as cursor:
+				row_count = cursor.rowcount
+			await conn.commit()
+
+		return True if row_count == 1 else False
+
+	async def remove_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> bool:
+		async with self.connect(db_conn) as conn:
+			async with conn.execute("DELETE FROM bot_config WHERE key = ?", (key,)) as cursor:
+				row_count = cursor.rowcount
+			await conn.commit()
+
+		return True if row_count == 1 else False

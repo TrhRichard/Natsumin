@@ -61,7 +61,7 @@ async def main(*, production: bool, sync_season: bool):
 
 				for row in user_badges_rows:
 					user_uuid_id = user_ids[row["user_id"]]
-					badge_uuid_id = user_ids[row["badge_id"]]
+					badge_uuid_id = badge_ids[row["badge_id"]]
 
 					await conn.execute("INSERT OR IGNORE INTO user_badge (user_id, badge_id) VALUES (?, ?)", (user_uuid_id, badge_uuid_id))
 
