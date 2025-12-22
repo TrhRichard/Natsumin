@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from internal.enums import UserStatus, UserKind, ContractStatus, ContractKind
-from internal.functions import get_cell, get_url as _get_url
-from internal.contracts.sync import get_user_id
+from internal.functions import get_cell, get_url as _get_url, get_user_id
 from internal.contracts.rep import get_rep
 from config import GOOGLE_API_KEY
 from typing import TYPE_CHECKING
@@ -66,6 +65,7 @@ DASHBOARD_ROW_INDEXES: dict[int, tuple[str, int]] = {
 	11: ("Challenge Buddy", 23),
 	12: ("Sumira's Challenge", 24),
 	13: ("Hitome's Challenge", 25),
+	14: ("Sae's Challenge", 27),
 }
 OPTIONAL_CONTRACTS: tuple[str, ...] = ("Aria Special",)
 
@@ -301,6 +301,43 @@ async def _sync_specials_data(sheet_data: dict, conn: aiosqlite.Connection):
 					get_cell(row, 9, "0/10"),  # rating
 					get_url(row, 10),  # review_url
 					"Duality Special" in OPTIONAL_CONTRACTS,  # optional
+					re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4, "")),  # medium,
+					SEASON_ID,
+					contract_row["id"],
+				),
+			)
+
+	# Veteran Special
+	rows: list[list[str]] = sheet_data["valueRanges"][3]["values"]
+	for row in rows:
+		username = get_cell(row, 3, "").strip().lower()
+
+		user_id = await get_user_id(conn, username)
+		if not user_id:
+			continue
+
+		async with conn.execute(
+			"SELECT id, rating, progress, review_url FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type = ?",
+			(SEASON_ID, user_id, "Veteran Special"),
+		) as cursor:
+			contract_row = await cursor.fetchone()
+
+		if not contract_row:
+			continue
+
+		if (
+			contract_row["rating"] != get_cell(row, 8, "0/10")
+			or contract_row["progress"] != get_cell(row, 7, "").replace("\n", "")
+			or contract_row["review_url"] != get_url(row, 9)
+		):
+			await conn.execute(
+				"UPDATE season_contract SET contractor = ?, progress = ?, rating = ?, review_url = ?, optional = ?, medium = ? WHERE season_id = ? AND id = ?",
+				(
+					get_cell(row, 5, "").strip().lower(),  # contractor
+					get_cell(row, 7, "").replace("\n", ""),  # progress
+					get_cell(row, 8, "0/10"),  # rating
+					get_url(row, 9),  # review_url
+					"Veteran Special" in OPTIONAL_CONTRACTS,  # optional
 					re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 4, "")),  # medium,
 					SEASON_ID,
 					contract_row["id"],

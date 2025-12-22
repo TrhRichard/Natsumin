@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS season_contract (
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.active_season", "season_x");
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_datetime", "2026-01-18T00:00:00Z");
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_footer", "Season deadline in {time_till}.");
-INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.syncing_enabled", "0");
+INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.syncing_enabled", "1");
 
 -- Add supported seasons 
 INSERT OR IGNORE INTO season (id, name) VALUES ("fall_2024", "Fall 2024");

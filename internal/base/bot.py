@@ -3,6 +3,7 @@ from __future__ import annotations
 from internal.constants import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER, COLORS
 from config import BOT_PREFIX, DEV_BOT_PREFIX, OWNER_IDS, DISABLED_EXTENSIONS
 from internal.database import NatsuminDatabase
+from internal.functions import get_user_id
 from discord.ext import commands
 from typing import TYPE_CHECKING
 from pathlib import Path
@@ -12,6 +13,7 @@ import datetime
 import discord
 import logging
 import os
+import re
 
 if TYPE_CHECKING:
 	from typing import Mapping, Optional
@@ -32,6 +34,7 @@ class NatsuminBot(commands.Bot):
 		self.started_at = datetime.datetime.now(datetime.UTC)
 		self.color = COLORS.DEFAULT
 		self.database = NatsuminDatabase(production)
+		self.anicord: discord.Guild | None = None
 
 		self.logger = logging.getLogger("bot")
 		if not self.logger.hasHandlers():
@@ -59,6 +62,21 @@ class NatsuminBot(commands.Bot):
 		os.system("cls" if os.name == "nt" else "clear")
 		self.logger.info(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 		await self.database.setup()
+		self.anicord = self.get_guild(994071728017899600)
+
+	async def on_user_update(self, old: discord.User, new: discord.User):
+		if old.name == new.name:
+			return
+
+		async with self.database.connect() as conn:
+			user_id = await get_user_id(conn, old.name)
+
+			if not user_id:
+				return
+
+			await conn.execute("UPDATE user SET username = ? WHERE id = ?", (new.name, user_id))
+			await conn.execute("INSERT OR IGNORE INTO user_alias (username, user_id) VALUES (?, ?)", (old.name, user_id))
+			await conn.commit()
 
 	async def is_owner(self, user: discord.abc.User) -> bool:
 		if user.id in OWNER_IDS:
@@ -85,6 +103,53 @@ class NatsuminBot(commands.Bot):
 			await conn.commit()
 
 		return True if row_count == 1 else False
+
+	async def fetch_user_from_database(
+		self, user: str | int | discord.abc.User, *, db_conn: aiosqlite.Connection
+	) -> tuple[str | None, discord.abc.User | None]:
+		discord_user: discord.Member = None
+
+		if isinstance(user, (str, int)):
+			if isinstance(user, int):
+				discord_id = user
+			elif match := re.match(r"<@!?(\d+)>", user):
+				discord_id = int(match.group(1))
+
+			if discord_id is None:
+				return None, None
+
+			if self.anicord:
+				discord_user = await self.anicord.get_or_fetch(discord.Member, discord_id)
+
+			if not discord_user:
+				discord_user = await self.get_or_fetch(discord.User, discord_id)  # lol
+
+			if not discord_user:
+				return None, None
+
+			user = discord_user.name
+		elif isinstance(user, (discord.User, discord.Member)):
+			discord_user = user
+			user: str = discord_user.name
+
+		async with self.database.connect(db_conn) as conn:
+			user_id = await get_user_id(conn, user)
+
+			if user_id is None:
+				return None, None
+
+			if discord_user is None:
+				async with conn.execute("SELECT discord_id FROM user WHERE id = ?", (user_id,)) as cursor:
+					row = await cursor.fetchone()
+					user_discord_id: int | None = row["discord_id"] if row is not None else None
+
+				if user_discord_id is not None and self.anicord:
+					discord_user = await self.anicord.get_or_fetch(discord.Member, user_discord_id)
+
+				if not discord_user and user_discord_id:
+					discord_user = await self.get_or_fetch(discord.User, user_discord_id)
+
+		return user_id, discord_user
 
 
 class BotHelp(commands.HelpCommand):
