@@ -79,7 +79,6 @@ CREATE TABLE IF NOT EXISTS season_user (
 	kind            	INTEGER NOT NULL,
 	rep             	TEXT,
 	contractor_id		TEXT,
-	contractor      	TEXT,
 	list_url        	TEXT,
 	veto_used       	INTEGER NOT NULL DEFAULT 0,
 	accepting_manhwa	INTEGER NOT NULL DEFAULT 0,
@@ -100,7 +99,7 @@ CREATE TABLE IF NOT EXISTS season_contract (
 	type      		TEXT NOT NULL,
 	kind      		INTEGER NOT NULL,
 	status    		INTEGER NOT NULL,
-	contractee_id	INTEGER NOT NULL,
+	contractee_id	TEXT NOT NULL,
 	contractor		TEXT,
 	optional  		INTEGER NOT NULL DEFAULT 0,
 	progress  		TEXT,
@@ -109,6 +108,7 @@ CREATE TABLE IF NOT EXISTS season_contract (
 	medium    		TEXT,
 
 	PRIMARY KEY (season_id, id),
+	UNIQUE (season_id, type, contractee_id),
 	FOREIGN KEY (season_id) REFERENCES season(id) ON DELETE CASCADE ON UPDATE CASCADE,
 	FOREIGN KEY (contractee_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
 ) STRICT;

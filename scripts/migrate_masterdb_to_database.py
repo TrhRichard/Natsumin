@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from internal.database import NatsuminDatabase
+from internal.contracts.seasons import SeasonX
 from uuid import uuid4
 
 import aiosqlite
@@ -8,7 +9,7 @@ import argparse
 import asyncio
 
 
-async def main(*, production: bool):
+async def main(*, production: bool, sync_season: bool):
 	database = NatsuminDatabase(production)
 
 	badge_ids: dict[int, str] = {}
@@ -66,10 +67,14 @@ async def main(*, production: bool):
 
 		await conn.commit()
 
+	if sync_season:
+		await SeasonX.sync_season(database)
+
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--production", action="store_true")
+	parser.add_argument("--sync-season", action="store_true")
 	args = parser.parse_args()
 
-	asyncio.run(main(production=args.production))
+	asyncio.run(main(production=args.production, sync_season=args.sync_season))

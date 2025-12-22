@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, overload
 from .exceptions import WrongChannel
-from typing import TYPE_CHECKING
 from discord.ext import commands
 from config import OWNER_IDS
 
 import datetime
+import re
 
 if TYPE_CHECKING:
 	from collections.abc import Iterable
+	from typing import Callable
 
 
 def get_percentage(num: float, total: float) -> float:
@@ -34,6 +36,32 @@ def frmt_iter(iter: Iterable) -> str:
 		return " and ".join(iter)
 	else:
 		return f"{', '.join(iter[:-1])} and {iter[-1]}"
+
+
+@overload
+def get_cell[T](row: list, index: int, default: None = ..., return_type: None = ...) -> str | None: ...
+@overload
+def get_cell[T](row: list, index: int, default: T = ..., return_type: Callable[[any], T] = ...) -> T: ...
+def get_cell[T](row: list, index: int, default: T = None, return_type: Callable[[any], T] = None) -> str | T:
+	try:
+		value = row[index]
+		if value is None:
+			return default
+		if return_type is not None:
+			try:
+				return return_type(value)
+			except (ValueError, TypeError):
+				return default
+		return value
+	except IndexError:
+		return default
+
+
+def get_url(text: str) -> str:
+	match = re.search(r"(https?:\/\/[^\s]+)", text)
+	if match:
+		return match.group(0)
+	return ""
 
 
 def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime) -> str:
