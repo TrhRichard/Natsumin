@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from internal.constants import FILE_LOGGING_FORMATTER, COLORS
-from internal.functions import frmt_iter
+from internal.functions import frmt_iter, get_user_id
 from internal.base.cog import NatsuminCog
 from discord.ext import commands
 from typing import TYPE_CHECKING
 
 import discord
 import logging
+import json
+import io
 
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuminBot
@@ -107,6 +109,28 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await ctx.reply(f"Deleted **`{key}`** from the config")
 		else:
 			await ctx.reply(f"Key **`{key}`** not found in config!")
+
+	@commands.command()
+	async def test(self, ctx: commands.Context, username: str = None):
+		username = username or ctx.author.name
+		async with self.bot.database.connect() as conn:
+			user_id = await get_user_id(conn, username)
+
+			if user_id is None:
+				return await ctx.reply("no user")
+
+			active_season = await self.bot.get_config("contracts.active_season", db_conn=conn)
+
+			async with conn.execute("SELECT * FROM season_contract WHERE season_id = ? AND contractee_id = ?", (active_season, user_id)) as cursor:
+				rows = await cursor.fetchall()
+
+				json_contracts = json.dumps(list(dict(row) for row in rows), indent=4)
+
+				if len(json_contracts) < 1900:
+					await ctx.reply(f"```json\n{json_contracts}\n```")
+				else:
+					json_file = discord.File(io.BytesIO(json_contracts.encode("utf-8")), f"{user_id}.json")
+					await ctx.reply(file=json_file)
 
 
 def setup(bot: NatsuminBot):
