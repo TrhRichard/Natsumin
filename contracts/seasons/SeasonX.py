@@ -18,7 +18,7 @@ async def _get_sheet_data() -> dict:
 				"majorDimension": "ROWS",
 				"valueRenderOption": "FORMATTED_VALUE",
 				"ranges": [
-					"Dashboard!A2:AB508",
+					"Dashboard!A2:AC508",
 					"Base!A2:AI516",
 					"Duality Special!A2:K291",
 					"Veteran Special!A2:J280",
@@ -62,6 +62,7 @@ DASHBOARD_ROW_INDEXES: dict[int, tuple[str, int]] = {
 	11: ("Challenge Buddy", 23),
 	12: ("Sumira's Challenge", 24),
 	13: ("Hitome's Challenge", 25),
+	14: ("Sae's Challenge", 27),
 }
 OPTIONAL_CONTRACTS: list[str] = ["Aria Special"]
 
