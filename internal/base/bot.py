@@ -121,7 +121,7 @@ class NatsuminBot(commands.Bot):
 			user = discord_user.name
 
 		async with self.database.connect(db_conn) as conn:
-			user_id = await get_user_id(conn, user)
+			user_id = await get_user_id(conn, user, score_cutoff=90)
 
 			if user_id is None:
 				return None, None

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from internal.functions import get_legacy_rank, get_rank_emoteid, is_channel, get_status_emote, get_status_name
+from internal.functions import get_legacy_rank, get_rank_emoteid, is_channel, get_status_emote, get_status_name, frmt_iter
 from internal.contracts import get_deadline_footer
 from internal.enums import UserKind, UserStatus
 from internal.checks import must_be_channel
@@ -151,7 +151,7 @@ class MasterUserProfile(ui.DesignerView):
 				ui.Container(
 					(
 						ui.Section(ui.TextDisplay(header_content), accessory=ui.Thumbnail(discord_user.avatar.url))
-						if discord_user
+						if discord_user and discord_user.avatar
 						else ui.TextDisplay(header_content)
 					),
 					ui.Separator(),
@@ -225,11 +225,20 @@ class SeasonUserProfile(ui.DesignerView):
 			if user_row["kind"] == UserKind.NORMAL:
 				user_description += f"- **Rep**: {user_row['rep'] or 'Unknown'}\n"
 				user_description += f"- **Contractor**: {contractor_username or 'None'}\n"
+
+				async with conn.execute(
+					"SELECT u.username FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.contractor_id = ?", (user_id,)
+				) as cursor:
+					contractees = tuple(row["username"] for row in await cursor.fetchall())
+
+				if contractees:
+					user_description += f"- **Contractee{'s' if len(contractees) > 1 else ''}**: {frmt_iter(contractees)}\n"
+
 				user_description += f"- **List**: {user_row['list_url'] or 'N/A'}\n"
 				user_description += f"- **Preferences**: {(user_row['preferences'] or 'N/A').replace('\n', ', ')}\n"
 				user_description += f"- **Bans**: {(user_row['bans'] or 'N/A').replace('\n', ', ')}\n"
 				user_description += (
-					f"- **Accepting**: LN={'Yes' if user_row['accepting_ln'] else 'No'}; MANHWA={'Yes' if user_row['accepting_manhwa'] else 'No'}\n"
+					f"- **Accepting**: LN={'Yes' if user_row['accepting_ln'] else 'No'} - MANHWA={'Yes' if user_row['accepting_manhwa'] else 'No'}\n"
 				)
 				user_description += f"- **Veto used**: {'Yes' if user_row['veto_used'] else 'No'}\n"
 			else:
@@ -255,7 +264,7 @@ class SeasonUserProfile(ui.DesignerView):
 				ui.Container(
 					(
 						ui.Section(ui.TextDisplay(header_content), accessory=ui.Thumbnail(discord_user.avatar.url))
-						if discord_user
+						if discord_user and discord_user.avatar
 						else ui.TextDisplay(header_content)
 					),
 					ui.Separator(),
@@ -276,9 +285,50 @@ class SeasonUserProfile(ui.DesignerView):
 	async def button_callback(self, interaction: discord.Interaction):
 		match interaction.custom_id:
 			case "get_contractor_profile":
-				pass
+				async with self.bot.database.connect() as conn:
+					async with conn.execute(
+						"SELECT u.username, su.contractor_id FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND su.user_id = ? LIMIT 1",
+						(self.season_id, self.user_id),
+					) as cursor:
+						row = await cursor.fetchone()
+
+					if row is None:
+						return await interaction.respond("Unknown user.", ephemeral=True)
+
+					contractor_id: str | None = row["contractor_id"]
+					username: str = row["username"]
+
+					if contractor_id is None:
+						return await interaction.respond(f"{username} does not have a contractor.", ephemeral=True)
+
+				await interaction.respond(
+					view=await SeasonUserProfile.create(self.bot, interaction.user, self.season_id, contractor_id), ephemeral=True
+				)
+
 			case "get_contractee_profile":
-				pass
+				async with self.bot.database.connect() as conn:
+					async with conn.execute("SELECT username FROM user WHERE id = ?", (self.user_id,)) as cursor:
+						row = await cursor.fetchone()
+
+					if row is None:
+						return await interaction.respond("Unknown user.", ephemeral=True)
+
+					username = row["username"]
+
+					async with conn.execute(
+						"SELECT user_id as contractee_id FROM season_user WHERE season_id = ? AND contractor_id = ? LIMIT 1",
+						(self.season_id, self.user_id),
+					) as cursor:
+						row = await cursor.fetchone()
+
+					if row is None:
+						return await interaction.respond(f"{username} does not have a contractee.", ephemeral=True)
+
+					contractee_id: str | None = row["contractee_id"]
+
+				await interaction.respond(
+					view=await SeasonUserProfile.create(self.bot, interaction.user, self.season_id, contractee_id), ephemeral=True
+				)
 			case "get_contracts":
 				pass
 			case _:
