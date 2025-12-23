@@ -126,7 +126,7 @@ def is_channel(
 	return True
 
 
-async def get_user_id(conn: aiosqlite.Connection, username: str) -> str | None:
+async def get_user_id(conn: aiosqlite.Connection, username: str, *, score_cutoff: int = 91) -> str | None:
 	if username == "":
 		return None
 
@@ -149,7 +149,7 @@ async def get_user_id(conn: aiosqlite.Connection, username: str) -> str | None:
 		""") as cursor:
 		id_username = {row["id"]: row["username"] for row in await cursor.fetchall()}
 
-		fuzzy_result = process.extractOne(username, id_username, score_cutoff=91)
+		fuzzy_result = process.extractOne(username, id_username, score_cutoff=score_cutoff)
 		if fuzzy_result:
 			return fuzzy_result[2]
 		else:
