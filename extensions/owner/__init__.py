@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from internal.functions import frmt_iter, get_user_id, get_legacy_rank
 from internal.constants import FILE_LOGGING_FORMATTER, COLORS
-from internal.functions import frmt_iter, get_user_id
 from internal.base.cog import NatsuminCog
 from discord.ext import commands
 from typing import TYPE_CHECKING
@@ -165,7 +165,15 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			async with conn.execute("SELECT b.* FROM user_badge ub JOIN badge b ON ub.badge_id = b.id WHERE ub.user_id = ?", (user_id,)) as cursor:
 				badge_rows = await cursor.fetchall()
 
-			json_data = json.dumps(dict(user_row) | {"badges": list(dict(row) for row in badge_rows)}, indent=4)
+			async with conn.execute("SELECT exp FROM leaderboard_legacy WHERE user_id = ?", (user_id,)) as cursor:
+				legacy_row = await cursor.fetchone()
+
+			leaderboards: dict[str, int] = {
+				"legacy": {"rank": get_legacy_rank(legacy_row["exp"]).value, "exp": legacy_row["exp"]} if legacy_row is not None else None,
+				"new": None,
+			}
+
+			json_data = json.dumps(dict(user_row) | {"leaderboards": leaderboards, "badges": list(dict(row) for row in badge_rows)}, indent=4)
 
 			if len(json_data) < 1900:
 				await ctx.reply(f"```json\n{json_data}\n```")

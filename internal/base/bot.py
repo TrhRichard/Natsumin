@@ -94,7 +94,7 @@ class NatsuminBot(commands.Bot):
 		return await self.database.remove_config(key, db_conn=db_conn)
 
 	async def fetch_user_from_database(
-		self, user: str | int | discord.abc.User, *, db_conn: aiosqlite.Connection
+		self, user: str | int | discord.abc.User, *, db_conn: aiosqlite.Connection = None
 	) -> tuple[str | None, discord.abc.User | None]:
 		discord_user: discord.Member = None
 
@@ -103,20 +103,19 @@ class NatsuminBot(commands.Bot):
 				discord_id = user
 			elif match := re.match(r"<@!?(\d+)>", user):
 				discord_id = int(match.group(1))
+			elif user.isdigit():
+				discord_id = int(user)
+			else:
+				discord_id = None
 
-			if discord_id is None:
-				return None, None
-
-			if self.anicord:
+			if self.anicord and discord_id:
 				discord_user = await self.anicord.get_or_fetch(discord.Member, discord_id)
 
-			if not discord_user:
+			if not discord_user and discord_id:
 				discord_user = await self.get_or_fetch(discord.User, discord_id)  # lol
 
-			if not discord_user:
-				return None, None
-
-			user = discord_user.name
+			if discord_user:
+				user = discord_user.name
 		elif isinstance(user, (discord.User, discord.Member, discord.abc.User)):
 			discord_user = user
 			user = discord_user.name
@@ -135,7 +134,7 @@ class NatsuminBot(commands.Bot):
 				if user_discord_id is not None and self.anicord:
 					discord_user = await self.anicord.get_or_fetch(discord.Member, user_discord_id)
 
-				if not discord_user and user_discord_id:
+				if discord_user is None and user_discord_id:
 					discord_user = await self.get_or_fetch(discord.User, user_discord_id)
 
 		return user_id, discord_user

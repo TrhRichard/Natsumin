@@ -78,6 +78,14 @@ class OtherExt(NatsuminCog, name="Other"):
 	async def uptime(self, ctx: commands.Context):
 		await ctx.reply(f"Bot started at {discord.utils.format_dt(self.bot.started_at)}!")
 
+	@commands.command(hidden=True, help="why", aliases=["richardpog"])
+	async def richardpoggers(self, ctx: commands.Context):
+		try:
+			sticker = self.bot.get_sticker(1336790955281485845) or await self.bot.fetch_sticker(1336790955281485845)
+			await ctx.reply(None, stickers=[sticker])
+		except (discord.Forbidden, discord.NotFound):
+			await ctx.reply("poggers")
+
 
 def setup(bot: NatsuminBot):
 	bot.add_cog(OtherExt(bot))
