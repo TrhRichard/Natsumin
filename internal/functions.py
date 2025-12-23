@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from internal.enums import UserStatus, ContractStatus, LegacyRank
 from typing import TYPE_CHECKING, overload
 from .exceptions import WrongChannel
 from discord.ext import commands
@@ -153,3 +154,106 @@ async def get_user_id(conn: aiosqlite.Connection, username: str) -> str | None:
 			return fuzzy_result[2]
 		else:
 			return None
+
+
+def get_status_name(status: UserStatus | ContractStatus) -> str:
+	match status:
+		case UserStatus.PASSED | ContractStatus.PASSED:
+			return "Passed"
+		case UserStatus.LATE_PASS | ContractStatus.LATE_PASS:
+			return "Passed late"
+		case UserStatus.FAILED | ContractStatus.FAILED:
+			return "Failed"
+		case UserStatus.PENDING | ContractStatus.PENDING:
+			return "Pending"
+		case UserStatus.INCOMPLETE:
+			return "Incomplete"
+		case ContractStatus.UNVERIFIED:
+			return "Unverified"
+		case _:
+			return "N/A"
+
+
+def get_status_emote(status: UserStatus | ContractStatus, is_optional: bool = False) -> str:
+	match status:
+		case UserStatus.PASSED | ContractStatus.PASSED:
+			if is_optional:
+				return "🏆"
+			else:
+				return "✅"
+		case UserStatus.LATE_PASS | ContractStatus.LATE_PASS:
+			return "☑️"
+		case UserStatus.FAILED | UserStatus.INCOMPLETE | ContractStatus.FAILED:
+			return "❌"
+		case ContractStatus.UNVERIFIED:
+			return "❓"
+		case _:
+			return "❔"
+
+
+def get_rank_emoteid(rank: LegacyRank | None = None) -> int | None:
+	match rank:
+		case LegacyRank.QUARTZ:
+			return 1370358752129187891
+		case LegacyRank.CITRINE:
+			return 1370358870370812015
+		case LegacyRank.AMETHYST:
+			return 1370359411465519196
+		case LegacyRank.AQUAMARINE:
+			return 1370359420269101196
+		case LegacyRank.JADE:
+			return 1370359433514848367
+		case LegacyRank.TOPAZ:
+			return 1370359441265786911
+		case LegacyRank.MORGANITE:
+			return 1370359449528565770
+		case LegacyRank.SPINEL:
+			return 1370908107861004419
+		case LegacyRank.EMERALD:
+			return 1370359457917308958
+		case LegacyRank.SAPPHIRE:
+			return 1370359466519826505
+		case LegacyRank.RUBY:
+			return 1370359475080400926
+		case LegacyRank.DIAMOND:
+			return 1370359483531919461
+		case LegacyRank.ALEXANDRITE:
+			return 1370359491438051328
+		case LegacyRank.PAINITE:
+			return 1370359499151638530
+		case _:
+			return None
+
+
+def get_legacy_rank(exp: int | None) -> LegacyRank | None:
+	if exp is None:
+		return None
+
+	if exp >= 34000:
+		return LegacyRank.PAINITE
+	elif exp >= 29000:
+		return LegacyRank.ALEXANDRITE
+	elif exp >= 24400:
+		return LegacyRank.DIAMOND
+	elif exp >= 20200:
+		return LegacyRank.RUBY
+	elif exp >= 16400:
+		return LegacyRank.SAPPHIRE
+	elif exp >= 13000:
+		return LegacyRank.EMERALD
+	elif exp >= 10000:
+		return LegacyRank.SPINEL
+	elif exp >= 7400:
+		return LegacyRank.MORGANITE
+	elif exp >= 5200:
+		return LegacyRank.TOPAZ
+	elif exp >= 3400:
+		return LegacyRank.JADE
+	elif exp >= 2000:
+		return LegacyRank.AQUAMARINE
+	elif exp >= 1000:
+		return LegacyRank.AMETHYST
+	elif exp >= 150:
+		return LegacyRank.CITRINE
+	else:
+		return LegacyRank.QUARTZ

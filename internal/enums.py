@@ -30,3 +30,20 @@ class ContractKind(IntEnum):
 class UserKind(IntEnum):
 	NORMAL = 0
 	AID = 1
+
+
+class LegacyRank(StrEnum):
+	QUARTZ = "Quartz"
+	CITRINE = "Citrine"
+	AMETHYST = "Amethyst"
+	AQUAMARINE = "Aquamarine"
+	JADE = "Jade"
+	TOPAZ = "Topaz"
+	MORGANITE = "Morganite"
+	SPINEL = "Spinel"
+	EMERALD = "Emerald"
+	SAPPHIRE = "Sapphire"
+	RUBY = "Ruby"
+	DIAMOND = "Diamond"
+	ALEXANDRITE = "Alexandrite"
+	PAINITE = "Painite"

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-# from internal.checks import ManagerRoleMissing, ManagerRoleNotSet
+from internal.exceptions import WrongChannel, BlacklistedUser
 from internal.base.cog import NatsuminCog
 from internal.functions import frmt_iter
-from internal.exceptions import WrongChannel, BlacklistedUser
 from internal.constants import COLORS
 from discord.ext import commands
 
