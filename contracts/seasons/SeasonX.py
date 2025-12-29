@@ -29,6 +29,7 @@ async def _get_sheet_data() -> dict:
 					"Buddying!A2:N100",
 					"Sumira's Challenge!A2:F508",
 					"Hitome's Challenge!A2:F508",
+					"Christmas Challenge!A2:E36",
 				],
 				"key": os.getenv("GOOGLE_API_KEY"),
 			},
@@ -64,7 +65,7 @@ DASHBOARD_ROW_INDEXES: dict[int, tuple[str, int]] = {
 	13: ("Hitome's Challenge", 25),
 	14: ("Sae's Challenge", 27),
 }
-OPTIONAL_CONTRACTS: list[str] = ["Aria Special"]
+OPTIONAL_CONTRACTS: list[str] = ["Aria Special", "Sumira's Challenge", "Hitome's Challenge", "Sae's Challenge", "Christmas Challenge"]
 
 
 async def _sync_dashboard_data(sheet_data: dict, ctx: SeasonDBSyncContext):
@@ -410,6 +411,53 @@ async def _sync_specials_data(sheet_data: dict, ctx: SeasonDBSyncContext):
 				review_url=get_url(row, 5),
 				medium="Movie",
 				optional=hitome_challenge.type in OPTIONAL_CONTRACTS,
+			)
+
+	# Christmas Challenge
+	rows: list[list[str]] = sheet_data["valueRanges"][11]["values"]
+	for row in rows:
+		username = get_cell(row, 2, "").strip().lower()
+
+		user_id = ctx.get_user_id(username)
+		if not user_id:
+			continue
+
+		season_user = ctx.get_user(user_id)
+		if not season_user:
+			continue
+
+		match get_cell(row, 0, "").upper().strip():
+			case "PASSED" | "BADGE":
+				contract_status = ContractStatus.PASSED
+			case "FAILED":
+				contract_status = ContractStatus.FAILED
+			case "LATE PASS":
+				contract_status = ContractStatus.LATE_PASS
+			case _:
+				contract_status = ContractStatus.PENDING
+
+		user_contracts = users_contracts.get(user_id)
+		christmas_challenge = user_contracts.get("Christmas Challenge")
+		if christmas_challenge is None:
+			ctx.create_contract(
+				name="Tokyo Godfathers",
+				status=contract_status,
+				type="Christmas Challenge",
+				kind=ContractKind.NORMAL,
+				contractee=user_id,
+				rating=get_cell(row, 3, "0/10"),
+				review_url=get_url(row, 4),
+				medium="Movie",
+				optional="Christmas Challenge" in OPTIONAL_CONTRACTS,  # ???
+			)
+		elif christmas_challenge.rating != get_cell(row, 3, "0/10") or christmas_challenge.review_url != get_url(row, 4):
+			ctx.update_contract(
+				christmas_challenge,
+				status=contract_status,
+				rating=get_cell(row, 3, "0/10"),
+				review_url=get_url(row, 4),
+				medium="Movie",
+				optional=christmas_challenge.type in OPTIONAL_CONTRACTS,
 			)
 
 	await ctx.commit()

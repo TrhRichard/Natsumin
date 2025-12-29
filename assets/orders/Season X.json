@@ -20,7 +20,12 @@
 	},
 	{
 		"name": "Mid-Season Drops",
-		"order": ["sumira's challenge", "hitome's challenge"]
+		"order": [
+			"sumira's challenge",
+			"hitome's challenge",
+			"sae's challenge",
+			"christmas challenge"
+		]
 	},
 	{
 		"name": "Arcana Quests",
