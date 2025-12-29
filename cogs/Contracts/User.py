@@ -51,7 +51,10 @@ def get_status_emote(status: UserStatus | ContractStatus, is_optional: bool = Fa
 		case ContractStatus.UNVERIFIED:
 			return "❓"
 		case _:
-			return "❔"
+			if is_optional:
+				return "➖"
+			else:
+				return "❔"
 
 
 class ExtraFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
