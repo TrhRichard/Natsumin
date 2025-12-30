@@ -153,13 +153,88 @@ class NatsuminBot(commands.Bot):
 		return user_id, discord_user
 
 
+def get_command_signature(cmd: commands.Command):
+	"""Returns a POSIX-like signature useful for help command output.
+
+	So I had to overwrite this entire thing just to get flags to show up properly
+	-Richard
+	"""
+	from typing import Union, Literal
+
+	if cmd.usage is not None:
+		return cmd.usage
+
+	params = cmd.clean_params
+	if not params:
+		return ""
+
+	result = []
+	for name, param in params.items():
+		greedy = isinstance(param.annotation, commands.Greedy)
+		optional = False  # postpone evaluation of if it's an optional argument
+
+		# for typing.Literal[...], typing.Optional[typing.Literal[...]], and Greedy[typing.Literal[...]], the
+		# parameter signature is a literal list of it's values
+		annotation = param.annotation.converter if greedy else param.annotation
+		origin = getattr(annotation, "__origin__", None)
+		if not greedy and origin is Union:
+			none_cls = type(None)
+			union_args = annotation.__args__
+			optional = union_args[-1] is none_cls
+			if len(union_args) == 2 and optional:
+				annotation = union_args[0]
+				origin = getattr(annotation, "__origin__", None)
+
+		if origin is Literal:
+			name = "|".join(f'"{v}"' if isinstance(v, str) else str(v) for v in annotation.__args__)
+		if param.default is not param.empty:
+			# We don't want None or '' to trigger the [name=value] case, and instead it should
+			# do [name] since [name=None] or [name=] are not exactly useful for the user.
+			should_print = param.default if isinstance(param.default, str) else param.default is not None
+			if should_print:
+				result.append(f"[{name}={param.default}]" if not greedy else f"[{name}={param.default}]...")
+				continue
+			else:
+				result.append(f"[{name}]")
+		elif param.kind == param.VAR_POSITIONAL:
+			if cmd.require_var_positional:
+				result.append(f"<{name}...>")
+			else:
+				result.append(f"[{name}...]")
+		elif greedy:
+			result.append(f"[{name}]...")
+		elif optional:
+			result.append(f"[{name}]")
+		elif issubclass(annotation, commands.FlagConverter):
+			flags: commands.FlagConverter = annotation
+			pairs = []
+			for flag in flags.get_flags().values():
+				value: str = ""
+				try:
+					value = f"{getattr(flags, flag.attribute)!r}"
+				except AttributeError:
+					if flag.default is not discord.utils.MISSING:
+						value = f"{flag.default!r}"
+
+				formatted_flag = f"{flag.attribute}={value}" if value else flag.attribute
+				pairs.append(f"[{formatted_flag}]" if flag.positional else formatted_flag)
+
+			result.append(f"<flags {' '.join(pairs)}>")
+		else:
+			result.append(f"<{name}>")
+
+	return " ".join(result)
+
+
 class BotHelp(commands.HelpCommand):
 	def get_command_signature(self, command: commands.Command):
-		return "**%s%s**%s" % (
-			self.context.clean_prefix,
-			command.qualified_name,
-			(f" {command.signature}" if command.signature else " [sub-command]" if isinstance(command, commands.Group) else ""),
-		)
+		signature = f"**{self.context.clean_prefix}{command.qualified_name}**"
+		if isinstance(command, commands.Group):
+			signature += " [sub-command]"
+		elif command.signature:
+			signature += f" {get_command_signature(command)}"
+
+		return signature
 
 	async def send_bot_help(self, mapping: Mapping[Optional[commands.Cog], list[commands.Command]]):
 		embed = discord.Embed(
@@ -180,7 +255,9 @@ class BotHelp(commands.HelpCommand):
 		await channel.send(embed=embed)
 
 	async def send_command_help(self, command: commands.Command):
-		embed = discord.Embed(color=COLORS.DEFAULT, title=f"{self.context.clean_prefix}{command.qualified_name} {command.signature}", description="")
+		embed = discord.Embed(
+			color=COLORS.DEFAULT, title=f"{self.context.clean_prefix}{command.qualified_name} {get_command_signature(command)}", description=""
+		)
 
 		if len(command.aliases) > 0:
 			embed.description += f"\n**Aliases**: {', '.join(command.aliases)}"
