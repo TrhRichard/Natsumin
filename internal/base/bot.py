@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from internal.constants import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER, COLORS
 from config import BOT_PREFIX, DEV_BOT_PREFIX, OWNER_IDS, DISABLED_EXTENSIONS
+from internal.database.Reminder import ReminderDatabase
 from internal.contracts.order import OrderCategory
 from internal.database import NatsuminDatabase
 from internal.functions import get_user_id
@@ -37,6 +38,7 @@ class NatsuminBot(commands.Bot):
 		self.started_at = datetime.datetime.now(datetime.UTC)
 		self.color = COLORS.DEFAULT
 		self.database = NatsuminDatabase(production)
+		self.reminders = ReminderDatabase(production)
 		self.anicord: discord.Guild | None = None
 		self.season_orders: dict[str, list[OrderCategory]] = {}
 
@@ -66,6 +68,7 @@ class NatsuminBot(commands.Bot):
 		os.system("cls" if os.name == "nt" else "clear")
 		self.logger.info(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 		await self.database.setup()
+		await self.reminders.setup()
 		self.anicord = self.get_guild(994071728017899600)
 		async with self.database.connect() as conn:
 			async with conn.execute("SELECT id FROM season") as cursor:
