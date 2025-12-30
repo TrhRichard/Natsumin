@@ -2,16 +2,19 @@ from __future__ import annotations
 
 from internal.constants import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER, COLORS
 from config import BOT_PREFIX, DEV_BOT_PREFIX, OWNER_IDS, DISABLED_EXTENSIONS
+from internal.contracts.order import OrderCategory
 from internal.database import NatsuminDatabase
 from internal.functions import get_user_id
 from discord.ext import commands
 from typing import TYPE_CHECKING
 from pathlib import Path
-import aiosqlite
 
+import aiosqlite
+import aiofiles
 import datetime
 import discord
 import logging
+import json
 import os
 import re
 
@@ -35,6 +38,7 @@ class NatsuminBot(commands.Bot):
 		self.color = COLORS.DEFAULT
 		self.database = NatsuminDatabase(production)
 		self.anicord: discord.Guild | None = None
+		self.season_orders: dict[str, list[OrderCategory]] = {}
 
 		self.logger = logging.getLogger("bot")
 		if not self.logger.hasHandlers():
@@ -63,6 +67,15 @@ class NatsuminBot(commands.Bot):
 		self.logger.info(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 		await self.database.setup()
 		self.anicord = self.get_guild(994071728017899600)
+		async with self.database.connect() as conn:
+			async with conn.execute("SELECT id FROM season") as cursor:
+				season_ids: list[str] = [row["id"] for row in await cursor.fetchall()]
+
+			for season_id in season_ids:
+				order_path = Path(f"assets/orders/{season_id}.json")
+				if order_path.is_file():
+					async with aiofiles.open(order_path, "r") as f:
+						self.season_orders[season_id] = json.loads(await f.read())
 
 	async def on_user_update(self, old: discord.User, new: discord.User):
 		if old.name == new.name:

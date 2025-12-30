@@ -132,8 +132,8 @@ async def get_user_id(conn: aiosqlite.Connection, username: str, *, score_cutoff
 
 	async with conn.execute(
 		"""
-		SELECT id FROM user WHERE username = ?1 OR id = ?1 
-		UNION ALL 
+		SELECT id FROM user WHERE username = ?1 OR id = ?1
+		UNION ALL
 		SELECT user_id as id FROM user_alias WHERE username = ?1
 		""",
 		(username,),
@@ -143,8 +143,8 @@ async def get_user_id(conn: aiosqlite.Connection, username: str, *, score_cutoff
 			return row["id"]
 
 	async with conn.execute("""
-		SELECT id, username FROM user 
-		UNION ALL 
+		SELECT id, username FROM user
+		UNION ALL
 		SELECT user_id as id, username FROM user_alias
 		""") as cursor:
 		id_username = {row["id"]: row["username"] for row in await cursor.fetchall()}
@@ -156,16 +156,22 @@ async def get_user_id(conn: aiosqlite.Connection, username: str, *, score_cutoff
 			return None
 
 
-def get_status_name(status: UserStatus | ContractStatus) -> str:
+def get_status_name(status: UserStatus | ContractStatus, is_optional: bool = False) -> str:
 	match status:
 		case UserStatus.PASSED | ContractStatus.PASSED:
-			return "Passed"
+			if is_optional:
+				return "Passed (Optional)"
+			else:
+				return "Passed"
 		case UserStatus.LATE_PASS | ContractStatus.LATE_PASS:
 			return "Passed late"
 		case UserStatus.FAILED | ContractStatus.FAILED:
 			return "Failed"
 		case UserStatus.PENDING | ContractStatus.PENDING:
-			return "Pending"
+			if is_optional:
+				return "Pending (Optional)"
+			else:
+				return "Pending"
 		case UserStatus.INCOMPLETE:
 			return "Incomplete"
 		case ContractStatus.UNVERIFIED:
@@ -188,7 +194,10 @@ def get_status_emote(status: UserStatus | ContractStatus, is_optional: bool = Fa
 		case ContractStatus.UNVERIFIED:
 			return "❓"
 		case _:
-			return "❔"
+			if is_optional:
+				return "➖"
+			else:
+				return "❔"
 
 
 def get_rank_emoteid(rank: LegacyRank | None = None) -> int | None:

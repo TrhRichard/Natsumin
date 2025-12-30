@@ -15,6 +15,12 @@
 	},
 	{
 		"name": "Aid Contracts",
-		"order": ["aid contract \\d+"]
+		"order": [
+			{
+				"type": "regex",
+				"pattern": "aid contract \\d+",
+				"order_by": "last_number"
+			}
+		]
 	}
 ]

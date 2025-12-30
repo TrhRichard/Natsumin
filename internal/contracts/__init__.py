@@ -6,10 +6,12 @@ from typing import TYPE_CHECKING
 
 import aiosqlite
 import datetime
+import discord
 import time
 
 if TYPE_CHECKING:
 	from internal.database import NatsuminDatabase
+	from internal.base.bot import NatsuminBot
 
 
 async def sync_season(database: NatsuminDatabase, season_id: str) -> float:
@@ -58,3 +60,12 @@ async def get_deadline_footer(database: NatsuminDatabase, season_id: str, *, db_
 			return f"{season_name} has ended."
 	else:
 		return f"Archived data from {season_name}."
+
+
+async def season_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.OptionChoice]:
+	bot: NatsuminBot = ctx.bot
+	async with bot.database.connect() as conn:
+		async with conn.execute("SELECT id, name FROM season") as cursor:
+			season_list = [discord.OptionChoice(name=row["name"], value=row["id"]) for row in await cursor.fetchall()]
+
+	return season_list

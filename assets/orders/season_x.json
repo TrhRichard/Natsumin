@@ -20,14 +20,31 @@
 	},
 	{
 		"name": "Mid-Season Drops",
-		"order": ["sumira's challenge", "hitome's challenge", "sae's challenge"]
+		"order": [
+			"sumira's challenge",
+			"hitome's challenge",
+			"sae's challenge",
+			"christmas challenge"
+		]
 	},
 	{
 		"name": "Arcana Quests",
-		"order": ["arcana special \\d+"]
+		"order": [
+			{
+				"type": "regex",
+				"pattern": "arcana special \\d+",
+				"order_by": "last_number"
+			}
+		]
 	},
 	{
 		"name": "Aid Contracts",
-		"order": ["aid contract \\d+"]
+		"order": [
+			{
+				"type": "regex",
+				"pattern": "aid contract \\d+",
+				"order_by": "last_number"
+			}
+		]
 	}
 ]

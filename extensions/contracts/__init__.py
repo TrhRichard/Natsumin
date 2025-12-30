@@ -16,10 +16,10 @@ import logging
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuminBot
 
-from .User import User
+from .User import UserCog
 
 
-class ContractsExt(User, name="Contracts"):
+class ContractsExt(UserCog, name="Contracts"):
 	"""Contracts related commands"""
 
 	def __init__(self, bot: NatsuminBot):

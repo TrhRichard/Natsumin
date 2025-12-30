@@ -27,7 +27,7 @@ async def _get_sheet_data() -> dict:
 				"majorDimension": "ROWS",
 				"valueRenderOption": "FORMATTED_VALUE",
 				"ranges": [
-					"Dashboard!A2:AB508",
+					"Dashboard!A2:AC508",
 					"Base!A2:AI516",
 					"Duality Special!A2:K291",
 					"Veteran Special!A2:J280",
@@ -39,6 +39,7 @@ async def _get_sheet_data() -> dict:
 					"Sumira's Challenge!A2:F508",
 					"Hitome's Challenge!A2:F508",
 					"Sae's Challenge!A2:F508",
+					"Christmas Challenge!A2:E36",
 				],
 				"key": GOOGLE_API_KEY,
 			},
@@ -67,7 +68,7 @@ DASHBOARD_ROW_INDEXES: dict[int, tuple[str, int]] = {
 	13: ("Hitome's Challenge", 25),
 	14: ("Sae's Challenge", 27),
 }
-OPTIONAL_CONTRACTS: tuple[str, ...] = ("Aria Special",)
+OPTIONAL_CONTRACTS: tuple[str, ...] = ("Aria Special", "Sumira's Challenge", "Hitome's Challenge", "Sae's Challenge", "Christmas Challenge")
 
 
 async def _sync_dashboard_data(sheet_data: dict, conn: aiosqlite.Connection):
@@ -172,12 +173,12 @@ async def _sync_basechallenge_data(sheet_data: dict, conn: aiosqlite.Connection)
 		if user_row["contractor_id"] != contractor_id or user_row["veto_used"] != (get_cell(row, 12) == "TRUE"):
 			await conn.execute(
 				"""
-				UPDATE season_user SET 
-					contractor_id = ?, 
-					rep = ?, 
-					list_url = ?, 
-					veto_used = ?, 
-					preferences = ?, 
+				UPDATE season_user SET
+					contractor_id = ?,
+					rep = ?,
+					list_url = ?,
+					veto_used = ?,
+					preferences = ?,
 					bans = ?,
 					accepting_manhwa = ?,
 					accepting_ln = ?
@@ -546,6 +547,68 @@ async def _sync_specials_data(sheet_data: dict, conn: aiosqlite.Connection):
 				),
 			)
 
+	# Christmas Challenge
+	rows: list[list[str]] = sheet_data["valueRanges"][12]["values"]
+	for row in rows:
+		username = get_cell(row, 2, "").strip().lower()
+
+		user_id = await get_user_id(conn, username)
+		if not user_id:
+			continue
+
+		match get_cell(row, 0, "").upper().strip():
+			case "PASSED" | "BADGE":
+				contract_status = ContractStatus.PASSED
+			case "FAILED":
+				contract_status = ContractStatus.FAILED
+			case "LATE PASS":
+				contract_status = ContractStatus.LATE_PASS
+			case _:
+				contract_status = ContractStatus.PENDING
+
+		async with conn.execute(
+			"SELECT id, rating, status, review_url FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type = ?",
+			(SEASON_ID, user_id, "Christmas Challenge"),
+		) as cursor:
+			contract_row = await cursor.fetchone()
+
+		if not contract_row:
+			await conn.execute(
+				"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, optional, rating, review_url, medium) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				(
+					SEASON_ID,
+					str(uuid4()),
+					"Tokyo Godfathers",  # name
+					"Christmas Challenge",  # type
+					ContractKind.NORMAL.value,  # kind
+					contract_status.value,  # status,
+					user_id,  # contractee_id
+					"frazzle",  # contractor
+					"Christmas Challenge" in OPTIONAL_CONTRACTS,  # optional
+					get_cell(row, 3, "0/10"),  # rating
+					get_url(row, 4),  # review_url
+					"Movie",  # medium
+				),
+			)
+		elif (
+			contract_row["status"] != contract_status.value
+			or contract_row["rating"] != get_cell(row, 3, "0/10")
+			or contract_row["review_url"] != get_url(row, 4)
+		):
+			await conn.execute(
+				"UPDATE season_contract SET contractor = ?, rating = ?, review_url = ?, optional = ?, medium = ?, status = ? WHERE season_id = ? AND id = ?",
+				(
+					"frazzle",  # contractor
+					get_cell(row, 3, "0/10"),  # rating
+					get_url(row, 4),  # review_url
+					"Christmas Challenge" in OPTIONAL_CONTRACTS,  # optional
+					"Movie",  # medium
+					contract_status.value,  # status
+					SEASON_ID,
+					contract_row["id"],
+				),
+			)
+
 	await conn.commit()
 
 
@@ -677,7 +740,7 @@ async def _sync_arcana_data(sheet_data: dict, conn: aiosqlite.Connection):
 
 				async with conn.execute(
 					"""
-					SELECT id, status, name, rating, review_url FROM season_contract 
+					SELECT id, status, name, rating, review_url FROM season_contract
 					WHERE season_id = ?
 						AND contractee_id = ?
 						AND type LIKE "Arcana Special%"
@@ -695,7 +758,7 @@ async def _sync_arcana_data(sheet_data: dict, conn: aiosqlite.Connection):
 
 				if contract_row is None:
 					await conn.execute(
-						"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, rating, review_url, medium) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+						"INSERT OR IGNORE INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, rating, review_url, medium) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 						(
 							SEASON_ID,
 							str(uuid4()),
@@ -746,7 +809,7 @@ async def _sync_arcana_data(sheet_data: dict, conn: aiosqlite.Connection):
 
 				async with conn.execute(
 					"""
-					SELECT id, status, rating, review_url FROM season_contract 
+					SELECT id, status, rating, review_url FROM season_contract
 					WHERE season_id = ?
 						AND contractee_id = ?
 						AND type LIKE "Arcana Special%"
@@ -763,7 +826,7 @@ async def _sync_arcana_data(sheet_data: dict, conn: aiosqlite.Connection):
 				arcana_count += 1
 				if contract_row is None:
 					await conn.execute(
-						"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, rating, review_url, medium) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+						"INSERT OR IGNORE INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, rating, review_url, medium) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 						(
 							SEASON_ID,
 							str(uuid4()),
