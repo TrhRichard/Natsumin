@@ -54,11 +54,11 @@ class OtherExt(NatsuminCog, name="Other"):
 		container.add_item(discord.ui.ActionRow(discord.ui.Button(label="Repository", url=REPOSITORY_URL)))
 		return container
 
-	@commands.command(help="Fetch information on the bot")
+	@commands.command(help="Get information on the bot")
 	async def botinfo(self, ctx: commands.Context):
 		await ctx.reply(view=discord.ui.DesignerView(self.get_bot_info_container(), store=False))
 
-	@commands.slash_command(name="botinfo", description="Fetch information on the bot")
+	@commands.slash_command(name="botinfo", description="Get information on the bot")
 	async def slash_botinfo(self, ctx: discord.ApplicationContext):
 		await ctx.respond(view=discord.ui.DesignerView(self.get_bot_info_container(), store=False))
 
@@ -74,7 +74,7 @@ class OtherExt(NatsuminCog, name="Other"):
 		embed.description = f":ping_pong: Pong! ({round(self.bot.latency * 1000)}ms)"
 		await ctx.respond(embed=embed)
 
-	@commands.command()
+	@commands.command(help="Get the time when the bot started")
 	async def uptime(self, ctx: commands.Context):
 		await ctx.reply(f"Bot started at {discord.utils.format_dt(self.bot.started_at)}!")
 

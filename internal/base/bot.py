@@ -246,13 +246,23 @@ class BotHelp(commands.HelpCommand):
 			description=f"-# For more information about a command you can run: `{self.context.clean_prefix}help [command-name]`",
 		)
 
-		for cog, cog_commands in mapping.items():
-			filtered: list[commands.Command] = await self.filter_commands(cog_commands, sort=True)
-			command_signatures = [f"{self.get_command_signature(c)}\n  - {c.help}" if c.help else self.get_command_signature(c) for c in filtered]
+		category_signatures: dict[str, list[str]] = {}
 
-			if command_signatures:
-				cog_header = f"\n### {cog.qualified_name}" if cog is not None else ""
-				embed.description += cog_header + "".join([f"\n- {s}" for s in command_signatures])
+		for cog, cog_commands in mapping.items():
+			filtered_commands: list[commands.Command] = await self.filter_commands(cog_commands, sort=True)
+
+			cog_name = cog.qualified_name if cog is not None else "Other"
+			signatures = [f"{self.get_command_signature(c)}\n  - {c.help}" if c.help else self.get_command_signature(c) for c in filtered_commands]
+			if signatures:
+				category_signatures.setdefault(cog_name, []).extend(signatures)
+
+		for cat_name, cat_signatures in category_signatures.items():
+			if cat_name == "Other":
+				continue
+			embed.description += f"\n### {cat_name}\n{'\n'.join(f'- {s}' for s in cat_signatures)}"
+
+		if other_signatures := category_signatures.get("Other"):
+			embed.description += f"\n### Other\n{'\n'.join(f'- {s}' for s in other_signatures)}"
 
 		channel = self.get_destination()
 		await channel.send(embed=embed)
