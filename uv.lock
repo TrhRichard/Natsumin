@@ -351,7 +351,7 @@ requires-dist = [
     { name = "aiofiles", specifier = ">=25.1.0" },
     { name = "aiosqlite", specifier = ">=0.21.0" },
     { name = "parsedatetime", specifier = ">=2.6" },
-    { name = "py-cord", specifier = "==2.7.0rc2" },
+    { name = "py-cord", specifier = "==2.7.0" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "thefuzz", specifier = ">=0.22.1" },
 ]
@@ -451,15 +451,15 @@ wheels = [
 
 [[package]]
 name = "py-cord"
-version = "2.7.0rc2"
+version = "2.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/68/a1/0df7ebaaf3cc8f7e565c052c4d106febdb6f4a6c8c4bca2c0c9bbc5b1d3b/py_cord-2.7.0rc2.tar.gz", hash = "sha256:988e245984f61c522935315fb859a8ca9ee492dd9298f4ec965a882b2f256172", size = 1122056, upload-time = "2025-10-22T10:16:52.661Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7e/13/faca034d886cf7ad504d44d797ed6823dbfbe05f3093ae9cd60bd08b93af/py_cord-2.7.0.tar.gz", hash = "sha256:6f947e6b08ae2884777a3fcb1150d7c0df14c4461e8015ed3d2f29c081e79dfd", size = 1128349, upload-time = "2025-12-24T16:00:02.935Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/61/6b/aada1243393f86258d2d995c1788529fe885c15f95c2c2fced319bd82c3c/py_cord-2.7.0rc2-py3-none-any.whl", hash = "sha256:097b4a3c4ff419591a72422e02d9097f56422eeb18a8217cb277986a36288f4f", size = 1203020, upload-time = "2025-10-22T10:16:50.958Z" },
+    { url = "https://files.pythonhosted.org/packages/e7/d8/a4094151a7f942c2606c23e5c9cc5fa5f4aba2405e678f23c360f58c8f91/py_cord-2.7.0-py3-none-any.whl", hash = "sha256:7f5badc55f6cd80bac0e65e77a10a3aaac17bc7932c2088035dd925900a4c29e", size = 1204142, upload-time = "2025-12-24T16:00:01.224Z" },
 ]
 
 [[package]]

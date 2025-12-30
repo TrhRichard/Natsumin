@@ -204,7 +204,8 @@ class SeasonUserProfile(ui.DesignerView):
 
 		async with bot.database.connect() as conn:
 			async with conn.execute(
-				"SELECT u.username, u.discord_id, su.* FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.user_id = ?", (user_id,)
+				"SELECT u.username, u.discord_id, su.* FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND su.user_id = ?",
+				(season_id, user_id),
 			) as cursor:
 				user_row = await cursor.fetchone()
 
@@ -363,8 +364,8 @@ class SeasonUserContracts(ui.DesignerView):
 
 		async with bot.database.connect() as conn:
 			async with conn.execute(
-				"SELECT u.username, u.discord_id, su.contractor_id, su.status, su.kind FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.user_id = ?",
-				(user_id,),
+				"SELECT u.username, u.discord_id, su.contractor_id, su.status, su.kind FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND su.user_id = ?",
+				(season_id, user_id),
 			) as cursor:
 				user_row = await cursor.fetchone()
 
@@ -469,6 +470,11 @@ class SeasonUserContracts(ui.DesignerView):
 			await super().on_timeout()
 		except (discord.Forbidden, discord.NotFound):
 			pass
+
+
+class SeasonUserFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
+	user: str | int | discord.abc.User = commands.flag(aliases=["u"], default=None, positional=True)
+	season: str = commands.flag(aliases=["s"], default=None)
 
 
 class UserCog(NatsuminCog):
@@ -643,16 +649,16 @@ class UserCog(NatsuminCog):
 
 	@commands.command("seasonprofile", aliases=["sp", "p", "profile"], help="Fetch the seasonal profile of a user")
 	@must_be_channel(1002056335845752864)
-	async def text_profile(self, ctx: commands.Context, user: str | int | discord.abc.User = None):
+	async def text_profile(self, ctx: commands.Context, *, flags: SeasonUserFlags):
+		user = flags.user
 		if user is None:
 			user = ctx.author
-		season = None
 
 		async with self.bot.database.connect() as conn:
-			if season is None:
+			if flags.season is None:
 				season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
 			else:
-				season_id = season
+				season_id = flags.season
 
 			if season_id not in self.bot.database.available_seasons:
 				return await ctx.reply(
@@ -680,16 +686,16 @@ class UserCog(NatsuminCog):
 
 	@commands.command("contracts", aliases=["c"], help="Fetch the status of your contracts")
 	@must_be_channel(1002056335845752864)
-	async def text_contracts(self, ctx: commands.Context, user: str | int | discord.abc.User = None):
+	async def text_contracts(self, ctx: commands.Context, *, flags: SeasonUserFlags):
+		user = flags.user
 		if user is None:
 			user = ctx.author
-		season = None
 
 		async with self.bot.database.connect() as conn:
-			if season is None:
+			if flags.season is None:
 				season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
 			else:
-				season_id = season
+				season_id = flags.season
 
 			if season_id not in self.bot.database.available_seasons:
 				return await ctx.reply(

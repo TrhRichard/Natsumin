@@ -55,7 +55,7 @@ async def get_deadline_footer(database: NatsuminDatabase, season_id: str, *, db_
 		difference_seconds = max(difference.total_seconds(), 0)
 
 		if difference_seconds > 0:
-			return deadline_footer.format(time_till=diff_to_str(deadline_datetime, current_datetime))
+			return deadline_footer.format(time_till=diff_to_str(deadline_datetime, current_datetime, include_seconds=False))
 		else:
 			return f"{season_name} has ended."
 	else:
@@ -65,7 +65,7 @@ async def get_deadline_footer(database: NatsuminDatabase, season_id: str, *, db_
 async def season_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.OptionChoice]:
 	bot: NatsuminBot = ctx.bot
 	async with bot.database.connect() as conn:
-		async with conn.execute("SELECT id, name FROM season") as cursor:
+		async with conn.execute("SELECT id, name FROM season WHERE id LIKE ?1 OR name LIKE ?1", (f"%{ctx.value.strip()}%",)) as cursor:
 			season_list = [discord.OptionChoice(name=row["name"], value=row["id"]) for row in await cursor.fetchall()]
 
 	return season_list

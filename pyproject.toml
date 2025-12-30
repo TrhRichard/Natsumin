@@ -8,7 +8,7 @@ dependencies = [
     "aiofiles>=25.1.0",
     "aiosqlite>=0.21.0",
     "parsedatetime>=2.6",
-    "py-cord==2.7.0rc2",
+    "py-cord==2.7.0",
     "python-dotenv>=1.1.1",
     "thefuzz>=0.22.1",
 ]

@@ -17,9 +17,10 @@ if TYPE_CHECKING:
 	from internal.base.bot import NatsuminBot
 
 from .User import UserCog
+from .Contracts import ContractsCog
 
 
-class ContractsExt(UserCog, name="Contracts"):
+class ContractsExt(UserCog, ContractsCog, name="Contracts"):
 	"""Contracts related commands"""
 
 	def __init__(self, bot: NatsuminBot):
@@ -66,13 +67,17 @@ class ContractsExt(UserCog, name="Contracts"):
 	async def change_user_status(self):
 		async with self.bot.database.connect() as conn:
 			season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
-			async with conn.execute(
-				"SELECT COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0), COUNT(*) FROM season_user WHERE season_id = ? AND kind = ?",
-				(UserStatus.PASSED.value, season_id, UserKind.NORMAL.value),
-			) as cursor:
+			query = """
+				SELECT
+					SUM(su.status = ?2 AND su.kind = ?3) AS passed,
+					SUM(su.kind = ?3) AS total
+				FROM season_user su
+				WHERE su.season_id = ?1;
+			"""
+			async with conn.execute(query, (season_id, UserStatus.PASSED.value, UserKind.NORMAL.value)) as cursor:
 				row = await cursor.fetchone()
-				users_passed: int = row[0]
-				users_total: int = row[1]
+				users_passed = row["passed"]
+				users_total = row["total"]
 		await self.bot.change_presence(
 			status=discord.Status.online,
 			activity=discord.CustomActivity(

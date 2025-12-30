@@ -10,4 +10,4 @@ CONSOLE_LOGGING_FORMATTER.converter = time.gmtime
 
 class COLORS:
 	DEFAULT = discord.Colour(0x434F5D)
-	ERROR = discord.Colour(0xC91A0E)
+	ERROR = discord.Colour(0xE74C3C)

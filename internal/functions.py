@@ -67,7 +67,7 @@ def get_url(text: str) -> str:
 	return ""
 
 
-def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime) -> str:
+def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime, *, include_seconds: bool = True) -> str:
 	delta = dt1 - dt2
 
 	total_seconds = int(delta.total_seconds())
@@ -89,7 +89,8 @@ def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime) -> str:
 		parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
 	if minutes > 0:
 		parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
-	if seconds > 0:
+
+	if (include_seconds or not parts) and seconds > 0:
 		parts.append(f"{seconds} second{'s' if seconds != 1 else ''}")
 
 	if not parts:
