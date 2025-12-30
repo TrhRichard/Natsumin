@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from internal.constants import FILE_LOGGING_FORMATTER
-
 from internal.enums import UserStatus, UserKind
 from config import BOT_PREFIX, DEV_BOT_PREFIX
 from internal.checks import must_be_channel
@@ -88,10 +87,12 @@ class ContractsExt(UserCog, ContractsCog, name="Contracts"):
 	@sync_database.before_loop
 	async def before_sync(self):
 		await self.bot.wait_until_ready()
+		await self.bot.database.wait_until_ready()
 
 	@change_user_status.before_loop
 	async def before_status(self):
 		await self.bot.wait_until_ready()
+		await self.bot.database.wait_until_ready()
 
 	def cog_unload(self):
 		self.change_user_status.cancel()

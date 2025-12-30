@@ -120,6 +120,5 @@ INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_footer
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.syncing_enabled", "1");
 
 -- Add supported seasons 
-INSERT OR IGNORE INTO season (id, name) VALUES ("fall_2024", "Fall 2024");
 INSERT OR IGNORE INTO season (id, name) VALUES ("winter_2025", "Winter 2025");
 INSERT OR IGNORE INTO season (id, name) VALUES ("season_x", "Season X");

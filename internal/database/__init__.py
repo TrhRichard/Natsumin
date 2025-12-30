@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 import aiosqlite
 import aiofiles
+import asyncio
 import logging
 import sqlite3
 
@@ -11,6 +12,8 @@ class NatsuminDatabase:
 		self.logger = logging.getLogger("bot")
 		self.production = production
 		self.available_seasons: tuple[str, ...] = tuple()
+
+		self._setup_complete = asyncio.Event()
 
 	async def open(self) -> aiosqlite.Connection:
 		conn = await aiosqlite.connect("data/database-prod.sqlite" if self.production else "data/database-dev.sqlite")
@@ -45,6 +48,8 @@ class NatsuminDatabase:
 			async with conn.execute("SELECT DISTINCT(id) FROM season") as cursor:
 				self.available_seasons = tuple(row["id"] for row in await cursor.fetchall())
 
+		self._setup_complete.set()
+
 	async def get_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> str | None:
 		async with self.connect(db_conn) as conn:
 			async with conn.execute("SELECT value FROM bot_config WHERE key = ?", (key,)) as cursor:
@@ -67,3 +72,6 @@ class NatsuminDatabase:
 			await conn.commit()
 
 		return True if row_count == 1 else False
+
+	async def wait_until_ready(self):
+		await self._setup_complete.wait()
