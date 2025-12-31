@@ -18,6 +18,10 @@ class NatsuminDatabase:
 	async def open(self) -> aiosqlite.Connection:
 		conn = await aiosqlite.connect("data/database-prod.sqlite" if self.production else "data/database-dev.sqlite")
 		conn.row_factory = aiosqlite.Row
+		await conn.executescript("""
+			PRAGMA journal_mode = WAL;
+			PRAGMA foreign_keys = ON;
+		""")
 		return conn
 
 	@asynccontextmanager

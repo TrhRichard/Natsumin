@@ -8,3 +8,4 @@ class BadgeData(TypedDict):
 	artist: str
 	url: str
 	type: Literal["contracts", "aria"]
+	created_at: str

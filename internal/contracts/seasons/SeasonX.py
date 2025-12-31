@@ -139,7 +139,7 @@ async def _sync_dashboard_data(sheet_data: dict, conn: aiosqlite.Connection):
 			else:
 				contract_id: str = contract_row["id"]
 				if contract_row["status"] != contract_status:
-					await conn.execute("UPDATE season_contract SET status = ? WHERE id = ?", (user_status.value, contract_id))
+					await conn.execute("UPDATE season_contract SET status = ? WHERE id = ?", (contract_status.value, contract_id))
 				if contract_row["name"] != contract_name:
 					await conn.execute("UPDATE season_contract SET name = ? WHERE id = ?", (contract_name, contract_id))
 

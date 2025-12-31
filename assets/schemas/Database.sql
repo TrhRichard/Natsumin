@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS badge (
 	artist      TEXT NOT NULL,
 	url         TEXT NOT NULL,
 	type        TEXT NOT NULL DEFAULT 'contracts',
+	created_at	TEXT NOT NULL,
 
 	PRIMARY KEY (id)
 ) STRICT;

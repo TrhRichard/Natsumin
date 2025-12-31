@@ -69,3 +69,23 @@ async def season_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.
 			season_list = [discord.OptionChoice(name=row["name"], value=row["id"]) for row in await cursor.fetchall()]
 
 	return season_list
+
+
+def usernames_autocomplete(seasonal: bool = True):
+	async def callback(ctx: discord.AutocompleteContext) -> list[str]:
+		bot: NatsuminBot = ctx.bot
+		async with bot.database.connect() as conn:
+			params = []
+			query = "SELECT username FROM user WHERE username LIKE ?"
+			if seasonal:
+				query = "SELECT u.username FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND u.username LIKE ?"
+				params.append(await bot.get_config("contracts.active_season", db_conn=conn))
+			query += " LIMIT 25"
+			params.append(f"%{ctx.value.strip()}%")
+
+			async with conn.execute(query, params) as cursor:
+				username_list: list[str] = [row["username"] for row in await cursor.fetchall()]
+
+		return username_list
+
+	return callback

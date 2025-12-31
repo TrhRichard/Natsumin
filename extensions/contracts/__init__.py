@@ -17,9 +17,10 @@ if TYPE_CHECKING:
 
 from .User import UserCog
 from .Contracts import ContractsCog
+from .Badge import BadgeCog
 
 
-class ContractsExt(UserCog, ContractsCog, name="Contracts"):
+class ContractsExt(UserCog, BadgeCog, ContractsCog, name="Contracts"):
 	"""Contracts related commands"""
 
 	def __init__(self, bot: NatsuminBot):
