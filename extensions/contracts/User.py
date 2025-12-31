@@ -229,7 +229,8 @@ class SeasonUserProfile(ui.DesignerView):
 				user_description += f"- **Contractor**: {contractor_username or 'None'}\n"
 
 				async with conn.execute(
-					"SELECT u.username FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.contractor_id = ?", (user_id,)
+					"SELECT u.username FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND su.contractor_id = ?",
+					(season_id, user_id),
 				) as cursor:
 					contractees = tuple(row["username"] for row in await cursor.fetchall())
 
