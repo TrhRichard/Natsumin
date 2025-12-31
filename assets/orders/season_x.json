@@ -1,0 +1,50 @@
+[
+	{
+		"name": "Normal Contracts",
+		"order": [
+			"base contract",
+			"challenge contract",
+			"base buddy",
+			"challenge buddy"
+		]
+	},
+	{
+		"name": "Special Contracts",
+		"order": [
+			"veteran special",
+			"duality special",
+			"epoch special",
+			"honzuki special",
+			"aria special"
+		]
+	},
+	{
+		"name": "Mid-Season Drops",
+		"order": [
+			"sumira's challenge",
+			"hitome's challenge",
+			"sae's challenge",
+			"christmas challenge"
+		]
+	},
+	{
+		"name": "Arcana Quests",
+		"order": [
+			{
+				"type": "regex",
+				"pattern": "arcana special \\d+",
+				"order_by": "last_number"
+			}
+		]
+	},
+	{
+		"name": "Aid Contracts",
+		"order": [
+			{
+				"type": "regex",
+				"pattern": "aid contract \\d+",
+				"order_by": "last_number"
+			}
+		]
+	}
+]

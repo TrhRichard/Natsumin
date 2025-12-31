@@ -4,15 +4,11 @@ aiofiles==25.1.0
     # via natsumin (pyproject.toml)
 aiosqlite==0.21.0
     # via natsumin (pyproject.toml)
-async-lru==2.0.5
-    # via natsumin (pyproject.toml)
 parsedatetime==2.6
     # via natsumin (pyproject.toml)
-py-cord==2.7.0rc2
+py-cord==2.7.0
     # via natsumin (pyproject.toml)
 python-dotenv==1.1.1
-    # via natsumin (pyproject.toml)
-pyyaml==6.0.3
     # via natsumin (pyproject.toml)
 thefuzz==0.22.1
     # via natsumin (pyproject.toml)
