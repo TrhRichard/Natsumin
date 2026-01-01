@@ -111,7 +111,7 @@ class NatsuminBot(commands.Bot):
 
 	async def fetch_user_from_database(
 		self, user: str | int | discord.abc.User, *, db_conn: aiosqlite.Connection = None
-	) -> tuple[str | None, discord.abc.User | None]:
+	) -> tuple[str | None, discord.User | discord.Member | None]:
 		discord_user: discord.Member = None
 
 		if isinstance(user, (str, int)):

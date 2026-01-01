@@ -69,8 +69,8 @@ class MasterUserProfile(ui.DesignerView):
 			self.add_item(
 				ui.Container(
 					(
-						ui.Section(ui.TextDisplay(header_content), accessory=ui.Thumbnail(discord_user.avatar.url))
-						if discord_user and discord_user.avatar
+						ui.Section(ui.TextDisplay(header_content), accessory=ui.Thumbnail(discord_user.display_avatar.url))
+						if discord_user and discord_user.display_avatar
 						else ui.TextDisplay(header_content)
 					),
 					ui.Separator(),
@@ -184,8 +184,8 @@ class SeasonUserProfile(ui.DesignerView):
 			self.add_item(
 				ui.Container(
 					(
-						ui.Section(ui.TextDisplay(header_content), accessory=ui.Thumbnail(discord_user.avatar.url))
-						if discord_user and discord_user.avatar
+						ui.Section(ui.TextDisplay(header_content), accessory=ui.Thumbnail(discord_user.display_avatar.url))
+						if discord_user and discord_user.display_avatar
 						else ui.TextDisplay(header_content)
 					),
 					ui.Separator(),
@@ -367,8 +367,8 @@ class SeasonUserContracts(ui.DesignerView):
 
 			container = ui.Container(
 				(
-					ui.Section(ui.TextDisplay(header_content), accessory=ui.Thumbnail(discord_user.avatar.url))
-					if discord_user and discord_user.avatar
+					ui.Section(ui.TextDisplay(header_content), accessory=ui.Thumbnail(discord_user.display_avatar.url))
+					if discord_user and discord_user.display_avatar
 					else ui.TextDisplay(header_content)
 				),
 				ui.Separator(),

@@ -75,7 +75,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 				rows = await cursor.fetchall()
 
 		embed = discord.Embed(description="", color=COLORS.DEFAULT)
-		embed.set_author(name=f"{self.bot.user.name}'s configuration", icon_url=self.bot.user.avatar.url)
+		embed.set_author(name=f"{self.bot.user.name}'s configuration", icon_url=self.bot.user.display_avatar.url)
 
 		embed.description = "\n".join(f"- **`{row['key']}`**: `{row['value']}`" for row in rows)
 
