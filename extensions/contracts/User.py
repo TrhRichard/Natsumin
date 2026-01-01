@@ -146,10 +146,17 @@ class SeasonUserProfile(ui.DesignerView):
 				user_description += f"- **Rep**: {user_row['rep'] or 'Unknown'}\n"
 				user_description += f"- **Contractor**: {contractor_username or 'None'}\n"
 
-				async with conn.execute(
-					"SELECT u.username FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND su.contractor_id = ?",
-					(season_id, user_id),
-				) as cursor:
+				query = """
+					SELECT 
+						u.username
+					FROM season_user su 
+					JOIN user u ON su.user_id = u.id 
+					WHERE 
+						su.season_id = ? 
+						AND su.contractor_id = ? 
+					ORDER BY u.username
+				"""
+				async with conn.execute(query, (season_id, user_id)) as cursor:
 					contractees = tuple(row["username"] for row in await cursor.fetchall())
 
 				if contractees:
@@ -235,10 +242,19 @@ class SeasonUserProfile(ui.DesignerView):
 
 					username = row["username"]
 
-					async with conn.execute(
-						"SELECT user_id as contractee_id FROM season_user WHERE season_id = ? AND contractor_id = ? LIMIT 1",
-						(self.season_id, self.user_id),
-					) as cursor:
+					query = """
+						SELECT 
+							su.user_id AS contractee_id 
+						FROM season_user su 
+						JOIN user u ON su.user_id = u.id 
+						WHERE 
+							su.season_id = ? 
+							AND su.contractor_id = ? 
+						ORDER BY u.username
+						LIMIT 1
+					"""
+
+					async with conn.execute(query, (self.season_id, self.user_id)) as cursor:
 						row = await cursor.fetchone()
 
 					if row is None:
