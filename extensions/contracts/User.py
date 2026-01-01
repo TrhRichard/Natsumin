@@ -402,7 +402,7 @@ class UserCog(NatsuminCog):
 
 	@user_group.command(name="profile", description="Fetch the global profile of a user")
 	@discord.option("user", str, description="The user to get profile of", default=None, autocomplete=usernames_autocomplete(False))
-	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
 	async def globalprofile(self, ctx: discord.ApplicationContext, user: str | None = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
@@ -425,7 +425,7 @@ class UserCog(NatsuminCog):
 		autocomplete=usernames_autocomplete(True),
 	)
 	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, autocomplete=season_autocomplete)
-	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
 	async def profile(self, ctx: discord.ApplicationContext, user: str | None = None, season: str | None = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
@@ -473,7 +473,7 @@ class UserCog(NatsuminCog):
 		autocomplete=usernames_autocomplete(True),
 	)
 	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, autocomplete=season_autocomplete)
-	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
 	async def contracts(self, ctx: discord.ApplicationContext, user: str | None = None, season: str | None = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author

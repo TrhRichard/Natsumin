@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from internal.checks import must_be_channel, can_modify_badges
 from internal.contracts import usernames_autocomplete
 from internal.functions import is_channel, frmt_iter
-from internal.checks import must_be_channel
 from internal.base.view import BadgeDisplay
 from internal.base.cog import NatsuminCog
 from typing import TYPE_CHECKING, Literal
 from internal.schemas import BadgeData
+from internal.constants import COLORS
 from discord.ext import commands
 from config import GUILD_IDS
 from uuid import uuid4
@@ -26,7 +27,7 @@ async def badge_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.O
 				*
 			FROM badge
 			WHERE id = ?1 OR name LIKE ?1
-			ORDER BY type, created_at, name
+			ORDER BY type, created_at DESC, name
 			LIMIT 25
 		"""
 		async with conn.execute(query, (f"%{ctx.value.strip()}%",)) as cursor:
@@ -41,13 +42,11 @@ class FindFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
 	type: Literal["contracts", "aria"] = commands.flag(aliases=["t"], default=None)
 
 
-CAN_MODIFY_BADGES = (448318227219742720, 243880818651430912)
-
-
 class BadgeCog(NatsuminCog):
 	badge_group = discord.commands.SlashCommandGroup("badge", description="Various badge related commands", guild_ids=GUILD_IDS)
 
 	@badge_group.command(description="Fetch badges")
+	@discord.option("name", str, min_length=1, default=None)
 	@discord.option("owned", bool, default=None)
 	@discord.option(
 		"owned_user",
@@ -57,10 +56,11 @@ class BadgeCog(NatsuminCog):
 		autocomplete=usernames_autocomplete(False),
 	)
 	@discord.option("type", str, choices=["contracts", "aria"], parameter_name="badge_type", default=None)
-	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=True)
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
 	async def find(
 		self,
 		ctx: discord.ApplicationContext,
+		name: str | None = None,
 		owned_user: str | None = None,
 		owned: bool | None = None,
 		badge_type: str | None = None,
@@ -75,6 +75,10 @@ class BadgeCog(NatsuminCog):
 			joins_list: list[str] = []
 			joins_params = []
 			params = []
+
+			if name is not None:
+				where_conditions.append("name LIKE ?")
+				where_params.append(f"%{name}%")
 
 			if badge_type is not None:
 				where_conditions.append("type = ?")
@@ -121,7 +125,7 @@ class BadgeCog(NatsuminCog):
 
 	@badge_group.command(description="Fetch the badges of a user")
 	@discord.option("user", str, description="The user to fetch badges from", default=None, autocomplete=usernames_autocomplete(False))
-	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=True)
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
 	async def inventory(self, ctx: discord.ApplicationContext, user: str | None = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
@@ -153,7 +157,8 @@ class BadgeCog(NatsuminCog):
 		await ctx.respond(view=BadgeDisplay(ctx.author, badges), ephemeral=hidden)
 
 	@badge_group.command(description="Add a new badge")
-	@discord.option("name", str)
+	@can_modify_badges()
+	@discord.option("name", str, min_length=1)
 	@discord.option("description", str, default=None)
 	@discord.option("artist", str, default=None)
 	@discord.option("image_url", str, default=None)
@@ -167,9 +172,6 @@ class BadgeCog(NatsuminCog):
 		image_url: str | None = None,
 		badge_type: str = "contracts",
 	):
-		if not (await self.bot.is_owner(ctx.author)) and ctx.author.id not in CAN_MODIFY_BADGES:
-			raise commands.MissingPermissions(["badge_edit"])
-
 		async with self.bot.database.connect() as conn:
 			badge_id = uuid4()
 			await conn.execute(
@@ -188,12 +190,69 @@ class BadgeCog(NatsuminCog):
 
 		await ctx.respond(f"Created badge **{name}** ({badge_id})", ephemeral=True)
 
+	@badge_group.command(description="Edit a existing badge")
+	@can_modify_badges()
+	@discord.option("id", str, autocomplete=badge_autocomplete)
+	@discord.option("name", str, min_length=1, default=None)
+	@discord.option("description", str, default=None)
+	@discord.option("artist", str, default=None)
+	@discord.option("image_url", str, default=None)
+	@discord.option("type", str, choices=["contracts", "aria"], parameter_name="badge_type", default=None)
+	async def edit(
+		self,
+		ctx: discord.ApplicationContext,
+		id: str,
+		name: str | None = None,
+		description: str | None = None,
+		artist: str | None = None,
+		image_url: str | None = None,
+		badge_type: str | None = None,
+	):
+		if name is None and description is None and artist is None and image_url is None and badge_type is None:  # No changes only id was passed
+			return await ctx.respond("No changes were specified.", ephemeral=True)
+
+		async with self.bot.database.connect() as conn:
+			async with conn.execute("SELECT * FROM badge WHERE id = ?", (id,)) as cursor:
+				badge_row: BadgeData = await cursor.fetchone()
+				if badge_row is None:
+					return await ctx.respond("Badge not found!", ephemeral=True)
+
+			modifications_done: list[str] = []
+
+			if name is not None:
+				await conn.execute("UPDATE badge SET name = ? WHERE id = ?", (name, id))
+				modifications_done.append(f"Changed name to **{name}**")
+
+			if description is not None:
+				await conn.execute("UPDATE badge SET description = ? WHERE id = ?", (description, id))
+				modifications_done.append(f"Changed description to **{description}**")
+
+			if artist is not None:
+				await conn.execute("UPDATE badge SET artist = ? WHERE id = ?", (artist, id))
+				modifications_done.append(f"Changed artist to **{artist}**")
+
+			if image_url is not None:
+				await conn.execute("UPDATE badge SET url = ? WHERE id = ?", (image_url, id))
+				modifications_done.append(f"Changed url to **{image_url}**")
+
+			if badge_type is not None:
+				await conn.execute("UPDATE badge SET type = ? WHERE id = ?", (badge_type, id))
+				modifications_done.append(f"Changed type to **{badge_type}**")
+
+			embed = discord.Embed(title="Modifications", color=COLORS.DEFAULT)
+			embed.set_footer(text=f"ID: {badge_row['id']}")
+			if modifications_done:
+				await conn.commit()
+				embed.description = "\n".join(f"- {m}" for m in modifications_done)
+			else:
+				embed.description = "No modifications done."
+
+			await ctx.respond("Done! Below is a list of all the modifications done.", embed=embed, ephemeral=True)
+
 	@badge_group.command(description="Delete a existing badge")
+	@can_modify_badges()
 	@discord.option("id", str, autocomplete=badge_autocomplete)
 	async def delete(self, ctx: discord.ApplicationContext, id: str):
-		if not (await self.bot.is_owner(ctx.author)) and ctx.author.id not in CAN_MODIFY_BADGES:
-			raise commands.MissingPermissions(["badge_edit"])
-
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT 1 FROM badge WHERE id = ?", (id,)) as cursor:
 				badge_exists = (await cursor.fetchone()) is not None
@@ -208,13 +267,11 @@ class BadgeCog(NatsuminCog):
 		await ctx.respond(f"Deleted badge **{badge_row['name']}**", ephemeral=True)
 
 	@badge_group.command(description="Give a badge to a user/multiple users")
+	@can_modify_badges()
 	@discord.option("id", str, autocomplete=badge_autocomplete)
 	@discord.option("user", str, autocomplete=usernames_autocomplete(False), default=None)
 	@discord.option("multiple_users", str, description="Usernames/ids separated by a comma, includes user if set", default=None)
 	async def give(self, ctx: discord.ApplicationContext, id: str, user: str | None = None, multiple_users: str | None = None):
-		if not (await self.bot.is_owner(ctx.author)) and ctx.author.id not in CAN_MODIFY_BADGES:
-			raise commands.MissingPermissions(["badge_edit"])
-
 		list_of_users: list[str] = []
 		if user is not None:
 			list_of_users.append(user)
@@ -267,12 +324,10 @@ class BadgeCog(NatsuminCog):
 		await ctx.respond(message, ephemeral=True)
 
 	@badge_group.command(description="Remove a badge from a user")
+	@can_modify_badges()
 	@discord.option("id", str, autocomplete=badge_autocomplete)
 	@discord.option("user", str, autocomplete=usernames_autocomplete(False))
 	async def remove(self, ctx: discord.ApplicationContext, id: str, user: str):
-		if not (await self.bot.is_owner(ctx.author)) and ctx.author.id not in CAN_MODIFY_BADGES:
-			raise commands.MissingPermissions(["badge_edit"])
-
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT * FROM badge WHERE id = ?", (id,)) as cursor:
 				badge_row = await cursor.fetchone()

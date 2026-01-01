@@ -150,7 +150,7 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 	@reminder_group.command(description="Create a new reminder.")
 	@discord.option("when", str, required=True, parameter_name="remind_in", description="Example: 1d24h60m or 1 day 24 hours 60 minutes")
 	@discord.option("message", str, default="", description="Optionally include a message to display when the reminder is due")
-	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
 	async def create(self, ctx: discord.ApplicationContext, remind_in: str, message: str, hidden: bool):
 		response, ephemeral = await self.create_reminder(ctx.user, ctx.channel, remind_in, message, hidden)
 		await ctx.respond(response, ephemeral=ephemeral)
@@ -159,13 +159,13 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 	@discord.option(
 		"id", int, required=True, autocomplete=get_user_reminders, description="ID of the reminder, should get autocompleted if not skill issue"
 	)
-	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
 	async def delete(self, ctx: discord.ApplicationContext, id: int, hidden: bool):
 		response, ephemeral = await self.delete_reminder(ctx.user, id, hidden)
 		await ctx.respond(response, ephemeral=ephemeral)
 
 	@reminder_group.command(description="See all the currently set reminders and their reminding date")
-	@discord.option("hidden", bool, description="Optionally make the response only visible to you", default=False)
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
 	@discord.option("show_hidden", bool, description="Show hidden (DM) reminders, hidden argument takes priority over this.", default=False)
 	async def list(self, ctx: discord.ApplicationContext, hidden: bool = False, show_hidden: bool = False):
 		response, ephemeral = await self.list_reminders(ctx.user, hidden, show_hidden)
