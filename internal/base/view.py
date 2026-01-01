@@ -45,14 +45,14 @@ class BadgeDisplay(ui.DesignerView):
 			badge_art = ui.TextDisplay("No image available.")
 
 		page_buttons = ui.ActionRow(
-			ui.Button(style=discord.ButtonStyle.secondary, label="<--", disabled=False, custom_id="previous"),
+			ui.Button(style=discord.ButtonStyle.secondary, label="<--", disabled=len(self.badges) == 1, custom_id="previous"),
 			ui.Button(
 				style=discord.ButtonStyle.primary,
 				label=f"{self.current_badge_selected + 1}/{len(self.badges)}",
 				disabled=True,  # len(self.badges) == 1,
 				custom_id="change_page",
 			),
-			ui.Button(style=discord.ButtonStyle.secondary, label="-->", disabled=False, custom_id="next"),
+			ui.Button(style=discord.ButtonStyle.secondary, label="-->", disabled=len(self.badges) == 1, custom_id="next"),
 		)
 
 		for button in page_buttons.children:

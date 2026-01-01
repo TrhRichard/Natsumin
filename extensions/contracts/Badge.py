@@ -37,7 +37,8 @@ async def badge_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.O
 
 
 class FindFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
-	owned_user: str | int | discord.abc.User = commands.flag(aliases=["ou"], default=None, positional=True)
+	name: str = commands.flag(aliases=["n"], default=None, positional=True)
+	owned_user: str | int | discord.abc.User = commands.flag(aliases=["u"], default=None)
 	owned: bool = commands.flag(aliases=["o"], default=None)
 	type: Literal["contracts", "aria"] = commands.flag(aliases=["t"], default=None)
 
@@ -361,6 +362,10 @@ class BadgeCog(NatsuminCog):
 			joins_list: list[str] = []
 			joins_params = []
 			params = []
+
+			if flags.name is not None:
+				where_conditions.append("name LIKE ?")
+				where_params.append(f"%{flags.name}%")
 
 			if flags.type is not None:
 				where_conditions.append("type = ?")
