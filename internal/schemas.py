@@ -9,3 +9,4 @@ class BadgeData(TypedDict):
 	url: str
 	type: Literal["contracts", "aria"]
 	created_at: str
+	author_owns_badge: int | None

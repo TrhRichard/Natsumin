@@ -24,7 +24,7 @@ async def badge_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.O
 	async with bot.database.connect() as conn:
 		query = """
 			SELECT
-				*
+				id, name, type
 			FROM badge
 			WHERE id = ?1 OR name LIKE ?1
 			ORDER BY type, created_at DESC, name
@@ -71,11 +71,22 @@ class BadgeCog(NatsuminCog):
 			hidden = True
 
 		async with self.bot.database.connect() as conn:
+			select_list: list[str] = ["b.*"]
 			where_conditions: list[str] = []
 			where_params = []
 			joins_list: list[str] = []
 			joins_params = []
 			params = []
+
+			author_user_id, _ = await self.bot.fetch_user_from_database(ctx.author, db_conn=conn)
+			if author_user_id is not None:
+				joins_list.append("""
+					LEFT JOIN user_badge aub ON
+						aub.badge_id = b.id
+						AND aub.user_id = ?
+				""")
+				joins_params.append(author_user_id)
+				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
 
 			if name is not None:
 				where_conditions.append("name LIKE ?")
@@ -104,7 +115,7 @@ class BadgeCog(NatsuminCog):
 
 			query = f"""
 				SELECT
-					b.*
+					{", ".join(select_list)}
 				FROM badge b
 				{"\n".join(joins_list)}
 				{f" WHERE {' AND '.join(where_conditions)}" if where_conditions else ""}
@@ -139,17 +150,38 @@ class BadgeCog(NatsuminCog):
 			if not user_id:
 				return await ctx.respond("User not found!", ephemeral=True)
 
-			query = """
+			select_list: list[str] = ["b.*"]
+			joins_list: list[str] = []
+			joins_params = []
+			params = []
+
+			author_user_id, _ = await self.bot.fetch_user_from_database(ctx.author, db_conn=conn)
+			if author_user_id is not None:
+				joins_list.append("""
+					LEFT JOIN user_badge aub ON
+						aub.badge_id = b.id
+						AND aub.user_id = ?
+				""")
+				joins_params.append(author_user_id)
+				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
+
+			query = f"""
 				SELECT
 					b.*
 				FROM user_badge ub 
 				JOIN badge b ON 
 					ub.badge_id = b.id 
+				{"\n".join(joins_list)}
 				WHERE 
 					ub.user_id = ? 
 				ORDER BY b.type, b.created_at, b.name
 			"""
-			async with conn.execute(query, (user_id,)) as cursor:
+
+			if joins_list:
+				params.extend(joins_params)
+
+			params.append(user_id)
+			async with conn.execute(query, params) as cursor:
 				badges: list[BadgeData] = [dict(row) for row in await cursor.fetchall()]
 
 		if len(badges) == 0:
@@ -274,10 +306,10 @@ class BadgeCog(NatsuminCog):
 	@discord.option("multiple_users", str, description="Usernames/ids separated by a comma, includes user if set", default=None)
 	async def give(self, ctx: discord.ApplicationContext, id: str, user: str | None = None, multiple_users: str | None = None):
 		list_of_users: list[str] = []
-		if user is not None:
-			list_of_users.append(user)
+		if user.strip():
+			list_of_users.append(user.strip())
 		if multiple_users is not None:
-			list_of_users.extend(multiple_users.split(","))
+			list_of_users.extend(u.strip() for u in multiple_users.split(",") if u.strip())
 
 		list_of_users = list(set(list_of_users))
 
@@ -357,11 +389,22 @@ class BadgeCog(NatsuminCog):
 	@must_be_channel(1002056335845752864)
 	async def text_find(self, ctx: commands.Context, *, flags: FindFlags):
 		async with self.bot.database.connect() as conn:
+			select_list: list[str] = ["b.*"]
 			where_conditions: list[str] = []
 			where_params = []
 			joins_list: list[str] = []
 			joins_params = []
 			params = []
+
+			author_user_id, _ = await self.bot.fetch_user_from_database(ctx.author, db_conn=conn)
+			if author_user_id is not None:
+				joins_list.append("""
+					LEFT JOIN user_badge aub ON
+						aub.badge_id = b.id
+						AND aub.user_id = ?
+				""")
+				joins_params.append(author_user_id)
+				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
 
 			if flags.name is not None:
 				where_conditions.append("name LIKE ?")
@@ -391,7 +434,7 @@ class BadgeCog(NatsuminCog):
 
 			query = f"""
 				SELECT
-					b.*
+					{", ".join(select_list)}
 				FROM badge b
 				{"\n".join(joins_list)}
 				{f" WHERE {' AND '.join(where_conditions)}" if where_conditions else ""}
@@ -422,18 +465,38 @@ class BadgeCog(NatsuminCog):
 			if not user_id:
 				return await ctx.reply("User not found!")
 
-			query = """
+			select_list: list[str] = ["b.*"]
+			joins_list: list[str] = []
+			joins_params = []
+			params = []
+
+			author_user_id, _ = await self.bot.fetch_user_from_database(ctx.author, db_conn=conn)
+			if author_user_id is not None:
+				joins_list.append("""
+					LEFT JOIN user_badge aub ON
+						aub.badge_id = b.id
+						AND aub.user_id = ?
+				""")
+				joins_params.append(author_user_id)
+				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
+
+			query = f"""
 				SELECT
 					b.*
 				FROM user_badge ub 
 				JOIN badge b ON 
 					ub.badge_id = b.id 
+				{"\n".join(joins_list)}
 				WHERE 
 					ub.user_id = ? 
 				ORDER BY b.type, b.created_at, b.name
 			"""
 
-			async with conn.execute(query, (user_id,)) as cursor:
+			if joins_list:
+				params.extend(joins_params)
+
+			params.append(user_id)
+			async with conn.execute(query, params) as cursor:
 				badges: list[BadgeData] = [dict(row) for row in await cursor.fetchall()]
 
 			if len(badges) == 0:
