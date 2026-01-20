@@ -57,6 +57,7 @@ class BadgeDisplay(ui.DesignerView):
 		badge_details: tuple[str, ...] = (
 			f"Artist: {badge['artist'] if badge['artist'] else 'None'}",
 			f"Type: {badge['type']}",
+			f"Owned by {badge['badge_count']} users",
 			("Owned" if badge.get("author_owns_badge", False) else "Not Owned"),
 		)
 

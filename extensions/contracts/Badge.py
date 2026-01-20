@@ -87,6 +87,8 @@ class BadgeCog(NatsuminCog):
 				""")
 				joins_params.append(author_user_id)
 				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
+			else:
+				select_list.append("NULL AS author_owns_badge")
 
 			if name is not None:
 				where_conditions.append("name LIKE ?")
@@ -112,6 +114,14 @@ class BadgeCog(NatsuminCog):
 				joins_params.append(owned_user_id)
 
 				where_conditions.append("ub.badge_id IS NOT NULL" if owned else "ub.badge_id IS NULL")
+
+			select_list.append("""
+				(
+					SELECT COUNT(*)
+					FROM user_badge ubc
+					WHERE ubc.badge_id = b.id
+				) AS badge_count
+			""")
 
 			query = f"""
 				SELECT
@@ -164,6 +174,16 @@ class BadgeCog(NatsuminCog):
 				""")
 				joins_params.append(author_user_id)
 				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
+			else:
+				select_list.append("NULL AS author_owns_badge")
+
+			select_list.append("""
+				(
+					SELECT COUNT(*)
+					FROM user_badge ubc
+					WHERE ubc.badge_id = b.id
+				) AS badge_count
+			""")
 
 			query = f"""
 				SELECT
@@ -405,6 +425,8 @@ class BadgeCog(NatsuminCog):
 				""")
 				joins_params.append(author_user_id)
 				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
+			else:
+				select_list.append("NULL AS author_owns_badge")
 
 			if flags.name is not None:
 				where_conditions.append("name LIKE ?")
@@ -431,6 +453,14 @@ class BadgeCog(NatsuminCog):
 				joins_params.append(owned_user_id)
 
 				where_conditions.append("ub.badge_id IS NOT NULL" if flags.owned else "ub.badge_id IS NULL")
+
+			select_list.append("""
+				(
+					SELECT COUNT(*)
+					FROM user_badge ubc
+					WHERE ubc.badge_id = b.id
+				) AS badge_count
+			""")
 
 			query = f"""
 				SELECT
@@ -479,6 +509,16 @@ class BadgeCog(NatsuminCog):
 				""")
 				joins_params.append(author_user_id)
 				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
+			else:
+				select_list.append("NULL AS author_owns_badge")
+
+			select_list.append("""
+				(
+					SELECT COUNT(*)
+					FROM user_badge ubc
+					WHERE ubc.badge_id = b.id
+				) AS badge_count
+			""")
 
 			query = f"""
 				SELECT
