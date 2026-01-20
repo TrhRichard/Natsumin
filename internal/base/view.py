@@ -57,7 +57,7 @@ class BadgeDisplay(ui.DesignerView):
 		badge_details: tuple[str, ...] = (
 			f"Artist: {badge['artist'] if badge['artist'] else 'None'}",
 			f"Type: {badge['type']}",
-			f"Owned: {'Yes' if 'author_owns_badge' in badge and badge['author_owns_badge'] else 'No'}",
+			("Owned" if badge.get("author_owns_badge", False) else "Not Owned"),
 		)
 
 		page_buttons = ui.ActionRow(

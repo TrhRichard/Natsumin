@@ -205,12 +205,12 @@ async def _sync_basechallenge_data(sheet_data: dict, conn: aiosqlite.Connection)
 			"SELECT progress, rating, review_url FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type = ?",
 			(SEASON_ID, user_id, "Base Contract"),
 		) as cursor:
-			base_row = await cursor.fetchone()
+			base_contract = await cursor.fetchone()
 
 		if (
-			base_row["progress"] != get_cell(row, 19, "?/?").replace("\n", "")
-			or base_row["rating"] != get_cell(row, 20, "0/10")
-			or base_row["review_url"] != get_url(row, 24)
+			base_contract["progress"] != get_cell(row, 19, "?/?").replace("\n", "")
+			or base_contract["rating"] != get_cell(row, 20, "0/10")
+			or base_contract["review_url"] != get_url(row, 24)
 		):
 			await conn.execute(
 				"""
@@ -238,12 +238,12 @@ async def _sync_basechallenge_data(sheet_data: dict, conn: aiosqlite.Connection)
 			"SELECT progress, rating, review_url FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type = ?",
 			(SEASON_ID, user_id, "Challenge Contract"),
 		) as cursor:
-			challenge_row = await cursor.fetchone()
+			challenge_contract = await cursor.fetchone()
 
-		if challenge_row and (
-			challenge_row["progress"] != get_cell(row, 22, "?/?").replace("\n", "")
-			or challenge_row["rating"] != get_cell(row, 23, "0/10")
-			or challenge_row["review_url"] != get_url(row, 25)
+		if challenge_contract and (
+			challenge_contract["progress"] != get_cell(row, 22, "?/?").replace("\n", "")
+			or challenge_contract["rating"] != get_cell(row, 23, "0/10")
+			or challenge_contract["review_url"] != get_url(row, 25)
 		):
 			await conn.execute(
 				"""

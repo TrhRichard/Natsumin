@@ -81,9 +81,12 @@ class StatsView(ui.DesignerView):
 					SUM(sc.kind = ?4 AND sc.status = ?2) AS aid_passed,
 					SUM(sc.kind = ?4) AS aid_total
 				FROM season_contract sc
-				JOIN season_user su
-				ON su.user_id = sc.contractee_id
-				WHERE sc.season_id = ?1 AND sc.optional = 0 {"AND su.rep = ?5" if rep else ""}
+				JOIN season_user su ON 
+					su.user_id = sc.contractee_id AND su.season_id = sc.season_id
+				WHERE 
+					sc.season_id = ?1 
+					AND sc.optional = 0 
+					{"AND su.rep = ?5" if rep else ""}
 			"""
 			params = [season_id, ContractStatus.PASSED.value, ContractKind.NORMAL.value, ContractKind.AID.value]
 			if rep:
@@ -99,7 +102,7 @@ class StatsView(ui.DesignerView):
 					SUM(sc.status = ?2) AS passed,
 					COUNT(*) AS total
 				FROM season_contract sc
-				{"JOIN season_user su ON su.user_id = sc.contractee_id" if rep else ""}
+				{"JOIN season_user su ON su.user_id = sc.contractee_id AND su.season_id = sc.season_id" if rep else ""}
 				WHERE sc.season_id = ?1 {"AND su.rep = ?3" if rep else ""}
 				GROUP BY sc.type
 			"""

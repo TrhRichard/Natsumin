@@ -210,7 +210,9 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 				user_row = await cursor.fetchone()
 
 			await conn.execute("INSERT OR IGNORE INTO user_alias (username, user_id) VALUES (?, ?)", (alias, user_id))
-			await ctx.reply(f"Succesfully added alias `{alias}` to {user_row['username']} ({user_row['id']})")
+			await conn.commit()
+
+		await ctx.reply(f"Succesfully added alias `{alias}` to {user_row['username']} ({user_row['id']})")
 
 	@commands.command(aliases=["deletealias"])
 	async def removealias(self, ctx: commands.Context, alias: str):

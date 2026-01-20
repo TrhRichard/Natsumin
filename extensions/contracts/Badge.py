@@ -167,7 +167,7 @@ class BadgeCog(NatsuminCog):
 
 			query = f"""
 				SELECT
-					b.*
+					{", ".join(select_list)}
 				FROM user_badge ub 
 				JOIN badge b ON 
 					ub.badge_id = b.id 
@@ -385,7 +385,7 @@ class BadgeCog(NatsuminCog):
 		if await self.text_inventory.can_run(ctx):
 			await self.text_inventory(ctx, user)
 
-	@badge_textgroup.command("find", aliases=["list"], help="Fetch badges")
+	@badge_textgroup.command("find", aliases=["list", "search", "query"], help="Fetch badges")
 	@must_be_channel(1002056335845752864)
 	async def text_find(self, ctx: commands.Context, *, flags: FindFlags):
 		async with self.bot.database.connect() as conn:
@@ -482,7 +482,7 @@ class BadgeCog(NatsuminCog):
 
 			query = f"""
 				SELECT
-					b.*
+					{", ".join(select_list)}
 				FROM user_badge ub 
 				JOIN badge b ON 
 					ub.badge_id = b.id 

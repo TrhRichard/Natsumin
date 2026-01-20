@@ -95,6 +95,7 @@ ALTERNATIVE_NAMES: dict[RepName, list[str]] = {
 	RepName.CALL_OF_THE_NIGHT: ["yofukashi no uta"],
 	RepName.ORV: ["omniscient reader"],
 	RepName.KANOKARI: ["rent a girlfriend"],
+	RepName.OSHI_NO_KO: ["onk"],
 }
 
 rep_fuzzy_choices: dict[str, RepName] = {}
