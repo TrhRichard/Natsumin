@@ -2,17 +2,37 @@ from __future__ import annotations
 
 from internal.functions import frmt_iter, get_user_id, get_legacy_rank
 from internal.constants import FILE_LOGGING_FORMATTER, COLORS
+from internal.contracts import sync_season
 from internal.base.cog import NatsuminCog
 from discord.ext import commands
 from typing import TYPE_CHECKING
+from discord import ui
 
+import aiosqlite
+import sqlite3
 import discord
 import logging
 import json
 import io
+import re
 
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuminBot
+
+
+class SQLOutputView(ui.DesignerView):
+	def __init__(self, output: str | Exception):
+		super().__init__(store=False)
+
+		if isinstance(output, Exception):
+			main_display = ui.TextDisplay(f"### {output.__class__.__name__}\n```{str(output)}```")
+		else:
+			main_display = ui.TextDisplay(f"```json\n{output}```")
+
+		self.add_item(ui.Container(main_display, color=COLORS.ERROR if isinstance(output, Exception) else COLORS.DEFAULT))
+
+
+CODEBLOCK_PATTERN = r"(?<!\\)(?P<start>```)(?<=```)(?:(?P<lang>[a-z][a-z0-9]*)\s)?(?P<content>.*?)(?<!\\)(?=```)(?P<end>(?:\\\\)*```)"
 
 
 class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
@@ -248,6 +268,63 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await ctx.reply(
 				f"Aliases: {', '.join([f'`{alias}` ({u_id})' if id_or_username is None else f'`{alias}`' for alias, u_id in user_aliases])}"
 			)
+
+	@commands.command()
+	async def sync_season(self, ctx: commands.Context, *, season: str | None = None):
+		async with self.bot.database.connect() as conn:
+			if season is None:
+				season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
+			else:
+				season_id = season
+
+			if season_id not in self.bot.database.available_seasons:
+				return await ctx.reply(f"Could not find season with the id **{season_id}**.")
+
+			async with conn.execute("SELECT name FROM season WHERE id = ?", (season_id,)) as cursor:
+				row = await cursor.fetchone()
+				season_name = row["name"]
+
+		async with ctx.typing():
+			try:
+				duration = await sync_season(self.bot.database, season_id)
+				self.logger.info(f"{season_id} has been manually synced by {ctx.author.name} in {duration:.2f} seconds.")
+				await ctx.reply(
+					embed=discord.Embed(description=f"✅ **{season_name}** has been synced in {duration:.2f} seconds!", color=COLORS.DEFAULT)
+				)
+			except Exception as e:
+				self.logger.error(f"Manual sync of {season_id} invoked by {ctx.author.name} failed.", exc_info=e)
+				await ctx.reply(embed=discord.Embed(description=f"❌ Failed to sync **{season_name}**:\n```{e}```", color=COLORS.ERROR))
+
+	@commands.command()
+	async def sql(self, ctx: commands.Context, *, query: str):
+		codeblock_match = re.match(CODEBLOCK_PATTERN, query, re.DOTALL)
+		if not codeblock_match:
+			return await ctx.reply("Queries must be inside codeblocks, like:\n```sql\nSELECT * FROM user LIMIT 1\n```")
+
+		query = codeblock_match.group("content").strip()
+		async with self.bot.database.connect() as conn:
+			try:
+				statements = [s.strip() for s in query.split(";") if s.strip()]
+				rows = []
+
+				for i, statement in enumerate(statements, start=1):
+					async with conn.execute(statement) as cursor:
+						if i == len(statements):
+							rows = await cursor.fetchall()
+
+				await conn.commit()
+			except (aiosqlite.Error, sqlite3.Error) as err:
+				await conn.rollback()
+				return await ctx.reply(view=SQLOutputView(err))
+
+		formatted_rows = (dict(row) for row in rows)
+		str_output = json.dumps(list(formatted_rows), indent=4)
+
+		if len(str_output) < 1900:
+			await ctx.reply(view=SQLOutputView(str_output))
+		else:
+			file = discord.File(io.BytesIO(str_output.encode("utf-8")), filename="result.json")
+			await ctx.reply("", file=file)
 
 
 def setup(bot: NatsuminBot):
