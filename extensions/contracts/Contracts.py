@@ -190,7 +190,9 @@ class ContractsCog(NatsuminCog):
 				season_name = row["name"]
 
 			if rep is not None:
-				async with conn.execute("SELECT DISTINCT(rep) as rep FROM season_user WHERE season_id = ?", (season_id,)) as cursor:
+				async with conn.execute(
+					"SELECT DISTINCT(rep) as rep FROM season_user WHERE season_id = ? AND rep IS NOT NULL", (season_id,)
+				) as cursor:
 					season_reps = [RepName(row["rep"]) for row in await cursor.fetchall()]
 
 				original_rep_query = rep
@@ -224,7 +226,9 @@ class ContractsCog(NatsuminCog):
 				season_name = row["name"]
 
 			if rep is not None:
-				async with conn.execute("SELECT DISTINCT(rep) as rep FROM season_user WHERE season_id = ?", (season_id,)) as cursor:
+				async with conn.execute(
+					"SELECT DISTINCT(rep) as rep FROM season_user WHERE season_id = ? AND rep IS NOT NULL", (season_id,)
+				) as cursor:
 					season_reps = [RepName(row["rep"]) for row in await cursor.fetchall()]
 
 				original_rep_query = rep

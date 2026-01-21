@@ -413,7 +413,13 @@ class SeasonUserFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
 
 
 class UserCog(NatsuminCog):
-	user_group = discord.commands.SlashCommandGroup("user", description="Various user related commands", guild_ids=GUILD_IDS)
+	user_group = discord.commands.SlashCommandGroup(
+		"user",
+		description="Various user related commands",
+		# guild_ids=GUILD_IDS,
+		contexts={discord.InteractionContextType.guild, discord.InteractionContextType.bot_dm, discord.InteractionContextType.private_channel},
+		integration_types={discord.IntegrationType.user_install, discord.IntegrationType.guild_install},
+	)
 	contracts_subgroup = user_group.create_subgroup("contracts", description="Various user contracts related commands")
 
 	@user_group.command(name="profile", description="Fetch the global profile of a user")

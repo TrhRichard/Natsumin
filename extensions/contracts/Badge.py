@@ -326,7 +326,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("multiple_users", str, description="Usernames/ids separated by a comma, includes user if set", default=None)
 	async def give(self, ctx: discord.ApplicationContext, id: str, user: str | None = None, multiple_users: str | None = None):
 		list_of_users: list[str] = []
-		if user.strip():
+		if user is not None and user.strip():
 			list_of_users.append(user.strip())
 		if multiple_users is not None:
 			list_of_users.extend(u.strip() for u in multiple_users.split(",") if u.strip())
