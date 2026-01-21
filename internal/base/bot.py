@@ -6,8 +6,8 @@ from internal.database.Reminder import ReminderDatabase
 from internal.contracts.order import OrderCategory
 from internal.database import NatsuminDatabase
 from internal.functions import get_user_id
+from typing import TYPE_CHECKING, Literal
 from discord.ext import commands
-from typing import TYPE_CHECKING
 from pathlib import Path
 
 import aiosqlite
@@ -110,19 +110,31 @@ class NatsuminBot(commands.Bot):
 		return await self.database.remove_config(key, db_conn=db_conn)
 
 	async def fetch_user_from_database(
-		self, user: str | int | discord.abc.User, *, db_conn: aiosqlite.Connection = None
+		self,
+		user: str | int | discord.abc.User,
+		*,
+		invoker: discord.abc.User | None = None,
+		season_id: str | None = None,
+		db_conn: aiosqlite.Connection = None,
 	) -> tuple[str | None, discord.User | discord.Member | None]:
 		discord_user: discord.Member = None
 
+		special_tag: str | None = None
+
 		if isinstance(user, (str, int)):
+			discord_id = None
 			if isinstance(user, int):
 				discord_id = user
 			elif match := re.match(r"<@!?(\d+)>", user):
 				discord_id = int(match.group(1))
+			elif match := re.match(r"(\w+)\[(\w+)]", user):
+				user = match.group(1)
+				special_tag = match.group(2)
+			elif (match := re.match(r"\[(\w+)]", user)) and invoker is not None:
+				user = invoker.name
+				special_tag = match.group(1)
 			elif user.isdigit():
 				discord_id = int(user)
-			else:
-				discord_id = None
 
 			if self.anicord and discord_id:
 				discord_user = await self.anicord.get_or_fetch(discord.Member, discord_id)
@@ -141,6 +153,36 @@ class NatsuminBot(commands.Bot):
 
 			if user_id is None:
 				return None, None
+
+			if special_tag is not None and season_id is not None:
+				match special_tag:
+					case "contractee":
+						query = """
+							SELECT 
+								su.user_id AS contractee_id 
+							FROM season_user su 
+							JOIN user u ON su.user_id = u.id 
+							WHERE 
+								su.season_id = ? 
+								AND su.contractor_id = ? 
+							ORDER BY u.username
+							LIMIT 1
+						"""
+						async with conn.execute(query, (season_id, user_id)) as cursor:
+							row = await cursor.fetchone()
+							if row is None:
+								return None, None
+							user_id = row["contractee_id"]
+					case "contractor":
+						async with conn.execute(
+							"SELECT contractor_id FROM season_user WHERE season_id = ? AND user_id = ?", (season_id, user_id)
+						) as cursor:
+							row = await cursor.fetchone()
+							if row is None:
+								return None, None
+							user_id = row["contractor_id"]
+					case _:
+						return None, None
 
 			if discord_user is None:
 				async with conn.execute("SELECT discord_id FROM user WHERE id = ?", (user_id,)) as cursor:

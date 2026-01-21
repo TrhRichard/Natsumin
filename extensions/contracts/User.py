@@ -6,12 +6,11 @@ from internal.contracts.order import OrderContractData, sort_contract_types
 from internal.enums import UserKind, UserStatus, ContractStatus
 from internal.checks import must_be_channel
 from internal.base.view import BadgeDisplay
+from typing import TYPE_CHECKING, Literal
 from internal.base.cog import NatsuminCog
 from internal.schemas import BadgeData
 from internal.constants import COLORS
 from discord.ext import commands
-from typing import TYPE_CHECKING
-from config import GUILD_IDS
 from discord import ui
 
 import discord
@@ -408,7 +407,7 @@ class SeasonUserContracts(ui.DesignerView):
 
 
 class SeasonUserFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
-	user: str | int | discord.abc.User = commands.flag(aliases=["u"], default=None, positional=True)
+	user: str | int = commands.flag(aliases=["u"], default=None, positional=True)
 	season: str = commands.flag(aliases=["s"], default=None)
 
 
@@ -432,7 +431,7 @@ class UserCog(NatsuminCog):
 		if not is_channel(ctx, 1002056335845752864):
 			hidden = True
 
-		user_id, _ = await self.bot.fetch_user_from_database(user)
+		user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author)
 		if not user_id:
 			return await ctx.respond("User not found!", ephemeral=True)
 
@@ -467,7 +466,7 @@ class UserCog(NatsuminCog):
 					ephemeral=True,
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, db_conn=conn)
+			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.respond("User not found!", ephemeral=True)
 
@@ -515,7 +514,7 @@ class UserCog(NatsuminCog):
 					ephemeral=True,
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, db_conn=conn)
+			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.respond("User not found!", ephemeral=True)
 
@@ -540,7 +539,7 @@ class UserCog(NatsuminCog):
 		if user is None:
 			user = ctx.author
 
-		user_id, _ = await self.bot.fetch_user_from_database(user)
+		user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author)
 		if not user_id:
 			return await ctx.reply("User not found!")
 
@@ -564,7 +563,7 @@ class UserCog(NatsuminCog):
 					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it."
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, db_conn=conn)
+			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.reply("User not found!")
 
@@ -601,7 +600,7 @@ class UserCog(NatsuminCog):
 					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it."
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, db_conn=conn)
+			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.reply("User not found!")
 
