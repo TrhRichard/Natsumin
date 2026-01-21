@@ -2,9 +2,15 @@ from __future__ import annotations
 
 from internal.schemas import BadgeData
 from internal.constants import COLORS
+from typing import TYPE_CHECKING
 from discord import ui
-
 import discord
+
+if TYPE_CHECKING:
+	from .bot import NatsuminBot
+
+
+from .paginator import CustomPaginator
 
 
 class BadgeDisplay(ui.DesignerView):
@@ -40,6 +46,43 @@ class BadgeDisplay(ui.DesignerView):
 				self.current_badge_selected = (self.current_badge_selected + 1) % len(self.badges)
 			case "page_indicator":
 				return await interaction.response.send_modal(BadgeDisplayPageModal(self))
+			case "get_badge_users":
+				bot: NatsuminBot = interaction.client
+				badge_data = self.badges[self.current_badge_selected]
+				async with bot.database.connect() as conn:
+					query = """
+						SELECT 
+							u.username, u.discord_id
+						FROM user u
+						JOIN user_badge ub ON ub.user_id = u.id
+						WHERE ub.badge_id = ?
+						ORDER BY u.username ASC
+					"""
+					async with conn.execute(query, (badge_data["id"],)) as cursor:
+						user_rows: list[tuple[str, int]] = [(row["username"], row["discord_id"]) for row in await cursor.fetchall()]
+
+					if not user_rows:
+						all_pages = [
+							discord.Embed(title=f"Owners of {badge_data['name']} (0 users)", description="No users found!", color=COLORS.DEFAULT)
+						]
+					else:
+						await interaction.response.defer(ephemeral=True)
+
+						all_pages = []
+						for start in range(0, len(user_rows), 15):
+							lines = []
+							for i, (username, discord_id) in enumerate(user_rows[start : start + 15], start=start):
+								line_to_add = f"{i + 1}. <@{discord_id}> ({username})"
+
+								lines.append(line_to_add)
+
+							embed = discord.Embed(
+								title=f"Owners of {badge_data['name']} ({len(user_rows)} users)", description="\n".join(lines), color=COLORS.DEFAULT
+							)
+							all_pages.append(embed)
+
+				paginator = CustomPaginator(all_pages)
+				await paginator.respond(interaction, ephemeral=True)
 			case _:
 				return
 
@@ -57,7 +100,6 @@ class BadgeDisplay(ui.DesignerView):
 		badge_details: tuple[str, ...] = (
 			f"Artist: {badge['artist'] if badge['artist'] else 'None'}",
 			f"Type: {badge['type']}",
-			f"Owned by {badge['badge_count']} users",
 			("Owned" if badge.get("author_owns_badge", False) else "Not Owned"),
 		)
 
@@ -79,6 +121,13 @@ class BadgeDisplay(ui.DesignerView):
 				label="↪" if self.current_badge_selected + 1 >= len(self.badges) else "→",
 				disabled=len(self.badges) == 1,
 				custom_id="next",
+			),
+			ui.Button(
+				style=discord.ButtonStyle.secondary,
+				label=str(badge["badge_count"]),
+				disabled=badge.get("badge_count", 0) <= 0,
+				emoji="<:users:1463527744230133831>",
+				custom_id="get_badge_users",
 			),
 		)
 
