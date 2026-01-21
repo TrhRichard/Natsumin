@@ -3,6 +3,7 @@ from __future__ import annotations
 from internal.checks import must_be_channel, can_modify_badges
 from internal.contracts import usernames_autocomplete
 from internal.functions import is_channel, frmt_iter
+from internal.base.paginator import CustomPaginator
 from internal.base.view import BadgeDisplay
 from internal.base.cog import NatsuminCog
 from typing import TYPE_CHECKING, Literal
@@ -46,7 +47,7 @@ class FindFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
 class BadgeCog(NatsuminCog):
 	badge_group = discord.commands.SlashCommandGroup("badge", description="Various badge related commands", guild_ids=GUILD_IDS)
 
-	@badge_group.command(description="Fetch badges")
+	@badge_group.command(description="Get badges")
 	@discord.option("name", str, min_length=1, default=None)
 	@discord.option("owned", bool, default=None)
 	@discord.option(
@@ -145,10 +146,10 @@ class BadgeCog(NatsuminCog):
 
 		await ctx.respond(view=BadgeDisplay(ctx.author, badges), ephemeral=hidden)
 
-	@badge_group.command(description="Fetch the badges of a user")
-	@discord.option("user", str, description="The user to fetch badges from", default=None, autocomplete=usernames_autocomplete(False))
+	@badge_group.command(description="Get the badges of a user")
+	@discord.option("user", str, description="The user to get badges from", default=None, autocomplete=usernames_autocomplete(False))
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
-	async def inventory(self, ctx: discord.ApplicationContext, user: str | None = None, hidden: bool = False):
+	async def inventory(self, ctx: discord.ApplicationContext, user: str | None, hidden: bool):
 		if user is None:
 			user = ctx.author
 
@@ -208,6 +209,68 @@ class BadgeCog(NatsuminCog):
 			return await ctx.respond(f"{"You don't" if ctx.author.id == discord_user.id else "This user doesn't"} have any badges.", ephemeral=True)
 
 		await ctx.respond(view=BadgeDisplay(ctx.author, badges), ephemeral=hidden)
+
+	@badge_group.command(description="Leaderboard of badge/user badge counts")
+	@discord.option("type", str, choices=["badges", "users"], parameter_name="leaderboard_type", default="badges")
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
+	async def leaderboard(self, ctx: discord.ApplicationContext, leaderboard_type: Literal["badges", "users"], hidden: bool):
+		async with self.bot.database.connect() as conn:
+			if leaderboard_type == "users":
+				query = """
+						SELECT
+							u.username,
+							u.discord_id,
+							COUNT(ub.badge_id) AS badge_count
+						FROM user u
+						JOIN user_badge ub ON 
+							ub.user_id = u.id
+						GROUP BY u.id, u.username
+						ORDER BY badge_count DESC, u.username ASC
+					"""
+
+				async with conn.execute(query) as cursor:
+					user_rows: list[tuple[str, int, int]] = [
+						(row["username"], row["discord_id"], row["badge_count"]) for row in await cursor.fetchall()
+					]
+
+					all_pages = []
+					for start in range(0, len(user_rows), 15):
+						lines = []
+						for i, (username, discord_id, badge_count) in enumerate(user_rows[start : start + 15], start=start):
+							line_to_add = f"{i + 1}. <@{discord_id}> ({username}): **{badge_count}**"
+
+							lines.append(line_to_add)
+
+						embed = discord.Embed(title="Users leaderboard", description="\n".join(lines), color=COLORS.DEFAULT)
+						all_pages.append(embed)
+			else:
+				query = """
+						SELECT
+							b.name,
+							COUNT(ub.user_id) AS user_count
+						FROM badge b
+						LEFT JOIN user_badge ub
+							ON ub.badge_id = b.id
+						GROUP BY b.id, b.name
+						ORDER BY user_count DESC, b.created_at DESC, b.name ASC
+					"""
+
+				async with conn.execute(query) as cursor:
+					badge_rows: list[tuple[str, int]] = [(row["name"], row["user_count"]) for row in await cursor.fetchall()]
+
+					all_pages = []
+					for start in range(0, len(badge_rows), 15):
+						lines = []
+						for i, (badge_name, user_count) in enumerate(badge_rows[start : start + 15], start=start):
+							line_to_add = f"{i + 1}. {badge_name}: **{user_count}**"
+
+							lines.append(line_to_add)
+
+						embed = discord.Embed(title="Badges leaderboard", description="\n".join(lines), color=COLORS.DEFAULT)
+						all_pages.append(embed)
+
+			paginator = CustomPaginator(all_pages)
+			await paginator.respond(ctx.interaction, ephemeral=hidden)
 
 	@badge_group.command(description="Add a new badge")
 	@can_modify_badges()
@@ -401,11 +464,11 @@ class BadgeCog(NatsuminCog):
 		await ctx.respond(f"Removed **{badge_row['name']}** from {username}!", ephemeral=True)
 
 	@commands.group("badge", help="Badges related commands", aliases=["b"], invoke_without_command=True)
-	async def badge_textgroup(self, ctx: commands.Context, user: str | int | discord.abc.User = None):
+	async def badge_textgroup(self, ctx: commands.Context, user: str | int = None):
 		if await self.text_inventory.can_run(ctx):
 			await self.text_inventory(ctx, user)
 
-	@badge_textgroup.command("find", aliases=["list", "search", "query"], help="Fetch badges")
+	@badge_textgroup.command("find", aliases=["list", "search", "query"], help="Get badges")
 	@must_be_channel(1002056335845752864)
 	async def text_find(self, ctx: commands.Context, *, flags: FindFlags):
 		async with self.bot.database.connect() as conn:
@@ -484,9 +547,9 @@ class BadgeCog(NatsuminCog):
 
 		await ctx.reply(view=BadgeDisplay(ctx.author, badges))
 
-	@badge_textgroup.command("inventory", aliases=["inv", "i"], help="Fetch the badges of a user")
+	@badge_textgroup.command("inventory", aliases=["inv", "i"], help="Get the badges of a user")
 	@must_be_channel(1002056335845752864)
-	async def text_inventory(self, ctx: commands.Context, user: str | int | discord.abc.User = None):
+	async def text_inventory(self, ctx: commands.Context, user: str | int = None):
 		if user is None:
 			user = ctx.author
 
@@ -543,3 +606,64 @@ class BadgeCog(NatsuminCog):
 				return await ctx.reply(f"{"You don't" if ctx.author.id == discord_user.id else "This user doesn't"} have any badges.")
 
 			await ctx.reply(view=BadgeDisplay(ctx.author, badges))
+
+	@badge_textgroup.command("leaderboard", aliases=["lb"], help="Leaderboard of badge/user badge counts")
+	@must_be_channel(1002056335845752864)
+	async def text_leaderboard(self, ctx: commands.Context, leaderboard_type: Literal["badges", "users"] = "badges"):
+		async with self.bot.database.connect() as conn:
+			if leaderboard_type == "users":
+				query = """
+					SELECT
+						u.username,
+						u.discord_id,
+						COUNT(ub.badge_id) AS badge_count
+					FROM user u
+					JOIN user_badge ub ON 
+						ub.user_id = u.id
+					GROUP BY u.id, u.username
+					ORDER BY badge_count DESC, u.username ASC
+				"""
+
+				async with conn.execute(query) as cursor:
+					user_rows: list[tuple[str, int, int]] = [
+						(row["username"], row["discord_id"], row["badge_count"]) for row in await cursor.fetchall()
+					]
+
+					all_pages = []
+					for start in range(0, len(user_rows), 15):
+						lines = []
+						for i, (username, discord_id, badge_count) in enumerate(user_rows[start : start + 15], start=start):
+							line_to_add = f"{i + 1}. <@{discord_id}> ({username}): **{badge_count}**"
+
+							lines.append(line_to_add)
+
+						embed = discord.Embed(title="Users leaderboard", description="\n".join(lines), color=COLORS.DEFAULT)
+						all_pages.append(embed)
+			else:
+				query = """
+					SELECT
+						b.name,
+						COUNT(ub.user_id) AS user_count
+					FROM badge b
+					LEFT JOIN user_badge ub
+						ON ub.badge_id = b.id
+					GROUP BY b.id, b.name
+					ORDER BY user_count DESC, b.created_at DESC, b.name ASC
+				"""
+
+				async with conn.execute(query) as cursor:
+					badge_rows: list[tuple[str, int]] = [(row["name"], row["user_count"]) for row in await cursor.fetchall()]
+
+					all_pages = []
+					for start in range(0, len(badge_rows), 15):
+						lines = []
+						for i, (badge_name, user_count) in enumerate(badge_rows[start : start + 15], start=start):
+							line_to_add = f"{i + 1}. {badge_name}: **{user_count}**"
+
+							lines.append(line_to_add)
+
+						embed = discord.Embed(title="Badges leaderboard", description="\n".join(lines), color=COLORS.DEFAULT)
+						all_pages.append(embed)
+
+			paginator = CustomPaginator(all_pages)
+			await paginator.send(ctx, reference=ctx.message)
