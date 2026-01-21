@@ -36,7 +36,7 @@ class BadgeDisplay(ui.DesignerView):
 			self.add_item(item)
 
 	async def button_callback(self, interaction: discord.Interaction):
-		if interaction.user.id != self.invoker.id:
+		if interaction.user.id != self.invoker.id and interaction.custom_id != "get_badge_users":
 			return await interaction.respond("You did not trigger this command!", ephemeral=True)
 
 		match interaction.custom_id:
@@ -72,7 +72,8 @@ class BadgeDisplay(ui.DesignerView):
 						for start in range(0, len(user_rows), 15):
 							lines = []
 							for i, (username, discord_id) in enumerate(user_rows[start : start + 15], start=start):
-								line_to_add = f"{i + 1}. <@{discord_id}> ({username})"
+								full_name = f"<@{discord_id}> ({username})" if discord_id else username
+								line_to_add = f"{i + 1}. {full_name}"
 
 								lines.append(line_to_add)
 

@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+from internal.functions import is_channel, get_percentage_formatted, get_status_emote, frmt_iter
 from internal.enums import UserKind, UserStatus, ContractStatus, ContractKind
 from internal.contracts import get_deadline_footer, season_autocomplete
-from internal.functions import is_channel, get_percentage_formatted
 from internal.contracts.order import sort_contract_types
 from internal.contracts.rep import get_rep, RepName
+from internal.base.paginator import CustomPaginator
 from internal.checks import must_be_channel
 from internal.base.cog import NatsuminCog
 from internal.constants import COLORS
-from discord.ext import commands
 from typing import TYPE_CHECKING
+from discord.ext import commands
 from config import GUILD_IDS
 from discord import ui
 
@@ -37,6 +38,22 @@ async def reps_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.Op
 class StatsFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
 	rep: str = commands.flag(aliases=["r"], default=None, positional=True)
 	season: str = commands.flag(aliases=["s"], default=None)
+
+
+VALID_USER_STATUSES = {
+	"pending": UserStatus.PENDING,
+	"passed": UserStatus.PASSED,
+	"failed": UserStatus.FAILED,
+	"late": UserStatus.LATE_PASS,
+	"incomplete": UserStatus.INCOMPLETE,
+}
+VALID_ALL_STATUS = ("*", "all")
+
+
+class UsersFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
+	rep: str = commands.flag(aliases=["r"], default=None, positional=True)
+	status: str = commands.flag(aliases=["s"], default="*")
+	season: str = commands.flag(aliases=["S"], default=None)
 
 
 class StatsView(ui.DesignerView):
@@ -141,8 +158,7 @@ class StatsView(ui.DesignerView):
 
 			self.add_item(
 				ui.Container(
-					ui.TextDisplay(f"# Contracts {season_name}{f'\n-# {rep.value}' if rep is not None else ''}"),
-					ui.Separator(),
+					ui.TextDisplay(f"## {rep.value} - {season_name}" if rep is not None else f"## Contracts {season_name}"),
 					stats_display,
 					ui.Separator(),
 					ui.TextDisplay("\n".join(category_texts)),
@@ -241,3 +257,106 @@ class ContractsCog(NatsuminCog):
 						return await ctx.reply(f"0 members of {global_rep.value} participated in {season_name}.")
 
 			await ctx.reply(view=await StatsView.create(self.bot, ctx.author, season_id, rep))
+
+	@commands.command("users", aliases=["u"], help="Fetch users from a season")
+	@must_be_channel(1002056335845752864)
+	async def text_users(self, ctx: commands.Context, *, flags: UsersFlags):
+		user_statuses: list[UserStatus] = []
+
+		if flags.status.lower() not in VALID_ALL_STATUS:
+			for status_str in flags.status.lower().split(","):
+				status_str = status_str.strip()
+				if status_str in VALID_ALL_STATUS:
+					user_statuses.clear()
+					break
+
+				if status_str not in VALID_USER_STATUSES:
+					return await ctx.reply(
+						f"{status_str} is not a valid status to filter by, valid statuses: {', '.join(VALID_USER_STATUSES.keys())}"
+					)
+
+				user_statuses.append(VALID_USER_STATUSES.get(status_str))
+
+		rep = flags.rep
+		async with self.bot.database.connect() as conn:
+			if flags.season is None:
+				season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
+			else:
+				season_id = flags.season
+
+			if season_id not in self.bot.database.available_seasons:
+				return await ctx.reply(
+					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it."
+				)
+
+			async with conn.execute("SELECT name FROM season WHERE id = ?", (season_id,)) as cursor:
+				row = await cursor.fetchone()
+				season_name = row["name"]
+
+			if rep is not None:
+				async with conn.execute(
+					"SELECT DISTINCT(rep) as rep FROM season_user WHERE season_id = ? AND rep IS NOT NULL", (season_id,)
+				) as cursor:
+					season_reps = [RepName(row["rep"]) for row in await cursor.fetchall()]
+
+				original_rep_query = rep
+				rep = get_rep(original_rep_query, min_confidence=90, only_include_reps=season_reps)
+				if rep is None:
+					global_rep = get_rep(original_rep_query, min_confidence=90)
+					if global_rep is None:
+						return await ctx.reply(f"{original_rep_query} is not a valid rep.")
+					else:
+						return await ctx.reply(f"0 members of {global_rep.value} participated in {season_name}.")
+
+			query = f"""
+				SELECT
+					u.username,
+					u.discord_id,
+					su.status
+				FROM season_user su
+				JOIN user u ON 
+					su.user_id = u.id
+				WHERE 
+					su.season_id = ?
+					{"AND su.rep = ?" if rep is not None else ""}
+					{f"AND su.status IN ({','.join('?' for _ in user_statuses)})" if user_statuses else ""}
+				GROUP BY u.id, u.username
+				ORDER BY su.status ASC, u.username ASC
+			"""
+			params = [season_id]
+			if rep is not None:
+				params.append(rep.value)
+			if user_statuses:
+				params.extend(user_statuses)
+
+			async with conn.execute(query, params) as cursor:
+				user_rows: list[tuple[str, int, UserStatus]] = [
+					(row["username"], row["discord_id"], UserStatus(row["status"])) for row in await cursor.fetchall()
+				]
+
+				if not user_rows:
+					all_pages = []
+					embed = discord.Embed(title=f"Contracts {season_name}", description="No users found.", color=COLORS.DEFAULT)
+					if rep is not None:
+						embed.title = f"{rep.value} - {season_name}"
+					embed.set_footer(text=f"Status: {frmt_iter(s.name for s in user_statuses) if user_statuses else 'ALL'}")
+					all_pages.append(embed)
+				else:
+					all_pages = []
+					for start in range(0, len(user_rows), 15):
+						lines = []
+						for i, (username, discord_id, status) in enumerate(user_rows[start : start + 15], start=start):
+							full_name = f"<@{discord_id}> ({username})" if discord_id else username
+							line_to_add = f"{i + 1}. {full_name} {get_status_emote(status)}"
+
+							lines.append(line_to_add)
+
+						embed = discord.Embed(title=f"Contracts {season_name}", description=f"{'\n'.join(lines)}", color=COLORS.DEFAULT)
+						if rep is not None:
+							embed.title = f"{rep.value} - {season_name}"
+						embed.set_footer(text=f"Status: {frmt_iter(s.name for s in user_statuses) if user_statuses else 'ALL'}")
+
+						all_pages.append(embed)
+
+			paginator = CustomPaginator(all_pages)
+			await paginator.send(ctx, reference=ctx.message)

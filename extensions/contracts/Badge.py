@@ -214,6 +214,9 @@ class BadgeCog(NatsuminCog):
 	@discord.option("type", str, choices=["badges", "users"], parameter_name="leaderboard_type", default="badges")
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
 	async def leaderboard(self, ctx: discord.ApplicationContext, leaderboard_type: Literal["badges", "users"], hidden: bool):
+		if not is_channel(ctx, 1002056335845752864):
+			hidden = True
+
 		async with self.bot.database.connect() as conn:
 			if leaderboard_type == "users":
 				query = """
@@ -237,7 +240,8 @@ class BadgeCog(NatsuminCog):
 					for start in range(0, len(user_rows), 15):
 						lines = []
 						for i, (username, discord_id, badge_count) in enumerate(user_rows[start : start + 15], start=start):
-							line_to_add = f"{i + 1}. <@{discord_id}> ({username}): **{badge_count}**"
+							full_name = f"<@{discord_id}> ({username})" if discord_id else username
+							line_to_add = f"{i + 1}. {full_name}: **{badge_count}**"
 
 							lines.append(line_to_add)
 
@@ -633,7 +637,8 @@ class BadgeCog(NatsuminCog):
 					for start in range(0, len(user_rows), 15):
 						lines = []
 						for i, (username, discord_id, badge_count) in enumerate(user_rows[start : start + 15], start=start):
-							line_to_add = f"{i + 1}. <@{discord_id}> ({username}): **{badge_count}**"
+							full_name = f"<@{discord_id}> ({username})" if discord_id else username
+							line_to_add = f"{i + 1}. {full_name}: **{badge_count}**"
 
 							lines.append(line_to_add)
 
