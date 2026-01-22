@@ -15,14 +15,15 @@ if TYPE_CHECKING:
 	from internal.database import NatsuminDatabase
 	from typing import Literal
 
-SPREADSHEET_ID = "1ZuhNuejQ3gTKuZPzkGg47-upLUlcgNfdW2Jrpeq8cak"
+SEASON_SPREADSHEET_ID = "1ZuhNuejQ3gTKuZPzkGg47-upLUlcgNfdW2Jrpeq8cak"
+FANTASY_SPREADSHEET_ID = "1IRg3plGydWluhIIxM4uQfwzb5xdQdDF83ETVTcnUKRo"
 SEASON_ID = "season_x"
 
 
 async def _get_sheet_data() -> dict:
 	async with aiohttp.ClientSession(headers={"Accept-Encoding": "gzip, deflate"}) as session:
 		async with session.get(
-			f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values:batchGet",
+			f"https://sheets.googleapis.com/v4/spreadsheets/{SEASON_SPREADSHEET_ID}/values:batchGet",
 			params={
 				"majorDimension": "ROWS",
 				"valueRenderOption": "FORMATTED_VALUE",
@@ -43,6 +44,17 @@ async def _get_sheet_data() -> dict:
 				],
 				"key": GOOGLE_API_KEY,
 			},
+		) as response:
+			response.raise_for_status()
+			sheet_data = await response.json()
+			return sheet_data
+
+
+async def _get_fantasy_sheet_data() -> dict:
+	async with aiohttp.ClientSession(headers={"Accept-Encoding": "gzip, deflate"}) as session:
+		async with session.get(
+			f"https://sheets.googleapis.com/v4/spreadsheets/{FANTASY_SPREADSHEET_ID}/values:batchGet",
+			params={"majorDimension": "ROWS", "valueRenderOption": "FORMATTED_VALUE", "ranges": ["Draft Picks!A1:L312"], "key": GOOGLE_API_KEY},
 		) as response:
 			response.raise_for_status()
 			sheet_data = await response.json()
@@ -862,6 +874,105 @@ async def _sync_arcana_data(sheet_data: dict, conn: aiosqlite.Connection):
 	await conn.commit()
 
 
+async def _sync_fantasy_data(sheet_data: dict, conn: aiosqlite.Connection):
+	rows: list[list[str]] = sheet_data["valueRanges"][0]["values"]
+
+	i = 0
+	while i < len(rows):
+		row = rows[i]
+		if get_cell(row, 1, "") == "Player:":
+			username = get_cell(row, 2, "")
+			if not username:
+				i += 1
+				continue
+
+			user_id = await get_user_id(conn, username)
+			if not user_id:
+				i += 1
+				continue
+
+			async with conn.execute("SELECT 1 FROM season_user WHERE season_id = ? AND user_id = ?", (SEASON_ID, user_id)) as cursor:
+				does_user_exist = await cursor.fetchone()
+
+			if not does_user_exist:
+				i += 1
+				continue
+
+			async with conn.execute("SELECT * FROM season_user_fantasy WHERE season_id = ? AND user_id = ?", (SEASON_ID, user_id)) as cursor:
+				fantasy_row = await cursor.fetchone()
+
+			i += 1
+			if fantasy_row:
+				update_list = []
+				update_params = []
+
+				for m_i in range(5):
+					i += 1
+					update_list.append(f"member{m_i + 1}_score = ?")
+					update_params.append(get_cell(rows[i], 4, 0, int))
+
+				i += 2
+
+				update_list.append("total_score = ?")
+				update_params.append(get_cell(rows[i], 2, 0, int))
+
+				if fantasy_row["total_score"] != get_cell(rows[i], 2, 0, int) or any(
+					fantasy_row[f"member{index}_score"] != member_score for index, member_score in enumerate(update_params[:1], start=1)
+				):
+					await conn.execute(
+						f"UPDATE season_user_fantasy SET {','.join(update_list)} WHERE season_id = ? AND user_id = ?",
+						(*update_params, SEASON_ID, user_id),
+					)
+
+				i += 1
+			else:
+				member_ids: list[tuple[str, int]] = []
+
+				for m_i in range(5):
+					i += 1
+					member_id = await get_user_id(conn, get_cell(rows[i], 2))
+					if not member_id:
+						print(f"{get_cell(rows[i], 2)} NO ID")
+						raise
+
+					member_ids.append((member_id, get_cell(rows[i], 4, 0, int)))
+
+				i += 2
+
+				total_score = get_cell(rows[i], 2, 0, int)
+
+				query = """
+					INSERT INTO season_user_fantasy
+						(
+							season_id, user_id, total_score, 
+							member1_id, member1_score, member2_id, member2_score,
+							member3_id, member3_score, member4_id, member4_score,
+							member5_id, member5_score
+						)
+					VALUES
+						(
+							?, ?, ?,
+							?, ?, ?, ?,
+							?, ?, ?, ?,
+							?, ?
+						)
+					RETURNING *
+				"""
+				flat_members = []
+				for m in member_ids:
+					flat_members.extend(m)
+
+				async with conn.execute(query, (SEASON_ID, user_id, total_score, *flat_members)) as cursor:
+					fantasy_row = await cursor.fetchone()
+
+				i += 1
+		else:
+			i += 1
+			continue
+
+	await conn.commit()
+
+
 async def sync_season(database: NatsuminDatabase):
 	sheet_data = await _get_sheet_data()
 
@@ -871,3 +982,6 @@ async def sync_season(database: NatsuminDatabase):
 		await _sync_specials_data(sheet_data, conn)
 		await _sync_buddies_data(sheet_data, conn)
 		await _sync_arcana_data(sheet_data, conn)
+
+		fantasy_sheet_data = await _get_fantasy_sheet_data()
+		await _sync_fantasy_data(fantasy_sheet_data, conn)

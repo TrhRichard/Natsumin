@@ -19,6 +19,27 @@ if TYPE_CHECKING:
 	from internal.base.bot import NatsuminBot
 
 
+async def fantasy_usernames_autocomplete(ctx: discord.AutocompleteContext) -> list[str]:
+	bot: NatsuminBot = ctx.bot
+	async with bot.database.connect() as conn:
+		season_id = await bot.get_config("contracts.active_season", db_conn=conn)
+
+		query = """
+		SELECT u.username
+		FROM season_user_fantasy suf
+		JOIN user u ON u.id = suf.user_id
+		WHERE 
+			suf.season_id = ?
+			AND u.username LIKE ?
+		LIMIT 25
+		"""
+
+		async with conn.execute(query, (season_id, f"%{ctx.value.strip()}%")) as cursor:
+			username_list: list[str] = [row["username"] for row in await cursor.fetchall()]
+
+	return username_list
+
+
 class MasterUserProfile(ui.DesignerView):
 	def __init__(self, bot: NatsuminBot, invoker: discord.abc.User, user_id: str):
 		super().__init__(disable_on_timeout=True)
@@ -272,6 +293,122 @@ class SeasonUserProfile(ui.DesignerView):
 				return
 
 
+class FantasyUserProfile(ui.DesignerView):
+	def __init__(self, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str):
+		super().__init__(disable_on_timeout=True)
+		self.bot = bot
+		self.invoker = invoker
+		self.season_id = season_id
+		self.user_id = user_id
+		self.member_ids: list[str] = []
+
+	@classmethod
+	async def create(cls, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str):
+		self = cls(bot, invoker, season_id, user_id)
+
+		async with bot.database.connect() as conn:
+			async with conn.execute("SELECT * FROM season_user_fantasy WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
+				fantasy_row = await cursor.fetchone()
+
+			if fantasy_row is None:
+				self.add_item(ui.TextDisplay("Fantasy data not found!"))
+
+				return self
+
+			fantasy_row = dict(fantasy_row)
+
+			USER_DATA_QUERY = "SELECT u.username, u.discord_id, su.status FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND su.user_id = ?"
+
+			async with conn.execute(USER_DATA_QUERY, (season_id, user_id)) as cursor:
+				user_row = await cursor.fetchone()
+
+			if user_row is None:
+				self.add_item(ui.TextDisplay("User data not found!"))
+
+				return self
+
+			if user_row["status"] in (UserStatus.FAILED.value, UserStatus.INCOMPLETE.value):
+				self.add_item(
+					ui.TextDisplay(
+						f"{'You have' if invoker.id == user_row['discord_id'] else 'This user has'} been disqualified due to failing the season."
+					)
+				)
+
+				return self
+
+			_, discord_user = await bot.fetch_user_from_database(user_id, db_conn=conn)
+
+			username = f"<@{discord_user.id}>" if discord_user else user_row["username"]
+
+			user_status = UserStatus(user_row["status"])
+			status_name = get_status_name(user_status)
+			if user_status in (UserStatus.FAILED, UserStatus.INCOMPLETE):
+				status_name = "Disqualified"
+
+			user_description = (
+				f"- **Status**: {status_name} {get_status_emote(UserStatus(user_row['status']))}\n"
+				+ f"- **Total Score**: {fantasy_row['total_score']}\n"
+			)
+
+			header_content = f"## {username}'s Fantasy Team\n{user_description}"
+
+			buttons: list[ui.Button] = [ui.Button(label="Get members contracts", custom_id="get_member_contracts")]
+			body_content: list[str] = []
+			for i in range(1, 6):
+				member_id: str = fantasy_row.get(f"member{i}_id")
+				member_score: int = fantasy_row.get(f"member{i}_score")
+
+				self.member_ids.append(member_id)
+
+				async with conn.execute(USER_DATA_QUERY, (season_id, member_id)) as cursor:
+					member_row = await cursor.fetchone()
+
+				if member_row is None:
+					text_content = f"{i}. User data for member {i} not found."
+				else:
+					member_name = f"<@{member_row['discord_id']}>" if member_row["discord_id"] else member_row["username"]
+					text_content = f"{i}. {member_name} | **Status**: {get_status_name(UserStatus(member_row['status']))} {get_status_emote(UserStatus(member_row['status']))} | **Score**: {member_score}"
+
+				body_content.append(text_content)
+
+			for button in buttons:
+				button.callback = self.button_callback
+
+			header_display = ui.TextDisplay(header_content + f"### Members\n{'\n'.join(body_content)}")
+
+			self.add_item(
+				ui.Container(
+					(
+						ui.Section(header_display, accessory=ui.Thumbnail(discord_user.display_avatar.url))
+						if discord_user and discord_user.display_avatar
+						else header_display
+					),
+					ui.Separator(),
+					# ui.ActionRow(*buttons),
+					ui.TextDisplay(f"-# <:Kirburger:998705274074435584> {await get_deadline_footer(self.bot.database, season_id, db_conn=conn)}"),
+					color=COLORS.DEFAULT,
+				)
+			)
+
+		return self
+
+	async def on_timeout(self):
+		try:
+			await super().on_timeout()
+		except (discord.Forbidden, discord.NotFound):
+			pass
+
+	async def button_callback(self, interaction: discord.Interaction):
+		return await interaction.respond("TODO", ephemeral=True)
+		if interaction.custom_id.startswith("get_member_contracts"):
+			i = int(interaction.custom_id.lstrip("get_member_contracts"))
+			member_id = self.member_ids[i - 1]
+
+			return await interaction.respond(
+				view=await SeasonUserContracts.create(self.bot, interaction.user, self.season_id, member_id), ephemeral=True
+			)
+
+
 def get_formatted_contract(contract: OrderContractData, *, is_unselected: bool = False, include_review_url: bool = True) -> str:
 	contract_name = f"[{contract['name']}]({contract['review_url']})" if (contract["review_url"] and include_review_url) else contract["name"]
 	status_emote: str = ""
@@ -411,11 +548,15 @@ class SeasonUserFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
 	season: str = commands.flag(aliases=["s"], default=None)
 
 
+class FantasyUserFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
+	user: str | int = commands.flag(aliases=["u"], default=None, positional=True)
+	season: Literal["season_x"] = commands.flag(aliases=["s"], default="season_x")
+
+
 class UserCog(NatsuminCog):
 	user_group = discord.commands.SlashCommandGroup(
 		"user",
 		description="Various user related commands",
-		# guild_ids=GUILD_IDS,
 		contexts={discord.InteractionContextType.guild, discord.InteractionContextType.bot_dm, discord.InteractionContextType.private_channel},
 		integration_types={discord.IntegrationType.user_install, discord.IntegrationType.guild_install},
 	)
@@ -484,6 +625,60 @@ class UserCog(NatsuminCog):
 				return await ctx.respond(f"{username} has not participated in {season_name}!", ephemeral=True)
 
 		await ctx.respond(view=await SeasonUserProfile.create(self.bot, ctx.author, season_id, user_id), ephemeral=hidden)
+
+	@contracts_subgroup.command(name="fantasy", description="Fetch the fantasy team of a user")
+	@discord.option(
+		"user",
+		str,
+		description="The user to see fantasy team of, only autocompletes from active season",
+		default=None,
+		autocomplete=fantasy_usernames_autocomplete,
+	)
+	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, choices=["season_x"])
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
+	async def fantasy(self, ctx: discord.ApplicationContext, user: str | None = None, season: str | None = None, hidden: bool = False):
+		if user is None:
+			user = ctx.author
+
+		if not is_channel(ctx, 1002056335845752864):
+			hidden = True
+
+		async with self.bot.database.connect() as conn:
+			if season is None:
+				season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
+			else:
+				season_id = season
+
+			if season_id not in self.bot.database.available_seasons:
+				return await ctx.respond(
+					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it.",
+					ephemeral=True,
+				)
+
+			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			if not user_id:
+				return await ctx.respond("User not found!", ephemeral=True)
+
+			async with conn.execute(
+				"SELECT (SELECT name FROM season WHERE id = ?) as name, (SELECT username FROM user WHERE id = ?) as username", (season_id, user_id)
+			) as cursor:
+				row = await cursor.fetchone()
+				season_name = row["name"]
+				username = row["username"]
+
+			async with conn.execute("SELECT 1 FROM season_user WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
+				is_user_in_season = await cursor.fetchone()
+
+			if not is_user_in_season:
+				return await ctx.respond(f"{username} has not participated in {season_name}!", ephemeral=True)
+
+			async with conn.execute("SELECT 1 FROM season_user_fantasy WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
+				does_user_have_fantasy = await cursor.fetchone()
+
+			if not does_user_have_fantasy:
+				return await ctx.respond(f"{username} doesn't have a fantasy profile for {season_name}!", ephemeral=True)
+
+		await ctx.respond(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, user_id), ephemeral=hidden)
 
 	@contracts_subgroup.command(name="get", description="Fetch the contracts of a user")
 	@discord.option(
@@ -618,3 +813,46 @@ class UserCog(NatsuminCog):
 				return await ctx.reply(f"{username} has not participated in {season_name}!")
 
 		await ctx.reply(view=await SeasonUserContracts.create(self.bot, ctx.author, season_id, user_id))
+
+	@commands.command("fantasy", aliases=["f"], help="Fetch the fantasy team of a user")
+	@must_be_channel(1002056335845752864)
+	async def text_fantasy(self, ctx: commands.Context, *, flags: FantasyUserFlags):
+		user = flags.user
+		if user is None:
+			user = ctx.author
+
+		async with self.bot.database.connect() as conn:
+			if flags.season is None:
+				season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
+			else:
+				season_id = flags.season
+
+			if season_id not in self.bot.database.available_seasons:
+				return await ctx.reply(
+					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it."
+				)
+
+			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			if not user_id:
+				return await ctx.reply("User not found!")
+
+			async with conn.execute(
+				"SELECT (SELECT name FROM season WHERE id = ?) as name, (SELECT username FROM user WHERE id = ?) as username", (season_id, user_id)
+			) as cursor:
+				row = await cursor.fetchone()
+				season_name = row["name"]
+				username = row["username"]
+
+			async with conn.execute("SELECT 1 FROM season_user WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
+				is_user_in_season = await cursor.fetchone()
+
+			if not is_user_in_season:
+				return await ctx.reply(f"{username} has not participated in {season_name}!")
+
+			async with conn.execute("SELECT 1 FROM season_user_fantasy WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
+				does_user_have_fantasy = await cursor.fetchone()
+
+			if not does_user_have_fantasy:
+				return await ctx.reply(f"{username} doesn't have a fantasy profile for {season_name}!")
+
+		await ctx.reply(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, user_id))
