@@ -18,6 +18,8 @@ import discord
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuminBot
 
+FANTASY_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1IRg3plGydWluhIIxM4uQfwzb5xdQdDF83ETVTcnUKRo/edit?gid=2045734957"
+
 
 async def fantasy_usernames_autocomplete(ctx: discord.AutocompleteContext) -> list[str]:
 	bot: NatsuminBot = ctx.bot
@@ -383,6 +385,7 @@ class FantasyUserProfile(ui.DesignerView):
 						if discord_user and discord_user.display_avatar
 						else header_display
 					),
+					ui.TextDisplay(f"-# More information on the [spreadsheet]({FANTASY_SPREADSHEET_URL})."),
 					ui.Separator(),
 					# ui.ActionRow(*buttons),
 					ui.TextDisplay(f"-# <:Kirburger:998705274074435584> {await get_deadline_footer(self.bot.database, season_id, db_conn=conn)}"),
@@ -676,7 +679,7 @@ class UserCog(NatsuminCog):
 				does_user_have_fantasy = await cursor.fetchone()
 
 			if not does_user_have_fantasy:
-				return await ctx.respond(f"{username} doesn't have a fantasy profile for {season_name}!", ephemeral=True)
+				return await ctx.respond(f"{username} doesn't have a fantasy team for {season_name}!", ephemeral=True)
 
 		await ctx.respond(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, user_id), ephemeral=hidden)
 
@@ -853,6 +856,6 @@ class UserCog(NatsuminCog):
 				does_user_have_fantasy = await cursor.fetchone()
 
 			if not does_user_have_fantasy:
-				return await ctx.reply(f"{username} doesn't have a fantasy profile for {season_name}!")
+				return await ctx.reply(f"{username} doesn't have a fantasy team for {season_name}!")
 
 		await ctx.reply(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, user_id))

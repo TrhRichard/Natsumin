@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 import datetime
 import discord
 
+BADGE_TYPES = ["contracts", "aria", "event", "misc"]
+
 
 async def badge_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.OptionChoice]:
 	bot: NatsuminBot = ctx.bot
@@ -41,36 +43,21 @@ class FindFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
 	name: str = commands.flag(aliases=["n"], default=None, positional=True)
 	owned_user: str | int | discord.abc.User = commands.flag(aliases=["u"], default=None)
 	owned: bool = commands.flag(aliases=["o"], default=None)
-	type: Literal["contracts", "aria"] = commands.flag(aliases=["t"], default=None)
+	type: Literal["contracts", "aria", "event", "misc"] = commands.flag(aliases=["t"], default=None)
 
 
 class BadgeCog(NatsuminCog):
 	badge_group = discord.commands.SlashCommandGroup("badge", description="Various badge related commands", guild_ids=GUILD_IDS)
 
-	@badge_group.command(description="Get badges")
-	@discord.option("name", str, min_length=1, default=None)
-	@discord.option("owned", bool, default=None)
-	@discord.option(
-		"owned_user",
-		str,
-		description="User to check owned status of, does nothing if owned is not set",
-		default=None,
-		autocomplete=usernames_autocomplete(False),
-	)
-	@discord.option("type", str, choices=["contracts", "aria"], parameter_name="badge_type", default=None)
-	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
-	async def find(
+	async def badge_find_handler(
 		self,
-		ctx: discord.ApplicationContext,
+		invoker: discord.abc.User,
 		name: str | None = None,
 		owned_user: str | None = None,
 		owned: bool | None = None,
 		badge_type: str | None = None,
 		hidden: bool = False,
-	):
-		if not is_channel(ctx, 1002056335845752864):
-			hidden = True
-
+	) -> tuple[str | BadgeDisplay, bool]:
 		async with self.bot.database.connect() as conn:
 			select_list: list[str] = ["b.*"]
 			where_conditions: list[str] = []
@@ -79,7 +66,7 @@ class BadgeCog(NatsuminCog):
 			joins_params = []
 			params = []
 
-			author_user_id, _ = await self.bot.fetch_user_from_database(ctx.author, db_conn=conn)
+			author_user_id, _ = await self.bot.fetch_user_from_database(invoker, db_conn=conn)
 			if author_user_id is not None:
 				joins_list.append("""
 					LEFT JOIN user_badge aub ON
@@ -101,11 +88,11 @@ class BadgeCog(NatsuminCog):
 
 			if owned is not None:
 				if owned_user is None:
-					owned_user = ctx.author
+					owned_user = invoker
 				owned_user_id, _ = await self.bot.fetch_user_from_database(owned_user, db_conn=conn)
 
 				if owned_user_id is None:
-					return await ctx.respond("No badges found due to owned_user not being in the database.", ephemeral=True)
+					return "No badges found due to owned_user not being in the database.", True
 
 				joins_list.append("""
 					LEFT JOIN user_badge ub ON 
@@ -130,7 +117,20 @@ class BadgeCog(NatsuminCog):
 				FROM badge b
 				{"\n".join(joins_list)}
 				{f" WHERE {' AND '.join(where_conditions)}" if where_conditions else ""}
-				ORDER BY b.type, b.created_at, b.name
+				ORDER BY 
+					CASE
+						WHEN b.type = "contracts" THEN 0 
+						WHEN b.type = "aria" THEN 1
+						WHEN b.type = "event" THEN 2 
+						WHEN b.type = "misc" THEN 3 
+						ELSE 99
+					END,
+					b.created_at,
+					CASE
+						WHEN b.url == "" THEN 1
+						ELSE 0
+					END,
+					b.name
 			"""
 
 			if joins_list:
@@ -142,31 +142,22 @@ class BadgeCog(NatsuminCog):
 				badges: list[BadgeData] = [dict(row) for row in await cursor.fetchall()]
 
 		if len(badges) == 0:
-			return await ctx.respond("No badges found with specified filters.", ephemeral=True)
+			return "No badges found with specified filters.", True
 
-		await ctx.respond(view=BadgeDisplay(ctx.author, badges), ephemeral=hidden)
+		return BadgeDisplay(invoker, badges), hidden
 
-	@badge_group.command(description="Get the badges of a user")
-	@discord.option("user", str, description="The user to get badges from", default=None, autocomplete=usernames_autocomplete(False))
-	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
-	async def inventory(self, ctx: discord.ApplicationContext, user: str | None, hidden: bool):
-		if user is None:
-			user = ctx.author
-
-		if not is_channel(ctx, 1002056335845752864):
-			hidden = True
-
+	async def badge_inventory_handler(self, invoker: discord.abc.User, user: str | None, hidden: bool) -> tuple[str | BadgeDisplay, bool]:
 		async with self.bot.database.connect() as conn:
 			user_id, discord_user = await self.bot.fetch_user_from_database(user, db_conn=conn)
 			if not user_id:
-				return await ctx.respond("User not found!", ephemeral=True)
+				return "User not found!", True
 
 			select_list: list[str] = ["b.*"]
 			joins_list: list[str] = []
 			joins_params = []
 			params = []
 
-			author_user_id, _ = await self.bot.fetch_user_from_database(ctx.author, db_conn=conn)
+			author_user_id, _ = await self.bot.fetch_user_from_database(invoker, db_conn=conn)
 			if author_user_id is not None:
 				joins_list.append("""
 					LEFT JOIN user_badge aub ON
@@ -195,7 +186,20 @@ class BadgeCog(NatsuminCog):
 				{"\n".join(joins_list)}
 				WHERE 
 					ub.user_id = ? 
-				ORDER BY b.type, b.created_at, b.name
+				ORDER BY 
+					CASE
+						WHEN b.type = "contracts" THEN 0 
+						WHEN b.type = "aria" THEN 1
+						WHEN b.type = "event" THEN 2 
+						WHEN b.type = "misc" THEN 3 
+						ELSE 99
+					END,
+					b.created_at,
+					CASE
+						WHEN b.url == "" THEN 1
+						ELSE 0
+					END,
+					b.name
 			"""
 
 			if joins_list:
@@ -206,17 +210,13 @@ class BadgeCog(NatsuminCog):
 				badges: list[BadgeData] = [dict(row) for row in await cursor.fetchall()]
 
 		if len(badges) == 0:
-			return await ctx.respond(f"{"You don't" if ctx.author.id == discord_user.id else "This user doesn't"} have any badges.", ephemeral=True)
+			return f"{"You don't" if invoker.id == discord_user.id else "This user doesn't"} have any badges.", True
 
-		await ctx.respond(view=BadgeDisplay(ctx.author, badges), ephemeral=hidden)
+		return BadgeDisplay(invoker, badges), hidden
 
-	@badge_group.command(description="Leaderboard of badge/user badge counts")
-	@discord.option("type", str, choices=["badges", "users"], parameter_name="leaderboard_type", default="badges")
-	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
-	async def leaderboard(self, ctx: discord.ApplicationContext, leaderboard_type: Literal["badges", "users"], hidden: bool):
-		if not is_channel(ctx, 1002056335845752864):
-			hidden = True
-
+	async def badge_leaderboard_handler(
+		self, invoker: discord.abc.User, leaderboard_type: Literal["badges", "users"], hidden: bool
+	) -> tuple[CustomPaginator, bool]:
 		async with self.bot.database.connect() as conn:
 			if leaderboard_type == "users":
 				query = """
@@ -273,8 +273,97 @@ class BadgeCog(NatsuminCog):
 						embed = discord.Embed(title="Badges leaderboard", description="\n".join(lines), color=COLORS.DEFAULT)
 						all_pages.append(embed)
 
-			paginator = CustomPaginator(all_pages)
-			await paginator.respond(ctx.interaction, ephemeral=hidden)
+			return CustomPaginator(all_pages), hidden
+
+	@badge_group.command(description="Get badges")
+	@discord.option("name", str, min_length=1, default=None)
+	@discord.option("owned", bool, default=None)
+	@discord.option(
+		"owned_user",
+		str,
+		description="User to check owned status of, does nothing if owned is not set",
+		default=None,
+		autocomplete=usernames_autocomplete(False),
+	)
+	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default=None)
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
+	async def find(
+		self,
+		ctx: discord.ApplicationContext,
+		name: str | None = None,
+		owned_user: str | None = None,
+		owned: bool | None = None,
+		badge_type: str | None = None,
+		hidden: bool = False,
+	):
+		if not is_channel(ctx, 1002056335845752864):
+			hidden = True
+
+		content, is_hidden = await self.badge_find_handler(ctx.author, name, owned_user, owned, badge_type, hidden)
+		if isinstance(content, BadgeDisplay):
+			return await ctx.respond(view=content, ephemeral=is_hidden)
+		else:
+			return await ctx.respond(content, ephemeral=is_hidden)
+
+	@badge_group.command(description="Get the badges of a user")
+	@discord.option("user", str, description="The user to get badges from", default=None, autocomplete=usernames_autocomplete(False))
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
+	async def inventory(self, ctx: discord.ApplicationContext, user: str | None, hidden: bool):
+		if user is None:
+			user = ctx.author
+
+		if not is_channel(ctx, 1002056335845752864):
+			hidden = True
+
+		content, is_hidden = await self.badge_inventory_handler(ctx.author, user, hidden)
+		if isinstance(content, BadgeDisplay):
+			return await ctx.respond(view=content, ephemeral=is_hidden)
+		else:
+			return await ctx.respond(content, ephemeral=is_hidden)
+
+	@badge_group.command(description="Leaderboard of badge/user badge counts")
+	@discord.option("type", str, choices=["badges", "users"], parameter_name="leaderboard_type", default="badges")
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
+	async def leaderboard(self, ctx: discord.ApplicationContext, leaderboard_type: Literal["badges", "users"], hidden: bool):
+		if not is_channel(ctx, 1002056335845752864):
+			hidden = True
+
+		paginator, is_hidden = await self.badge_leaderboard_handler(ctx.author, leaderboard_type, hidden)
+		await paginator.respond(ctx.interaction, ephemeral=is_hidden)
+
+	@commands.group("badge", help="Badges related commands", aliases=["b"], invoke_without_command=True)
+	async def badge_textgroup(self, ctx: commands.Context, user: str | int = None):
+		if await self.text_inventory.can_run(ctx):
+			await self.text_inventory(ctx, user)
+
+	@badge_textgroup.command("find", aliases=["list", "search", "query"], help="Get badges")
+	@must_be_channel(1002056335845752864)
+	async def text_find(self, ctx: commands.Context, *, flags: FindFlags):
+		content, _ = await self.badge_find_handler(ctx.author, flags.name, flags.owned_user, flags.owned, flags.type, False)
+		if isinstance(content, BadgeDisplay):
+			return await ctx.reply(view=content)
+		else:
+			return await ctx.reply(content)
+
+	@badge_textgroup.command("inventory", aliases=["inv", "i"], help="Get the badges of a user")
+	@must_be_channel(1002056335845752864)
+	async def text_inventory(self, ctx: commands.Context, user: str | int = None):
+		if user is None:
+			user = ctx.author
+
+		content, _ = await self.badge_inventory_handler(ctx.author, user, False)
+		if isinstance(content, BadgeDisplay):
+			return await ctx.reply(view=content)
+		else:
+			return await ctx.reply(content)
+
+	@badge_textgroup.command("leaderboard", aliases=["lb"], help="Leaderboard of badge/user badge counts")
+	@must_be_channel(1002056335845752864)
+	async def text_leaderboard(self, ctx: commands.Context, leaderboard_type: Literal["badges", "users"] = "badges"):
+		paginator, _ = await self.badge_leaderboard_handler(ctx.author, leaderboard_type, False)
+		await paginator.send(ctx, reference=ctx.message)
+
+	# Badge management commands
 
 	@badge_group.command(description="Add a new badge")
 	@can_modify_badges()
@@ -282,7 +371,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("description", str, default=None)
 	@discord.option("artist", str, default=None)
 	@discord.option("image_url", str, default=None)
-	@discord.option("type", str, choices=["contracts", "aria"], parameter_name="badge_type", default="contracts")
+	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default="contracts")
 	async def add(
 		self,
 		ctx: discord.ApplicationContext,
@@ -317,7 +406,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("description", str, default=None)
 	@discord.option("artist", str, default=None)
 	@discord.option("image_url", str, default=None)
-	@discord.option("type", str, choices=["contracts", "aria"], parameter_name="badge_type", default=None)
+	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default=None)
 	async def edit(
 		self,
 		ctx: discord.ApplicationContext,
@@ -466,209 +555,3 @@ class BadgeCog(NatsuminCog):
 			await conn.commit()
 
 		await ctx.respond(f"Removed **{badge_row['name']}** from {username}!", ephemeral=True)
-
-	@commands.group("badge", help="Badges related commands", aliases=["b"], invoke_without_command=True)
-	async def badge_textgroup(self, ctx: commands.Context, user: str | int = None):
-		if await self.text_inventory.can_run(ctx):
-			await self.text_inventory(ctx, user)
-
-	@badge_textgroup.command("find", aliases=["list", "search", "query"], help="Get badges")
-	@must_be_channel(1002056335845752864)
-	async def text_find(self, ctx: commands.Context, *, flags: FindFlags):
-		async with self.bot.database.connect() as conn:
-			select_list: list[str] = ["b.*"]
-			where_conditions: list[str] = []
-			where_params = []
-			joins_list: list[str] = []
-			joins_params = []
-			params = []
-
-			author_user_id, _ = await self.bot.fetch_user_from_database(ctx.author, db_conn=conn)
-			if author_user_id is not None:
-				joins_list.append("""
-					LEFT JOIN user_badge aub ON
-						aub.badge_id = b.id
-						AND aub.user_id = ?
-				""")
-				joins_params.append(author_user_id)
-				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
-			else:
-				select_list.append("NULL AS author_owns_badge")
-
-			if flags.name is not None:
-				where_conditions.append("name LIKE ?")
-				where_params.append(f"%{flags.name}%")
-
-			if flags.type is not None:
-				where_conditions.append("type = ?")
-				where_params.append(flags.type)
-
-			if flags.owned is not None:
-				owned_user = flags.owned_user
-				if owned_user is None:
-					owned_user = ctx.author
-				owned_user_id, _ = await self.bot.fetch_user_from_database(owned_user, db_conn=conn)
-
-				if owned_user_id is None:
-					return await ctx.reply("No badges found due to owned_user not being in the database.")
-
-				joins_list.append("""
-					LEFT JOIN user_badge ub ON 
-						ub.badge_id = b.id
-						AND ub.user_id = ?
-				""")
-				joins_params.append(owned_user_id)
-
-				where_conditions.append("ub.badge_id IS NOT NULL" if flags.owned else "ub.badge_id IS NULL")
-
-			select_list.append("""
-				(
-					SELECT COUNT(*)
-					FROM user_badge ubc
-					WHERE ubc.badge_id = b.id
-				) AS badge_count
-			""")
-
-			query = f"""
-				SELECT
-					{", ".join(select_list)}
-				FROM badge b
-				{"\n".join(joins_list)}
-				{f" WHERE {' AND '.join(where_conditions)}" if where_conditions else ""}
-				ORDER BY b.type, b.created_at, b.name
-			"""
-
-			if joins_list:
-				params.extend(joins_params)
-			if where_conditions:
-				params.extend(where_params)
-
-			async with conn.execute(query, params) as cursor:
-				badges: list[BadgeData] = [dict(row) for row in await cursor.fetchall()]
-
-		if len(badges) == 0:
-			return await ctx.reply("No badges found.")
-
-		await ctx.reply(view=BadgeDisplay(ctx.author, badges))
-
-	@badge_textgroup.command("inventory", aliases=["inv", "i"], help="Get the badges of a user")
-	@must_be_channel(1002056335845752864)
-	async def text_inventory(self, ctx: commands.Context, user: str | int = None):
-		if user is None:
-			user = ctx.author
-
-		async with self.bot.database.connect() as conn:
-			user_id, discord_user = await self.bot.fetch_user_from_database(user, db_conn=conn)
-			if not user_id:
-				return await ctx.reply("User not found!")
-
-			select_list: list[str] = ["b.*"]
-			joins_list: list[str] = []
-			joins_params = []
-			params = []
-
-			author_user_id, _ = await self.bot.fetch_user_from_database(ctx.author, db_conn=conn)
-			if author_user_id is not None:
-				joins_list.append("""
-					LEFT JOIN user_badge aub ON
-						aub.badge_id = b.id
-						AND aub.user_id = ?
-				""")
-				joins_params.append(author_user_id)
-				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
-			else:
-				select_list.append("NULL AS author_owns_badge")
-
-			select_list.append("""
-				(
-					SELECT COUNT(*)
-					FROM user_badge ubc
-					WHERE ubc.badge_id = b.id
-				) AS badge_count
-			""")
-
-			query = f"""
-				SELECT
-					{", ".join(select_list)}
-				FROM user_badge ub 
-				JOIN badge b ON 
-					ub.badge_id = b.id 
-				{"\n".join(joins_list)}
-				WHERE 
-					ub.user_id = ? 
-				ORDER BY b.type, b.created_at, b.name
-			"""
-
-			if joins_list:
-				params.extend(joins_params)
-
-			params.append(user_id)
-			async with conn.execute(query, params) as cursor:
-				badges: list[BadgeData] = [dict(row) for row in await cursor.fetchall()]
-
-			if len(badges) == 0:
-				return await ctx.reply(f"{"You don't" if ctx.author.id == discord_user.id else "This user doesn't"} have any badges.")
-
-			await ctx.reply(view=BadgeDisplay(ctx.author, badges))
-
-	@badge_textgroup.command("leaderboard", aliases=["lb"], help="Leaderboard of badge/user badge counts")
-	@must_be_channel(1002056335845752864)
-	async def text_leaderboard(self, ctx: commands.Context, leaderboard_type: Literal["badges", "users"] = "badges"):
-		async with self.bot.database.connect() as conn:
-			if leaderboard_type == "users":
-				query = """
-					SELECT
-						u.username,
-						u.discord_id,
-						COUNT(ub.badge_id) AS badge_count
-					FROM user u
-					JOIN user_badge ub ON 
-						ub.user_id = u.id
-					GROUP BY u.id, u.username
-					ORDER BY badge_count DESC, u.username ASC
-				"""
-
-				async with conn.execute(query) as cursor:
-					user_rows: list[tuple[str, int, int]] = [
-						(row["username"], row["discord_id"], row["badge_count"]) for row in await cursor.fetchall()
-					]
-
-					all_pages = []
-					for start in range(0, len(user_rows), 15):
-						lines = []
-						for i, (username, discord_id, badge_count) in enumerate(user_rows[start : start + 15], start=start):
-							full_name = f"<@{discord_id}> ({username})" if discord_id else username
-							line_to_add = f"{i + 1}. {full_name}: **{badge_count}**"
-
-							lines.append(line_to_add)
-
-						embed = discord.Embed(title="Users leaderboard", description="\n".join(lines), color=COLORS.DEFAULT)
-						all_pages.append(embed)
-			else:
-				query = """
-					SELECT
-						b.name,
-						COUNT(ub.user_id) AS user_count
-					FROM badge b
-					LEFT JOIN user_badge ub
-						ON ub.badge_id = b.id
-					GROUP BY b.id, b.name
-					ORDER BY user_count DESC, b.created_at DESC, b.name ASC
-				"""
-
-				async with conn.execute(query) as cursor:
-					badge_rows: list[tuple[str, int]] = [(row["name"], row["user_count"]) for row in await cursor.fetchall()]
-
-					all_pages = []
-					for start in range(0, len(badge_rows), 15):
-						lines = []
-						for i, (badge_name, user_count) in enumerate(badge_rows[start : start + 15], start=start):
-							line_to_add = f"{i + 1}. {badge_name}: **{user_count}**"
-
-							lines.append(line_to_add)
-
-						embed = discord.Embed(title="Badges leaderboard", description="\n".join(lines), color=COLORS.DEFAULT)
-						all_pages.append(embed)
-
-			paginator = CustomPaginator(all_pages)
-			await paginator.send(ctx, reference=ctx.message)

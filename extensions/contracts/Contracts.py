@@ -321,7 +321,14 @@ class ContractsCog(NatsuminCog):
 					{"AND su.rep = ?" if rep is not None else ""}
 					{f"AND su.status IN ({','.join('?' for _ in user_statuses)})" if user_statuses else ""}
 				GROUP BY u.id, u.username
-				ORDER BY su.status ASC, u.username ASC
+				ORDER BY 
+					CASE
+						WHEN su.status = 1 THEN 0 -- passed
+						WHEN su.status IN (2,3,4) THEN 1 -- failed, late, incomplete
+						WHEN su.status = 0 THEN 2 -- pending
+						ELSE 99
+					END ASC,
+					u.username ASC
 			"""
 			params = [season_id]
 			if rep is not None:
