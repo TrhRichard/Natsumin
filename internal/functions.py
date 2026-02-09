@@ -2,9 +2,6 @@ from __future__ import annotations
 
 from internal.enums import UserStatus, ContractStatus, LegacyRank
 from typing import TYPE_CHECKING, overload
-from .exceptions import WrongChannel
-from discord.ext import commands
-from config import OWNER_IDS
 from thefuzz import process
 
 import aiosqlite
@@ -99,34 +96,6 @@ def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime, *, include_secon
 	return frmt_iter(parts)
 
 
-def is_channel(
-	ctx: commands.Context, *channel_ids: int, guild_id: int = 994071728017899600, raise_exception: bool = False, bypass_roles: list[int] = None
-) -> bool:
-	bypass_roles = bypass_roles or []
-	channel_ids: list[int] = list(set(channel_ids))  # Make sure the list only has unique ids
-
-	if ctx.author.id in OWNER_IDS:
-		return True
-
-	if not ctx.guild or ctx.guild.id != guild_id:
-		return True
-
-	author_perms = ctx.channel.permissions_for(ctx.author)
-	if author_perms and author_perms.administrator:
-		return True
-
-	if bypass_roles and any(ctx.author.get_role(role_id) for role_id in bypass_roles):
-		return True
-
-	if ctx.channel.id not in channel_ids:
-		if raise_exception:
-			raise WrongChannel(f"This command can only be used in {', '.join(f'<#{channel_id}>' for channel_id in channel_ids)}")
-		else:
-			return False
-
-	return True
-
-
 async def get_user_id(conn: aiosqlite.Connection, username: str, *, score_cutoff: int = 91) -> str | None:
 	if username == "":
 		return None
@@ -158,47 +127,58 @@ async def get_user_id(conn: aiosqlite.Connection, username: str, *, score_cutoff
 
 
 def get_status_name(status: UserStatus | ContractStatus, is_optional: bool = False) -> str:
+	status_name: str
 	match status:
 		case UserStatus.PASSED | ContractStatus.PASSED:
-			if is_optional:
-				return "Passed (Optional)"
-			else:
-				return "Passed"
+			status_name = "Passed"
 		case UserStatus.LATE_PASS | ContractStatus.LATE_PASS:
-			return "Passed late"
+			status_name = "Passed late"
 		case UserStatus.FAILED | ContractStatus.FAILED:
-			return "Failed"
+			status_name = "Failed"
 		case UserStatus.PENDING | ContractStatus.PENDING:
-			if is_optional:
-				return "Pending (Optional)"
-			else:
-				return "Pending"
+			status_name = "Pending"
 		case UserStatus.INCOMPLETE:
-			return "Incomplete"
+			status_name = "Incomplete"
 		case ContractStatus.UNVERIFIED:
-			return "Unverified"
+			status_name = "Unverified"
 		case _:
-			return "N/A"
+			status_name = "N/A"
+
+	if is_optional:
+		status_name += " (Optional)"
+
+	return status_name
 
 
 def get_status_emote(status: UserStatus | ContractStatus, is_optional: bool = False) -> str:
-	match status:
-		case UserStatus.PASSED | ContractStatus.PASSED:
-			if is_optional:
-				return "🏆"
-			else:
+	if isinstance(status, UserStatus):
+		match status:
+			case UserStatus.PASSED:
 				return "✅"
-		case UserStatus.LATE_PASS | ContractStatus.LATE_PASS:
-			return "☑️"
-		case UserStatus.FAILED | UserStatus.INCOMPLETE | ContractStatus.FAILED:
-			return "❌"
-		case ContractStatus.UNVERIFIED:
-			return "❓"
-		case _:
-			if is_optional:
-				return "➖"
-			else:
+			case UserStatus.LATE_PASS:
+				return "☑️"
+			case UserStatus.FAILED | UserStatus.INCOMPLETE:
+				return "❌"
+			case _:
 				return "❔"
+	else:
+		match status:
+			case ContractStatus.PASSED:
+				if is_optional:
+					return "🏆"
+				else:
+					return "✅"
+			case ContractStatus.LATE_PASS:
+				return "☑️"
+			case ContractStatus.FAILED:
+				return "❌"
+			case ContractStatus.UNVERIFIED:
+				return "❓"
+			case _:
+				if is_optional:
+					return "➖"
+				else:
+					return "❔"
 
 
 def get_rank_emoteid(rank: LegacyRank | None = None) -> int | None:

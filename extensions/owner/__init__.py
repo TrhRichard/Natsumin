@@ -130,14 +130,105 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 		else:
 			await ctx.reply(f"Key **`{key}`** not found in config!")
 
+	@commands.group(name="whitelist", invoke_without_command=True)
+	async def whitelist(self, ctx: commands.Context):
+		async with self.bot.database.connect() as conn:
+			async with conn.execute("SELECT guild_id, channel_id FROM whitelist_channel LIMIT 25") as cursor:
+				rows = await cursor.fetchall()
+
+		per_guild_channels: dict[int, list[int]] = {}
+		for row in rows:
+			per_guild_channels.setdefault(row["guild_id"], []).append(row["channel_id"])
+
+		embed = discord.Embed(description="", color=COLORS.DEFAULT)
+		embed.set_author(name=f"{self.bot.user.name}'s whitelisted channels", icon_url=self.bot.user.display_avatar.url)
+
+		for guild_id, channel_ids in per_guild_channels.items():
+			guild = await self.bot.get_or_fetch(discord.Guild, guild_id)
+
+			embed.add_field(name=str(guild.name if guild else guild_id), value=frmt_iter(f"<#{c}>" for c in channel_ids), inline=False)
+
+		await ctx.reply(embed=embed)
+
+	@whitelist.command(name="add")
+	async def whitelist_add(self, ctx: commands.Context, channel: discord.abc.GuildChannel):
+		async with self.bot.database.connect() as conn:
+			async with conn.execute("SELECT COUNT(*) as count FROM whitelist_channel WHERE guild_id = ?", (channel.guild.id,)) as cursor:
+				server_had_whitelist = (await cursor.fetchone())["count"] == 0
+
+			await conn.execute("INSERT OR IGNORE INTO whitelist_channel (guild_id, channel_id) VALUES (?, ?)", (channel.guild.id, channel.id))
+			await conn.commit()
+
+		if not server_had_whitelist:
+			await ctx.reply(f"Added {channel.mention} as a whitelisted channel in **{channel.guild.name}**")
+		else:
+			await ctx.reply(f"Added {channel.mention} as a whitelisted channel in **{channel.guild.name}**, the server is now in whitelist mode!")
+
+	@whitelist.command(name="remove")
+	async def whitelist_remove(self, ctx: commands.Context, channel: discord.abc.GuildChannel):
+		async with self.bot.database.connect() as conn:
+			async with conn.execute("SELECT COUNT(*) as count FROM whitelist_channel WHERE guild_id = ?", (channel.guild.id,)) as cursor:
+				server_had_whitelist = (await cursor.fetchone())["count"] - 1 == 0
+
+			await conn.execute("DELETE FROM whitelist_channel WHERE guild_id = ? AND channel_id = ?", (channel.guild.id, channel.id))
+			await conn.commit()
+
+		if not server_had_whitelist:
+			await ctx.reply(f"Removed {channel.mention} as a whitelisted channel in **{channel.guild.name}**")
+		else:
+			await ctx.reply(
+				f"Removed {channel.mention} as a whitelisted channel in **{channel.guild.name}**, the server is no longer in whitelist mode!"
+			)
+
+	@commands.group(name="blacklist", invoke_without_command=True)
+	async def blacklist(self, ctx: commands.Context):
+		async with self.bot.database.connect() as conn:
+			async with conn.execute("SELECT discord_id, reason FROM blacklist_user LIMIT 25") as cursor:
+				rows: dict[int, str | None] = {row["discord_id"]: row["reason"] for row in await cursor.fetchall()}
+
+		embed = discord.Embed(description="", color=COLORS.DEFAULT)
+		embed.set_author(name=f"{self.bot.user.name}'s blacklisted users", icon_url=self.bot.user.display_avatar.url)
+
+		for discord_id, reason in rows.items():
+			embed.description += f"<@{discord_id}>{f' - `{reason}`' if reason else ''}\n"
+
+		await ctx.reply(embed=embed)
+
+	@blacklist.command(name="add")
+	async def blacklist_add(self, ctx: commands.Context, user: discord.User, *, reason: str = None):
+		async with self.bot.database.connect() as conn:
+			async with conn.execute("SELECT 1 FROM blacklist_user WHERE discord_id = ?", (user.id,)) as cursor:
+				is_user_already_blacklisted = (await cursor.fetchone()) is not None
+
+			if not is_user_already_blacklisted:
+				await conn.execute("INSERT OR IGNORE INTO blacklist_user (discord_id, reason) VALUES (?, ?)", (user.id, reason))
+				await conn.commit()
+
+		if not is_user_already_blacklisted:
+			await ctx.reply(f"Added {user.mention} to the blacklist{f' with the reason: `{reason}`' if reason else ''}!")
+		else:
+			await ctx.reply(f"{user.mention} is already blacklisted{f' for `{reason}`' if reason else ''}!")
+
+	@blacklist.command(name="remove")
+	async def blacklist_remove(self, ctx: commands.Context, user: discord.User):
+		async with self.bot.database.connect() as conn:
+			async with conn.execute("SELECT 1 FROM blacklist_user WHERE discord_id = ?", (user.id,)) as cursor:
+				is_user_already_blacklisted = (await cursor.fetchone()) is not None
+
+			await conn.execute("DELETE FROM blacklist_user WHERE discord_id = ?", (user.id,))
+			await conn.commit()
+
+		if is_user_already_blacklisted:
+			await ctx.reply(f"Removed {user.mention} from the blacklist.")
+		else:
+			await ctx.reply(f"{user.mention} was not blacklisted!")
+
 	@commands.command(aliases=["sui", "seasonuserinfo"])
 	async def season_user_info(self, ctx: commands.Context, id_or_username: str | discord.abc.User = None, season_id: str = None):
 		id_or_username = id_or_username or ctx.author.name
-		if isinstance(id_or_username, discord.abc.User):
-			id_or_username = id_or_username.name
 
 		async with self.bot.database.connect() as conn:
-			user_id = await get_user_id(conn, id_or_username)
+			user_id, _ = await self.bot.fetch_user_from_database(id_or_username, invoker=ctx.author, season_id=season_id, db_conn=conn)
 
 			if user_id is None:
 				return await ctx.reply("no user")
@@ -170,11 +261,9 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 	@commands.command(aliases=["ui", "userinfo", "mui", "masteruserinfo"])
 	async def user_info(self, ctx: commands.Context, id_or_username: str | discord.abc.User = None):
 		id_or_username = id_or_username or ctx.author.name
-		if isinstance(id_or_username, discord.abc.User):
-			id_or_username = id_or_username.name
 
 		async with self.bot.database.connect() as conn:
-			user_id = await get_user_id(conn, id_or_username)
+			user_id, _ = await self.bot.fetch_user_from_database(id_or_username, invoker=ctx.author, db_conn=conn)
 
 			if user_id is None:
 				return await ctx.reply("no user")
@@ -221,7 +310,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 	@commands.command(aliases=["addalias"])
 	async def setalias(self, ctx: commands.Context, id_or_username: str, alias: str):
 		async with self.bot.database.connect() as conn:
-			user_id = await get_user_id(conn, id_or_username)
+			user_id, _ = await self.bot.fetch_user_from_database(id_or_username, invoker=ctx.author, db_conn=conn)
 
 			if user_id is None:
 				return await ctx.reply("no user")
@@ -255,7 +344,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 				async with conn.execute("SELECT * FROM user_alias") as cursor:
 					user_aliases: tuple[(str, str), ...] = [(row["username"], row["user_id"]) for row in await cursor.fetchall()]
 			else:
-				user_id = await get_user_id(conn, id_or_username)
+				user_id, _ = await self.bot.fetch_user_from_database(id_or_username, invoker=ctx.author, db_conn=conn)
 				if user_id is None:
 					return await ctx.reply("no user")
 

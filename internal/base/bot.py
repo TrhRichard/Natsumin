@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from internal.constants import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER, COLORS
 from config import BOT_PREFIX, DEV_BOT_PREFIX, OWNER_IDS, DISABLED_EXTENSIONS
+from internal.exceptions import BlacklistedUser, NotWhitelistedChannel
 from internal.database.Reminder import ReminderDatabase
+from typing import TYPE_CHECKING, Literal, overload
 from internal.contracts.order import OrderCategory
 from internal.database import NatsuminDatabase
 from internal.functions import get_user_id
-from typing import TYPE_CHECKING, Literal
 from discord.ext import commands
 from pathlib import Path
 
@@ -80,6 +81,12 @@ class NatsuminBot(commands.Bot):
 					async with aiofiles.open(order_path, "r") as f:
 						self.season_orders[season_id] = json.loads(await f.read())
 
+		self.add_check(self.user_blacklist_check)
+
+	async def user_blacklist_check(self, ctx: commands.Context):
+		is_blacklisted, _ = await self.is_blacklisted(ctx, raise_exception=True, ignore_channel=True)
+		return not is_blacklisted
+
 	async def on_user_update(self, old: discord.User, new: discord.User):
 		if old.name == new.name:
 			return
@@ -108,6 +115,50 @@ class NatsuminBot(commands.Bot):
 
 	async def remove_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> bool:  # Shortcut
 		return await self.database.remove_config(key, db_conn=db_conn)
+
+	async def is_blacklisted(
+		self, ctx: commands.Context | discord.abc.User, *, raise_exception: bool = False, ignore_channel: bool = False
+	) -> tuple[bool, str | None]:
+		if isinstance(ctx, commands.Context):
+			if await self.is_owner(ctx.author):
+				return False, None
+		else:
+			if await self.is_owner(ctx):
+				return False, None
+
+		async with self.database.connect() as conn:
+			if isinstance(ctx, commands.Context):
+				discord_id = ctx.author.id
+
+				if ctx.guild is not None and not ignore_channel:
+					author_perms = ctx.channel.permissions_for(ctx.author)
+					if author_perms and author_perms.administrator:
+						return False, None
+
+					async with conn.execute("SELECT channel_id FROM whitelist_channel WHERE guild_id = ?", (ctx.guild.id,)) as cursor:
+						rows = await cursor.fetchall()
+
+						if rows:
+							valid_channel_ids: list[int] = list(row["channel_id"] for row in rows)
+
+							if ctx.channel.id not in valid_channel_ids:
+								if raise_exception:
+									raise NotWhitelistedChannel(valid_channel_ids)
+								else:
+									return True, None
+			else:
+				discord_id = ctx.id
+
+			async with conn.execute("SELECT reason FROM blacklist_user WHERE discord_id = ?", (discord_id,)) as cursor:
+				row = await cursor.fetchone()
+
+				if row is not None:
+					if raise_exception:
+						raise BlacklistedUser(row["reason"])
+					else:
+						return True, row["reason"]
+
+			return False, None
 
 	async def fetch_user_from_database(
 		self,
@@ -204,7 +255,7 @@ def get_command_signature(cmd: commands.Command):
 	So I had to overwrite this entire thing just to get flags to show up properly
 	-Richard
 	"""
-	from typing import Union, Literal
+	from typing import Union
 
 	if cmd.usage is not None:
 		return cmd.usage

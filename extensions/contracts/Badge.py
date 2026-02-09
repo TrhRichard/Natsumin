@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from internal.checks import must_be_channel, can_modify_badges
+from internal.checks import whitelist_channel_only, can_modify_badges
 from internal.contracts import usernames_autocomplete
-from internal.functions import is_channel, frmt_iter
 from internal.base.paginator import CustomPaginator
 from internal.base.view import BadgeDisplay
 from internal.base.cog import NatsuminCog
 from typing import TYPE_CHECKING, Literal
+from internal.functions import frmt_iter
 from internal.schemas import BadgeData
 from internal.constants import COLORS
 from discord.ext import commands
@@ -296,7 +296,7 @@ class BadgeCog(NatsuminCog):
 		badge_type: str | None = None,
 		hidden: bool = False,
 	):
-		if not is_channel(ctx, 1002056335845752864):
+		if self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		content, is_hidden = await self.badge_find_handler(ctx.author, name, owned_user, owned, badge_type, hidden)
@@ -312,7 +312,7 @@ class BadgeCog(NatsuminCog):
 		if user is None:
 			user = ctx.author
 
-		if not is_channel(ctx, 1002056335845752864):
+		if self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		content, is_hidden = await self.badge_inventory_handler(ctx.author, user, hidden)
@@ -325,7 +325,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("type", str, choices=["badges", "users"], parameter_name="leaderboard_type", default="badges")
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
 	async def leaderboard(self, ctx: discord.ApplicationContext, leaderboard_type: Literal["badges", "users"], hidden: bool):
-		if not is_channel(ctx, 1002056335845752864):
+		if self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		paginator, is_hidden = await self.badge_leaderboard_handler(ctx.author, leaderboard_type, hidden)
@@ -337,7 +337,7 @@ class BadgeCog(NatsuminCog):
 			await self.text_inventory(ctx, user)
 
 	@badge_textgroup.command("find", aliases=["list", "search", "query"], help="Get badges")
-	@must_be_channel(1002056335845752864)
+	@whitelist_channel_only()
 	async def text_find(self, ctx: commands.Context, *, flags: FindFlags):
 		content, _ = await self.badge_find_handler(ctx.author, flags.name, flags.owned_user, flags.owned, flags.type, False)
 		if isinstance(content, BadgeDisplay):
@@ -346,7 +346,7 @@ class BadgeCog(NatsuminCog):
 			return await ctx.reply(content)
 
 	@badge_textgroup.command("inventory", aliases=["inv", "i"], help="Get the badges of a user")
-	@must_be_channel(1002056335845752864)
+	@whitelist_channel_only()
 	async def text_inventory(self, ctx: commands.Context, user: str | int = None):
 		if user is None:
 			user = ctx.author
@@ -358,7 +358,7 @@ class BadgeCog(NatsuminCog):
 			return await ctx.reply(content)
 
 	@badge_textgroup.command("leaderboard", aliases=["lb"], help="Leaderboard of badge/user badge counts")
-	@must_be_channel(1002056335845752864)
+	@whitelist_channel_only()
 	async def text_leaderboard(self, ctx: commands.Context, leaderboard_type: Literal["badges", "users"] = "badges"):
 		paginator, _ = await self.badge_leaderboard_handler(ctx.author, leaderboard_type, False)
 		await paginator.send(ctx, reference=ctx.message)

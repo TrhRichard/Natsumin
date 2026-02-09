@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from internal.exceptions import WrongChannel, BlacklistedUser
+from internal.exceptions import NotWhitelistedChannel, BlacklistedUser
 from internal.base.cog import NatsuminCog
 from internal.functions import frmt_iter
 from internal.constants import COLORS
@@ -36,15 +36,18 @@ class Errors(NatsuminCog):
 		elif isinstance(error, commands.CommandOnCooldown):
 			err_type = "Cooldown"
 			err_details = f"You may retry again in **{error.retry_after:.2f}** seconds."
-		elif isinstance(error, WrongChannel):
-			err_details = str(error)
+		elif isinstance(error, NotWhitelistedChannel):
+			err_details = f"This command can only be used in {frmt_iter(f'<#{channel_id}>' for channel_id in error.valid_channel_ids)}"
 			should_log = False
 		elif isinstance(error, BlacklistedUser):
-			err_details = "no"
+			err_details = "You have been blacklisted from using the bot."
+			if error.reason:
+				err_details += f"\n\nReason: {error.reason}"
+
 			should_log = False
 		elif isinstance(error, (aiosqlite.Error, sqlite3.Error)):
 			err_type = "SQLite Exception"
-			err_details = "Encountered a SQLite error, for more info check the console."
+			err_details = "Encountered a SQLite error."
 			should_log = True
 		else:
 			err_type = type(error).__name__
@@ -70,9 +73,7 @@ class Errors(NatsuminCog):
 			if not channel_perms.send_messages:
 				return
 
-		embed = discord.Embed(
-			title=err_type if err_type else None, description=err_details, timestamp=datetime.datetime.now(datetime.UTC), color=COLORS.ERROR
-		)
+		embed = discord.Embed(title=err_type if err_type else None, description=err_details, color=COLORS.ERROR)
 		try:
 			await ctx.reply(embed=embed)
 		except discord.NotFound:
@@ -88,9 +89,7 @@ class Errors(NatsuminCog):
 		if should_log:
 			self.bot.logger.error(f"Application command error from @{ctx.author.name} in /{ctx.command}", exc_info=error)
 
-		embed = discord.Embed(
-			title=err_type if err_type else None, description=err_details, timestamp=datetime.datetime.now(datetime.UTC), color=COLORS.ERROR
-		)
+		embed = discord.Embed(title=err_type if err_type else None, description=err_details, color=COLORS.ERROR)
 		try:
 			await ctx.respond(embed=embed, ephemeral=True)
 		except discord.NotFound:

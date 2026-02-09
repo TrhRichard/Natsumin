@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from internal.functions import get_legacy_rank, get_rank_emoteid, is_channel, get_status_emote, get_status_name, frmt_iter
+from internal.functions import get_legacy_rank, get_rank_emoteid, get_status_emote, get_status_name, frmt_iter
 from internal.contracts import get_deadline_footer, season_autocomplete, usernames_autocomplete
 from internal.contracts.order import OrderContractData, sort_contract_types
 from internal.enums import UserKind, UserStatus, ContractStatus
-from internal.checks import must_be_channel
+from internal.checks import whitelist_channel_only
 from internal.base.view import BadgeDisplay
 from typing import TYPE_CHECKING, Literal
 from internal.base.cog import NatsuminCog
@@ -572,7 +572,7 @@ class UserCog(NatsuminCog):
 		if user is None:
 			user = ctx.author
 
-		if not is_channel(ctx, 1002056335845752864):
+		if self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author)
@@ -595,7 +595,7 @@ class UserCog(NatsuminCog):
 		if user is None:
 			user = ctx.author
 
-		if not is_channel(ctx, 1002056335845752864):
+		if self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		async with self.bot.database.connect() as conn:
@@ -643,7 +643,7 @@ class UserCog(NatsuminCog):
 		if user is None:
 			user = ctx.author
 
-		if not is_channel(ctx, 1002056335845752864):
+		if self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		async with self.bot.database.connect() as conn:
@@ -697,7 +697,7 @@ class UserCog(NatsuminCog):
 		if user is None:
 			user = ctx.author
 
-		if not is_channel(ctx, 1002056335845752864):
+		if self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		async with self.bot.database.connect() as conn:
@@ -732,7 +732,7 @@ class UserCog(NatsuminCog):
 		await ctx.respond(view=await SeasonUserContracts.create(self.bot, ctx.author, season_id, user_id), ephemeral=hidden)
 
 	@commands.command("globalprofile", aliases=["gp"], help="Fetch the global profile of a user")
-	@must_be_channel(1002056335845752864)
+	@whitelist_channel_only()
 	async def text_globalprofile(self, ctx: commands.Context, user: str | int | discord.abc.User = None):
 		if user is None:
 			user = ctx.author
@@ -744,7 +744,7 @@ class UserCog(NatsuminCog):
 		await ctx.reply(view=await MasterUserProfile.create(self.bot, ctx.author, user_id))
 
 	@commands.command("seasonprofile", aliases=["sp", "p", "profile"], help="Fetch the seasonal profile of a user")
-	@must_be_channel(1002056335845752864)
+	@whitelist_channel_only()
 	async def text_profile(self, ctx: commands.Context, *, flags: SeasonUserFlags):
 		user = flags.user
 		if user is None:
@@ -781,7 +781,7 @@ class UserCog(NatsuminCog):
 		await ctx.reply(view=await SeasonUserProfile.create(self.bot, ctx.author, season_id, user_id))
 
 	@commands.command("contracts", aliases=["c"], help="Fetch the status of your contracts")
-	@must_be_channel(1002056335845752864)
+	@whitelist_channel_only()
 	async def text_contracts(self, ctx: commands.Context, *, flags: SeasonUserFlags):
 		user = flags.user
 		if user is None:
@@ -818,7 +818,7 @@ class UserCog(NatsuminCog):
 		await ctx.reply(view=await SeasonUserContracts.create(self.bot, ctx.author, season_id, user_id))
 
 	@commands.command("fantasy", aliases=["f"], help="Fetch the fantasy team of a user")
-	@must_be_channel(1002056335845752864)
+	@whitelist_channel_only()
 	async def text_fantasy(self, ctx: commands.Context, *, flags: FantasyUserFlags):
 		user = flags.user
 		if user is None:

@@ -8,6 +8,20 @@ CREATE TABLE IF NOT EXISTS bot_config (
 	PRIMARY KEY (key)
 ) STRICT;
 
+CREATE TABLE IF NOT EXISTS blacklist_user (
+	discord_id	INTEGER NOT NULL,
+	reason		TEXT,
+
+	PRIMARY KEY (discord_id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS whitelist_channel (
+	guild_id 	INTEGER NOT NULL,
+	channel_id	INTEGER NOT NULL,
+
+	PRIMARY KEY (guild_id, channel_id)
+);
+
 CREATE TABLE IF NOT EXISTS user (
 	id         TEXT NOT NULL, 
 	discord_id INTEGER UNIQUE,

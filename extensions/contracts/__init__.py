@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from internal.constants import FILE_LOGGING_FORMATTER
+from internal.checks import whitelist_channel_only
 from internal.enums import UserStatus, UserKind
 from config import BOT_PREFIX, DEV_BOT_PREFIX
-from internal.checks import must_be_channel
 from internal.contracts import sync_season
 from discord.ext import commands, tasks
 from typing import TYPE_CHECKING
@@ -38,7 +38,7 @@ class ContractsExt(UserCog, BadgeCog, ContractsCog, name="Contracts"):
 		self.change_user_status.start()
 
 	@commands.command(name="deadline", help="Get the current deadline in ur local time")
-	@must_be_channel(1002056335845752864)
+	@whitelist_channel_only()
 	async def deadline(self, ctx: commands.Context):
 		deadline_datetime = await self.bot.database.get_config("contracts.deadline_datetime")
 		deadline_datetime = datetime.datetime.fromisoformat(deadline_datetime) if deadline_datetime else None

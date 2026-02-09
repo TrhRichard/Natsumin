@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from internal.functions import is_channel, get_percentage_formatted, get_status_emote, frmt_iter
+from internal.functions import get_percentage_formatted, get_status_emote, frmt_iter
 from internal.enums import UserKind, UserStatus, ContractStatus, ContractKind
 from internal.contracts import get_deadline_footer, season_autocomplete
 from internal.contracts.order import sort_contract_types
 from internal.contracts.rep import get_rep, RepName
 from internal.base.paginator import CustomPaginator
-from internal.checks import must_be_channel
+from internal.checks import whitelist_channel_only
 from internal.base.cog import NatsuminCog
 from internal.constants import COLORS
 from typing import TYPE_CHECKING
@@ -186,7 +186,7 @@ class ContractsCog(NatsuminCog):
 	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, autocomplete=season_autocomplete)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
 	async def stats(self, ctx: discord.ApplicationContext, rep: str | None = None, season: str | None = None, hidden: bool = False):
-		if not is_channel(ctx, 1002056335845752864):
+		if self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		async with self.bot.database.connect() as conn:
@@ -223,7 +223,7 @@ class ContractsCog(NatsuminCog):
 			await ctx.respond(view=await StatsView.create(self.bot, ctx.author, season_id, rep), ephemeral=hidden)
 
 	@commands.command("stats", aliases=["s"], help="Fetch the stats of a season, optionally of a rep in that season")
-	@must_be_channel(1002056335845752864)
+	@whitelist_channel_only()
 	async def text_stats(self, ctx: commands.Context, *, flags: StatsFlags):
 		rep = flags.rep
 		async with self.bot.database.connect() as conn:
@@ -259,7 +259,7 @@ class ContractsCog(NatsuminCog):
 			await ctx.reply(view=await StatsView.create(self.bot, ctx.author, season_id, rep))
 
 	@commands.command("users", aliases=["u"], help="Fetch users from a season")
-	@must_be_channel(1002056335845752864)
+	@whitelist_channel_only()
 	async def text_users(self, ctx: commands.Context, *, flags: UsersFlags):
 		user_statuses: list[UserStatus] = []
 
