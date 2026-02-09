@@ -296,7 +296,7 @@ class BadgeCog(NatsuminCog):
 		badge_type: str | None = None,
 		hidden: bool = False,
 	):
-		if self.bot.is_blacklisted(ctx):
+		if await self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		content, is_hidden = await self.badge_find_handler(ctx.author, name, owned_user, owned, badge_type, hidden)
@@ -312,7 +312,7 @@ class BadgeCog(NatsuminCog):
 		if user is None:
 			user = ctx.author
 
-		if self.bot.is_blacklisted(ctx):
+		if await self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		content, is_hidden = await self.badge_inventory_handler(ctx.author, user, hidden)
@@ -325,7 +325,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("type", str, choices=["badges", "users"], parameter_name="leaderboard_type", default="badges")
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
 	async def leaderboard(self, ctx: discord.ApplicationContext, leaderboard_type: Literal["badges", "users"], hidden: bool):
-		if self.bot.is_blacklisted(ctx):
+		if await self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		paginator, is_hidden = await self.badge_leaderboard_handler(ctx.author, leaderboard_type, hidden)

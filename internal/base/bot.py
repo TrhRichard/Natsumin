@@ -117,9 +117,9 @@ class NatsuminBot(commands.Bot):
 		return await self.database.remove_config(key, db_conn=db_conn)
 
 	async def is_blacklisted(
-		self, ctx: commands.Context | discord.abc.User, *, raise_exception: bool = False, ignore_channel: bool = False
+		self, ctx: commands.Context | discord.ApplicationContext | discord.abc.User, *, raise_exception: bool = False, ignore_channel: bool = False
 	) -> tuple[bool, str | None]:
-		if isinstance(ctx, commands.Context):
+		if isinstance(ctx, (commands.Context, discord.ApplicationContext)):
 			if await self.is_owner(ctx.author):
 				return False, None
 		else:
@@ -127,7 +127,7 @@ class NatsuminBot(commands.Bot):
 				return False, None
 
 		async with self.database.connect() as conn:
-			if isinstance(ctx, commands.Context):
+			if isinstance(ctx, (commands.Context, discord.ApplicationContext)):
 				discord_id = ctx.author.id
 
 				if ctx.guild is not None and not ignore_channel:

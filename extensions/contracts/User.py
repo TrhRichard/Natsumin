@@ -572,7 +572,7 @@ class UserCog(NatsuminCog):
 		if user is None:
 			user = ctx.author
 
-		if self.bot.is_blacklisted(ctx):
+		if await self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author)
@@ -595,7 +595,7 @@ class UserCog(NatsuminCog):
 		if user is None:
 			user = ctx.author
 
-		if self.bot.is_blacklisted(ctx):
+		if await self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		async with self.bot.database.connect() as conn:
@@ -643,7 +643,7 @@ class UserCog(NatsuminCog):
 		if user is None:
 			user = ctx.author
 
-		if self.bot.is_blacklisted(ctx):
+		if await self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		async with self.bot.database.connect() as conn:
@@ -697,7 +697,7 @@ class UserCog(NatsuminCog):
 		if user is None:
 			user = ctx.author
 
-		if self.bot.is_blacklisted(ctx):
+		if await self.bot.is_blacklisted(ctx):
 			hidden = True
 
 		async with self.bot.database.connect() as conn:
