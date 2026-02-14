@@ -54,7 +54,7 @@ class ContractsExt(UserCog, BadgeCog, ContractsCog, name="Contracts"):
 		if not self.is_syncing_enabled:
 			return
 
-		is_syncing_enabled = bool(await self.bot.get_config("contracts.syncing_enabled"))
+		is_syncing_enabled = bool(int(await self.bot.get_config("contracts.syncing_enabled")))
 		if is_syncing_enabled:
 			active_season = await self.bot.get_config("contracts.active_season")
 			try:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from internal.enums import UserStatus, UserKind, ContractStatus, ContractKind
 from internal.functions import get_cell, get_url as _get_url, get_user_id
 from internal.contracts.rep import get_rep
+from collections import defaultdict
 from config import GOOGLE_API_KEY
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -41,6 +42,7 @@ async def _get_sheet_data() -> dict:
 					"Hitome's Challenge!A2:F508",
 					"Sae's Challenge!A2:F508",
 					"Christmas Challenge!A2:E36",
+					"Aid Parade!A6:H89",
 				],
 				"key": GOOGLE_API_KEY,
 			},
@@ -973,6 +975,111 @@ async def _sync_fantasy_data(sheet_data: dict, conn: aiosqlite.Connection):
 	await conn.commit()
 
 
+async def _sync_aids_data(sheet_data: dict, conn: aiosqlite.Connection):
+	rows: list[list[str]] = sheet_data["valueRanges"][13]["values"]
+
+	user_id_occurances: defaultdict[str, int] = defaultdict(int)
+	aid_user_passed: defaultdict[str, int] = defaultdict(int)
+	aid_user_total: defaultdict[str, int] = defaultdict(int)
+
+	for row in rows:
+		username = get_cell(row, 1, "").strip().lower()
+
+		if not username:
+			continue
+
+		user_id = await get_user_id(conn, username)
+		if not user_id:
+			print(f"User id not found for {username}, currently creation of users is not available!")
+			continue
+
+		async with conn.execute("SELECT kind, status FROM season_user WHERE season_id = ? AND user_id = ?", (SEASON_ID, user_id)) as cursor:
+			user_row = await cursor.fetchone()
+			if not user_row:
+				async with conn.execute(
+					"INSERT INTO season_user (season_id, user_id, status, kind) VALUES (?, ?, ?, ?) RETURNING kind, status",
+					(SEASON_ID, user_id, UserStatus.PENDING.value, UserKind.AID.value),
+				) as cursor:
+					user_row = await cursor.fetchone()
+
+		user_id_occurances[user_id] += 1
+		aid_number = user_id_occurances.get(user_id)
+
+		async with conn.execute(
+			"SELECT id, rating, progress, review_url, name FROM season_contract WHERE season_id = ? AND contractee_id = ? AND kind = ? AND type = ?",
+			(SEASON_ID, user_id, ContractKind.AID.value, f"Aid Contract {aid_number}"),
+		) as cursor:
+			aid_contract_row = await cursor.fetchone()
+
+		match get_cell(row, 0, "").strip().upper():
+			case "PASSED":
+				contract_status = ContractStatus.PASSED
+			case "FAILED":
+				contract_status = ContractStatus.FAILED
+			case _:
+				contract_status = ContractStatus.PENDING
+
+		if user_row["kind"] == UserKind.AID.value and user_row["status"] != UserStatus.PASSED.value:
+			aid_user_total[user_id] += 1
+			if contract_status == ContractStatus.PASSED:
+				aid_user_passed[user_id] += 1
+
+		contract_name = get_cell(row, 6, "").strip().replace("\n", ", ")
+		contract_progress = get_cell(row, 5, "").replace("\n", "")
+		contract_review_url = get_url(row, 7)
+		contract_rating = get_cell(row, 4, "0/10")
+		contract_medium = re.sub(NAME_MEDIUM_REGEX, r"\2", get_cell(row, 6, ""))
+		contract_contractor = get_cell(row, 3, "").strip().lower()
+
+		if aid_contract_row and (
+			aid_contract_row["rating"] != contract_rating
+			or aid_contract_row["progress"] != contract_progress
+			or aid_contract_row["review_url"] != contract_review_url
+			or aid_contract_row["name"] != contract_name
+		):
+			await conn.execute(
+				"UPDATE season_contract SET contractor = ?, progress = ?, rating = ?, review_url = ?, medium = ?, status = ?, name = ? WHERE season_id = ? AND id = ?",
+				(
+					contract_contractor,
+					contract_progress,
+					contract_rating,
+					contract_review_url,
+					contract_medium,
+					contract_status.value,
+					contract_name,
+					SEASON_ID,
+					aid_contract_row["id"],
+				),
+			)
+		elif not aid_contract_row:
+			contract_id = str(uuid4())
+			await conn.execute(
+				"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, progress, rating, review_url, medium) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				(
+					SEASON_ID,
+					contract_id,
+					contract_name,
+					f"Aid Contract {aid_number}",
+					ContractKind.AID.value,
+					contract_status.value,
+					user_id,
+					contract_contractor,
+					contract_progress,
+					contract_rating,
+					contract_review_url,
+					contract_medium,
+				),
+			)
+
+	for user_id, total in aid_user_total.items():
+		passed = aid_user_passed[user_id]
+
+		if passed >= total:
+			await conn.execute("UPDATE season_user SET status = ? WHERE season_id = ? AND user_id = ?", (UserStatus.PASSED, SEASON_ID, user_id))
+
+	await conn.commit()
+
+
 async def sync_season(database: NatsuminDatabase):
 	sheet_data = await _get_sheet_data()
 
@@ -982,6 +1089,10 @@ async def sync_season(database: NatsuminDatabase):
 		await _sync_specials_data(sheet_data, conn)
 		await _sync_buddies_data(sheet_data, conn)
 		await _sync_arcana_data(sheet_data, conn)
+		await _sync_aids_data(sheet_data, conn)
 
-		fantasy_sheet_data = await _get_fantasy_sheet_data()
-		await _sync_fantasy_data(fantasy_sheet_data, conn)
+		try:
+			fantasy_sheet_data = await _get_fantasy_sheet_data()
+			await _sync_fantasy_data(fantasy_sheet_data, conn)
+		except aiohttp.ClientResponseError:
+			pass  # Ignore google api errors for fantasy
