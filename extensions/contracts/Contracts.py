@@ -76,20 +76,17 @@ class StatsView(ui.DesignerView):
 			query = f"""
 				SELECT
 					SUM(su.kind = ?3 AND su.status = ?2) AS normal_passed,
-					SUM(su.kind = ?3) AS normal_total,
-					SUM(su.kind = ?4 AND su.status = ?2) AS aid_passed,
-					SUM(su.kind = ?4) AS aid_total
+					SUM(su.kind = ?3) AS normal_total
 				FROM season_user su
-				WHERE su.season_id = ?1 {"AND su.rep = ?5" if rep else ""}
+				WHERE su.season_id = ?1 {"AND su.rep = ?4" if rep else ""}
 			"""
 
-			params = [season_id, UserStatus.PASSED.value, UserKind.NORMAL.value, UserKind.AID.value]
+			params = [season_id, UserStatus.PASSED.value, UserKind.NORMAL.value]
 			if rep:
 				params.append(rep.value)
 			async with conn.execute(query, params) as cursor:
 				row = await cursor.fetchone()
 				normal_users_count: tuple[int, int] = (row["normal_passed"], row["normal_total"])
-				aid_users_count: tuple[int, int] = (row["aid_passed"], row["aid_total"])
 
 			query = f"""
 				SELECT
@@ -134,7 +131,7 @@ class StatsView(ui.DesignerView):
 				f"**Contracts passed**: {get_percentage_formatted(normal_contracts_count[0], normal_contracts_count[1])}\n"
 				+ (
 					f"**Aid Contracts passed**: {get_percentage_formatted(aid_contracts_count[0], aid_contracts_count[1])}"
-					if aid_users_count[1] > 0
+					if aid_contracts_count[1] > 0
 					else ""
 				)
 			)
