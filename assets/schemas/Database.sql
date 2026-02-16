@@ -146,6 +146,8 @@ CREATE TABLE IF NOT EXISTS season_contract (
 	rating    		TEXT,
 	review_url		TEXT,
 	medium    		TEXT,
+	media_type		TEXT,
+	media_id		TEXT,
 
 	PRIMARY KEY (season_id, id),
 	UNIQUE (season_id, type, contractee_id),
@@ -153,9 +155,66 @@ CREATE TABLE IF NOT EXISTS season_contract (
 	FOREIGN KEY (contractee_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
 ) STRICT;
 
+CREATE TABLE IF NOT EXISTS media (
+	type		TEXT NOT NULL,
+	id			TEXT NOT NULL,
+	name		TEXT NOT NULL,
+	description	TEXT,
+	medium		TEXT,
+	updated_at	TEXT NOT NULL,
+
+	PRIMARY KEY (type, id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS media_no_match (
+	type	TEXT NOT NULL,
+	id		TEXT NOT NULL,
+
+	PRIMARY KEY (type, id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS media_anilist (
+	type			TEXT NOT NULL DEFAULT 'anilist', -- here because sqlite
+	id				TEXT NOT NULL,
+
+	url				TEXT NOT NULL,
+	format			TEXT NOT NULL,
+	is_adult		INTEGER NOT NULL DEFAULT 0,
+	cover_image		TEXT,
+	cover_color		TEXT,
+	mal_id			TEXT,
+	start_date		TEXT,
+	end_date		TEXT,
+
+	romaji_name		TEXT,
+	english_name	TEXT,
+	native_name		TEXT,
+
+	episodes		INTEGER,
+	chapters		INTEGER,
+	volumes			INTEGER,
+
+	PRIMARY KEY (id),
+	FOREIGN KEY (type, id) REFERENCES media(type, id) ON DELETE CASCADE ON UPDATE CASCADE
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS media_steam (
+	type			TEXT NOT NULL DEFAULT 'steam', -- here because sqlite
+	id				TEXT NOT NULL,
+
+	url				TEXT NOT NULL,
+	developer		TEXT NOT NULL,
+	publisher		TEXT,
+	release_date	TEXT,
+	header_image	TEXT,
+
+	PRIMARY KEY (id),
+	FOREIGN KEY (type, id) REFERENCES media(type, id) ON DELETE CASCADE ON UPDATE CASCADE
+) STRICT;
+
 -- Add default config
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.active_season", "season_x");
-INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_datetime", "2026-01-18T00:00:00Z");
+INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_datetime", "2030-01-14T22:00:00Z");
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_footer", "Season deadline in {time_till}.");
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.syncing_enabled", "1");
 

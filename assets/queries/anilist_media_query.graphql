@@ -1,0 +1,41 @@
+query ($idIn: [Int], $idMalIn: [Int], $page: Int) {
+	Page(page: $page) {
+		pageInfo {
+			currentPage
+			hasNextPage
+			perPage
+		}
+		media(id_in: $idIn, idMal_in: $idMalIn) {
+			title {
+				userPreferred
+				romaji
+				native
+				english
+			}
+			type
+			startDate {
+				day
+				month
+				year
+			}
+			endDate {
+				day
+				month
+				year
+			}
+			description
+			format
+			idMal
+			chapters
+			episodes
+			volumes
+			siteUrl
+			id
+			isAdult
+			coverImage {
+				color
+				extraLarge
+			}
+		}
+	}
+}

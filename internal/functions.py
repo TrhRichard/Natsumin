@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 from internal.enums import UserStatus, ContractStatus, LegacyRank
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING
 from thefuzz import process
 
 import aiosqlite
 import datetime
-import re
 
 if TYPE_CHECKING:
 	from collections.abc import Iterable
-	from typing import Callable
 
 
 def get_percentage(num: float, total: float) -> float:
@@ -36,32 +34,6 @@ def frmt_iter(iter: Iterable) -> str:
 		return " and ".join(iter)
 	else:
 		return f"{', '.join(iter[:-1])} and {iter[-1]}"
-
-
-@overload
-def get_cell[T](row: list, index: int, default: None = ..., return_type: None = ...) -> str | None: ...
-@overload
-def get_cell[T](row: list, index: int, default: T = ..., return_type: Callable[[any], T] = ...) -> T: ...
-def get_cell[T](row: list, index: int, default: T = None, return_type: Callable[[any], T] = None) -> str | T:
-	try:
-		value = row[index]
-		if value is None:
-			return default
-		if return_type is not None:
-			try:
-				return return_type(value)
-			except (ValueError, TypeError):
-				return default
-		return value
-	except IndexError:
-		return default
-
-
-def get_url(text: str) -> str:
-	match = re.search(r"(https?:\/\/[^\s]+)", text)
-	if match:
-		return match.group(0)
-	return ""
 
 
 def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime, *, include_seconds: bool = True) -> str:
@@ -96,8 +68,8 @@ def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime, *, include_secon
 	return frmt_iter(parts)
 
 
-async def get_user_id(conn: aiosqlite.Connection, username: str, *, score_cutoff: int = 91) -> str | None:
-	if username == "":
+async def get_user_id(conn: aiosqlite.Connection, username: str | None, *, score_cutoff: int = 91) -> str | None:
+	if username == "" or username is None:
 		return None
 
 	async with conn.execute(
