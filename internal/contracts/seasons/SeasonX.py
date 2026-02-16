@@ -42,7 +42,7 @@ async def _get_sheet_data() -> dict:
 					"Hitome's Challenge!A2:F508",
 					"Sae's Challenge!A2:F508",
 					"Christmas Challenge!A2:E36",
-					"Aid Parade!A6:H89",
+					"Aid Parade!A4:H106",
 				],
 				"key": GOOGLE_API_KEY,
 			},
