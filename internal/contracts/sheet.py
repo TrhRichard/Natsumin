@@ -21,6 +21,26 @@ class PATTERNS:
 SHEET_DATA_FIELDS = ["sheets/properties/title", "sheets/data/rowData/values/formattedValue", "sheets/data/rowData/values/hyperlink"]
 
 
+def column_to_index(col: str) -> int:
+	col = col.upper()
+	result = 0
+
+	for char in col:
+		result = result * 26 + (ord(char) - ord("A") + 1)
+
+	return result - 1
+
+
+def cell_to_indices(cell: str) -> tuple[int, int]:
+	match = re.match(r"([A-Za-z]+)(\d+)", cell)
+	col, row = match.groups()
+
+	col_index = column_to_index(col)
+	row_index = int(row) - 1
+
+	return row_index, col_index
+
+
 @dataclass(kw_only=True, slots=True, frozen=True)
 class SyncContext:
 	missing_steam_ids: set[str] = field(default_factory=set)
@@ -38,28 +58,31 @@ class Cell:
 class Row:
 	cells: list[Cell | None]
 
-	def get_cell(self, index: int) -> Cell | None:
+	def get_cell(self, index: int | str) -> Cell | None:
 		"""
 		Get a cell at a specific index, returns None if out of range
 
 		:param index: Index to get cell from
-		:type index: int
+		:type index: int | str
 		"""
 		try:
+			if isinstance(index, str):
+				index = column_to_index(index)
+
 			return self.cells[index]
 		except IndexError:
 			return None
 
 	@overload
-	def get_value[T](self, index: int, default: T) -> str | T: ...
+	def get_value[T](self, index: int | str, default: T) -> str | T: ...
 	@overload
-	def get_value[T](self, index: int, default: None = None) -> str | None: ...
-	def get_value[T](self, index: int, default: T | None = None) -> str | T | None:
+	def get_value[T](self, index: int | str, default: None = None) -> str | None: ...
+	def get_value[T](self, index: int | str, default: T | None = None) -> str | T | None:
 		"""
 		Shortcut for `Row.get_cell(index).value`
 
 		:param index: Index to get cell's value from
-		:type index: int
+		:type index: int | str
 		:param default: Default value if cell is missing
 		:type default: T | None
 		"""
@@ -73,14 +96,14 @@ class Row:
 
 		return cell.value
 
-	def get_url(self, index: int) -> str:
+	def get_url(self, index: int | str) -> str:
 		"""
 		Shortcut for `Row.get_cell(index).hyperlink`,
 		if hyperlink is `None` it then attempts to get a url
 		from the value
 
 		:param index: Index to get cell's url from
-		:type index: int
+		:type index: int | str
 		:return: URL found, empty string if nothing is found.
 		:rtype: str
 		"""
@@ -101,13 +124,16 @@ class Row:
 
 
 @dataclass(kw_only=True, slots=True, frozen=True)
-class Sheet:
+class SheetBlock:
 	name: str
 	rows: list[Row]
 
+	def __post_init__(self):
+		pass
+
 	def get_row(self, index: int) -> Row | None:
 		"""
-		Get a row at a specific index, returns None if out of range
+		Get a row at a specific index, returns `None` if out of range
 
 		:param index: Index to get row from
 		:type index: int
@@ -117,13 +143,52 @@ class Sheet:
 		except IndexError:
 			return None
 
+	def get_cell(self, cell: str) -> Cell | None:
+		"""
+		Get a cell at a specific position <br>
+		Keep in mind that
+		something like `A2` in a sheet of range `A2:B4` would actually be
+		`A1`
+
+		:param cell: Position of the cell
+		:type cell: str
+		"""
+		row_idx, col_idx = cell_to_indices(cell)
+
+		row = self.get_row(row_idx)
+		if not row:
+			return None
+
+		column = row.get_cell(col_idx)
+		return column
+
+
+@dataclass(kw_only=True, slots=True, frozen=True)
+class Sheet:
+	name: str
+	blocks: list[SheetBlock]
+
+	def get_row(self, index: int, *, block: int = 0) -> Row | None:
+		"""
+		Shortcut for `Sheet.blocks[0].get_row()`
+		"""
+		return self.blocks[block].get_row(index)
+
+	def get_cell(self, cell: str, *, block: int = 0) -> Cell | None:
+		"""
+		Shortcut for `Sheet.blocks[0].get_cell()`
+		"""
+		return self.blocks[block].get_cell(cell)
+
 
 @dataclass(kw_only=True, slots=True, frozen=True)
 class Spreadsheet:
 	id: str
 	sheets: dict[str, Sheet]
 
-	def get_sheet(self, sheet_name: str) -> Sheet | None:
+	@overload
+	def get_sheet(self, sheet_name: str, *, block: int | None = ...) -> SheetBlock | None: ...
+	def get_sheet(self, sheet_name: str, *, block: int | None = None) -> Sheet | None:
 		"""
 		Get the specified sheet by name
 
@@ -131,14 +196,19 @@ class Spreadsheet:
 		:type sheet_name: str
 		"""
 
-		return self.sheets.get(sheet_name)
+		if block is not None:
+			sheet = self.sheets.get(sheet_name)
+			if sheet:
+				return sheet.blocks[block]
+		else:
+			return self.sheets.get(sheet_name)
 
 
 @overload
-async def fetch_sheets(spreadsheet_id: str, range: str) -> Sheet: ...
+async def fetch_sheets(spreadsheet_id: str, range: str) -> SheetBlock: ...
 @overload
 async def fetch_sheets(spreadsheet_id: str, range: list[str]) -> Spreadsheet: ...
-async def fetch_sheets(spreadsheet_id: str, range: str | list[str]) -> Sheet | Spreadsheet:
+async def fetch_sheets(spreadsheet_id: str, range: str | list[str]) -> SheetBlock | Spreadsheet:
 	raw_range = range
 	if isinstance(raw_range, str):
 		range = list(range)
@@ -154,28 +224,34 @@ async def fetch_sheets(spreadsheet_id: str, range: str | list[str]) -> Sheet | S
 	sheets: dict[str, Sheet] = {}
 
 	for raw_sheet in spreadsheet_data["sheets"]:
-		rows: list[Row] = []
+		blocks: list[SheetBlock] = []
 
 		sheet_name = raw_sheet["properties"]["title"]
-		raw_sheet_rows: list[dict[str]] = raw_sheet["data"][0]["rowData"]
 
-		for raw_row in raw_sheet_rows:
-			cells: list[Cell | None] = []
+		for block in raw_sheet["data"]:
+			rows: list[Row] = []
+			block_rows: list[dict[str]] = block["rowData"]
 
-			raw_cells: list[dict[str]] = raw_row["values"]
-			for raw_cell in raw_cells:
-				if not raw_cell:
-					cells.append(Cell(value=None))
-					continue
+			for raw_row in block_rows:
+				cells: list[Cell] = []
 
-				cells.append(Cell(value=raw_cell.get("formattedValue", ""), hyperlink=raw_cell.get("hyperlink")))
+				raw_cells: list[dict[str]] = raw_row["values"]
+				for raw_cell in raw_cells:
+					if not raw_cell:
+						cells.append(Cell(value=None))
+						continue
 
-			rows.append(Row(cells=cells))
+					cells.append(Cell(value=raw_cell.get("formattedValue", ""), hyperlink=raw_cell.get("hyperlink")))
 
-		sheets[sheet_name] = Sheet(name=sheet_name, rows=rows)
+				rows.append(Row(cells=cells))
+
+			blocks.append(SheetBlock(name=sheet_name, rows=rows))
+
+		sheets[sheet_name] = Sheet(name=sheet_name, blocks=blocks)
 
 	if isinstance(raw_range, str):
-		return sheets.values()[0]
+		sheet: Sheet = sheets.values()[0]
+		return sheet.blocks[0]
 
 	return Spreadsheet(id=spreadsheet_id, sheets=sheets)
 
@@ -343,20 +419,25 @@ async def sync_media_data(conn: aiosqlite.Connection, ctx: SyncContext):
 					ctx.missing_steam_ids.remove(str(game.id))
 
 				await conn.execute(
-					"INSERT OR IGNORE INTO media (type, id, name, description, medium, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-					("steam", game.id, game.name, game.description, game.type.upper(), str(datetime.datetime.now(datetime.UTC))),
+					"INSERT OR IGNORE INTO media (type, id, name, description, medium, url, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+					(
+						"steam",
+						game.id,
+						game.name,
+						game.description,
+						game.type.upper(),
+						f"https://store.steampowered.com/app/{game.id}/",
+						str(datetime.datetime.now(datetime.UTC)),
+					),
 				)
 
 				query = """
 					INSERT OR IGNORE INTO media_steam (
-						id, url, developer, publisher,
+						id, developer, publisher,
 						release_date, header_image
 					) VALUES (?, ?, ?, ?, ?, ?)
 				"""
-				await conn.execute(
-					query,
-					(game.id, f"https://store.steampowered.com/app/{game.id}/", game.developer, game.publisher, game.release_date, game.header_image),
-				)
+				await conn.execute(query, (game.id, game.developer, game.publisher, game.release_date, game.header_image))
 
 		if ctx.missing_steam_ids and not rate_limited:
 			await conn.executemany(
@@ -390,19 +471,19 @@ async def sync_media_data(conn: aiosqlite.Connection, ctx: SyncContext):
 					ctx.missing_mal_ids.remove(str(media.mal_id))
 
 				await conn.execute(
-					"INSERT OR IGNORE INTO media (type, id, name, description, medium, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-					("anilist", media.id, name_to_use, media.description, media.type, str(datetime.datetime.now(datetime.UTC))),
+					"INSERT OR IGNORE INTO media (type, id, name, description, medium, url, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+					("anilist", media.id, name_to_use, media.description, media.type, media.url, str(datetime.datetime.now(datetime.UTC))),
 				)
 
 				query = """
 						INSERT OR IGNORE INTO media_anilist (
-							id, url, format, is_adult,
+							id, format, is_adult,
 							cover_image, cover_color, mal_id,
 							start_date, end_date,
 							romaji_name, english_name, native_name,
 							episodes, chapters, volumes
 						) VALUES (
-							?, ?, ?, ?,
+							?, ?, ?,
 							?, ?, ?,
 							?, ?,
 							?, ?, ?,
@@ -413,7 +494,6 @@ async def sync_media_data(conn: aiosqlite.Connection, ctx: SyncContext):
 					query,
 					(
 						media.id,
-						media.url,
 						media.format,
 						media.is_adult,
 						media.cover_image,

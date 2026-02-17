@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from internal.contracts.sheet import sync_media_data, fetch_sheets, PATTERNS, SyncContext, Spreadsheet, Sheet, Row
+from internal.contracts.sheet import sync_media_data, fetch_sheets, PATTERNS, SyncContext, Spreadsheet, SheetBlock, Row
 from internal.enums import UserStatus, UserKind, ContractStatus, ContractKind
 from internal.functions import get_user_id
 from internal.contracts.rep import get_rep
@@ -37,7 +37,7 @@ DASHBOARD_ROW_INDEXES: dict[int, tuple[str, int]] = {
 OPTIONAL_CONTRACTS: tuple[str, ...] = ("Aria Special", "Sumira's Challenge", "Hitome's Challenge", "Sae's Challenge", "Christmas Challenge")
 
 
-async def _sync_dashboard_sheet(dashboard_sheet: Sheet, conn: aiosqlite.Connection, ctx: SyncContext):
+async def _sync_dashboard_sheet(dashboard_sheet: SheetBlock, conn: aiosqlite.Connection, ctx: SyncContext):
 	async with conn.execute("SELECT id, mal_id FROM media_anilist") as cursor:
 		rows = await cursor.fetchall()
 		existing_anilist_ids: list[str] = [row["id"] for row in rows]
@@ -170,7 +170,7 @@ async def _sync_dashboard_sheet(dashboard_sheet: Sheet, conn: aiosqlite.Connecti
 	await conn.commit()
 
 
-async def _sync_basechallenge_sheet(base_challenge_sheet: Sheet, conn: aiosqlite.Connection):
+async def _sync_basechallenge_sheet(base_challenge_sheet: SheetBlock, conn: aiosqlite.Connection):
 	for row in base_challenge_sheet.rows:
 		username = row.get_value(3, "").strip().lower()
 		contractor = row.get_value(5, "").strip().lower()
@@ -294,7 +294,7 @@ async def _sync_basechallenge_sheet(base_challenge_sheet: Sheet, conn: aiosqlite
 
 async def _sync_special_sheets(spreadsheet: Spreadsheet, conn: aiosqlite.Connection):
 	# Duality Special
-	for row in spreadsheet.get_sheet("Duality Special").rows:
+	for row in spreadsheet.get_sheet("Duality Special", block=0).rows:
 		username = row.get_value(3, "").strip().lower()
 
 		user_id = await get_user_id(conn, username)
@@ -330,7 +330,7 @@ async def _sync_special_sheets(spreadsheet: Spreadsheet, conn: aiosqlite.Connect
 			)
 
 	# Veteran Special
-	for row in spreadsheet.get_sheet("Veteran Special").rows:
+	for row in spreadsheet.get_sheet("Veteran Special", block=0).rows:
 		username = row.get_value(3, "").strip().lower()
 
 		user_id = await get_user_id(conn, username)
@@ -366,7 +366,7 @@ async def _sync_special_sheets(spreadsheet: Spreadsheet, conn: aiosqlite.Connect
 			)
 
 	# Epoch Special
-	for row in spreadsheet.get_sheet("Epoch Special").rows:
+	for row in spreadsheet.get_sheet("Epoch Special", block=0).rows:
 		username = row.get_value(3, "").strip().lower()
 
 		user_id = await get_user_id(conn, username)
@@ -402,7 +402,7 @@ async def _sync_special_sheets(spreadsheet: Spreadsheet, conn: aiosqlite.Connect
 			)
 
 	# Honzuki Special
-	for row in spreadsheet.get_sheet("Honzuki Special").rows:
+	for row in spreadsheet.get_sheet("Honzuki Special", block=0).rows:
 		username = row.get_value(3, "").strip().lower()
 
 		user_id = await get_user_id(conn, username)
@@ -438,7 +438,7 @@ async def _sync_special_sheets(spreadsheet: Spreadsheet, conn: aiosqlite.Connect
 			)
 
 	# Aria Special
-	for row in spreadsheet.get_sheet("Aria Special").rows:
+	for row in spreadsheet.get_sheet("Aria Special", block=0).rows:
 		username = row.get_value(2, "").strip().lower()
 
 		user_id = await get_user_id(conn, username)
@@ -469,7 +469,7 @@ async def _sync_special_sheets(spreadsheet: Spreadsheet, conn: aiosqlite.Connect
 			)
 
 	# Sumira's Challenge
-	for row in spreadsheet.get_sheet("Sumira's Challenge").rows:
+	for row in spreadsheet.get_sheet("Sumira's Challenge", block=0).rows:
 		username = row.get_value(2, "").strip().lower()
 
 		user_id = await get_user_id(conn, username)
@@ -500,7 +500,7 @@ async def _sync_special_sheets(spreadsheet: Spreadsheet, conn: aiosqlite.Connect
 			)
 
 	# Hitome's Challenge
-	for row in spreadsheet.get_sheet("Hitome's Challenge").rows:
+	for row in spreadsheet.get_sheet("Hitome's Challenge", block=0).rows:
 		username = row.get_value(2, "").strip().lower()
 
 		user_id = await get_user_id(conn, username)
@@ -531,7 +531,7 @@ async def _sync_special_sheets(spreadsheet: Spreadsheet, conn: aiosqlite.Connect
 			)
 
 	# Sae's Challenge
-	for row in spreadsheet.get_sheet("Sae's Challenge").rows:
+	for row in spreadsheet.get_sheet("Sae's Challenge", block=0).rows:
 		username = row.get_value(2, "").strip().lower()
 
 		user_id = await get_user_id(conn, username)
@@ -562,7 +562,7 @@ async def _sync_special_sheets(spreadsheet: Spreadsheet, conn: aiosqlite.Connect
 			)
 
 	# Christmas Challenge
-	for row in spreadsheet.get_sheet("Christmas Challenge").rows:
+	for row in spreadsheet.get_sheet("Christmas Challenge", block=0).rows:
 		username = row.get_value(2, "").strip().lower()
 
 		user_id = await get_user_id(conn, username)
@@ -625,7 +625,7 @@ async def _sync_special_sheets(spreadsheet: Spreadsheet, conn: aiosqlite.Connect
 	await conn.commit()
 
 
-async def _sync_buddies_sheet(buddy_sheet: Sheet, conn: aiosqlite.Connection):
+async def _sync_buddies_sheet(buddy_sheet: SheetBlock, conn: aiosqlite.Connection):
 	for row in buddy_sheet.rows:
 		username = row.get_value(2, "").strip().lower()
 
@@ -689,7 +689,7 @@ async def _sync_buddies_sheet(buddy_sheet: Sheet, conn: aiosqlite.Connection):
 arcana_special_columns = {"status": 0, "user": 3, "quests": 4, "soul_quota": 5, "minimum_quest": 7, "rating": 12, "review_url": 13}
 
 
-async def _sync_arcana_sheet(sheet: Sheet, conn: aiosqlite.Connection):
+async def _sync_arcana_sheet(sheet: SheetBlock, conn: aiosqlite.Connection):
 	rows = sheet.rows
 
 	def get_row_type(row: Row) -> Literal["user", "contract", "empty"]:
@@ -870,7 +870,7 @@ async def _sync_arcana_sheet(sheet: Sheet, conn: aiosqlite.Connection):
 	await conn.commit()
 
 
-async def _sync_fantasy_sheet(fantasy_sheet: Sheet, conn: aiosqlite.Connection):
+async def _sync_fantasy_sheet(fantasy_sheet: SheetBlock, conn: aiosqlite.Connection):
 	rows = fantasy_sheet.rows
 
 	i = 0
@@ -969,7 +969,7 @@ async def _sync_fantasy_sheet(fantasy_sheet: Sheet, conn: aiosqlite.Connection):
 	await conn.commit()
 
 
-async def _sync_aids_sheet(aids_sheet: Sheet, conn: aiosqlite.Connection, ctx: SyncContext):
+async def _sync_aids_sheet(aids_sheet: SheetBlock, conn: aiosqlite.Connection, ctx: SyncContext):
 	async with conn.execute("SELECT id, mal_id FROM media_anilist") as cursor:
 		rows = await cursor.fetchall()
 		existing_anilist_ids: list[str] = [row["id"] for row in rows]
@@ -1148,12 +1148,12 @@ async def sync_season(database: NatsuminDatabase):
 	ctx = SyncContext()
 
 	async with database.connect() as conn:
-		await _sync_dashboard_sheet(spreadsheet.get_sheet("Dashboard"), conn, ctx)
-		await _sync_basechallenge_sheet(spreadsheet.get_sheet("Base"), conn)
+		await _sync_dashboard_sheet(spreadsheet.get_sheet("Dashboard", block=0), conn, ctx)
+		await _sync_basechallenge_sheet(spreadsheet.get_sheet("Base", block=0), conn)
 		await _sync_special_sheets(spreadsheet, conn)
-		await _sync_buddies_sheet(spreadsheet.get_sheet("Buddying"), conn)
-		await _sync_arcana_sheet(spreadsheet.get_sheet("Arcana Special"), conn)
-		await _sync_aids_sheet(spreadsheet.get_sheet("Aid Parade"), conn, ctx)
+		await _sync_buddies_sheet(spreadsheet.get_sheet("Buddying", block=0), conn)
+		await _sync_arcana_sheet(spreadsheet.get_sheet("Arcana Special", block=0), conn)
+		await _sync_aids_sheet(spreadsheet.get_sheet("Aid Parade", block=0), conn, ctx)
 
 		try:
 			fantasy_sheet = await fetch_sheets(FANTASY_SPREADSHEET_ID, "Draft Picks!A1:L312")

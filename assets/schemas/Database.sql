@@ -161,6 +161,7 @@ CREATE TABLE IF NOT EXISTS media (
 	name		TEXT NOT NULL,
 	description	TEXT,
 	medium		TEXT,
+	url			TEXT NOT NULL,
 	updated_at	TEXT NOT NULL,
 
 	PRIMARY KEY (type, id)
@@ -177,7 +178,6 @@ CREATE TABLE IF NOT EXISTS media_anilist (
 	type			TEXT NOT NULL DEFAULT 'anilist', -- here because sqlite
 	id				TEXT NOT NULL,
 
-	url				TEXT NOT NULL,
 	format			TEXT NOT NULL,
 	is_adult		INTEGER NOT NULL DEFAULT 0,
 	cover_image		TEXT,
@@ -202,7 +202,6 @@ CREATE TABLE IF NOT EXISTS media_steam (
 	type			TEXT NOT NULL DEFAULT 'steam', -- here because sqlite
 	id				TEXT NOT NULL,
 
-	url				TEXT NOT NULL,
 	developer		TEXT NOT NULL,
 	publisher		TEXT,
 	release_date	TEXT,
