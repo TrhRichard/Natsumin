@@ -42,6 +42,27 @@ async def fantasy_usernames_autocomplete(ctx: discord.AutocompleteContext) -> li
 	return username_list
 
 
+async def contract_type_autocomplete(ctx: discord.AutocompleteContext) -> list[str]:
+	bot: NatsuminBot = ctx.bot
+	async with bot.database.connect() as conn:
+		season_id = await bot.get_config("contracts.active_season", db_conn=conn)
+
+		query = """
+		SELECT DISTINCT type
+		FROM season_contract
+		WHERE 
+			season_id = ?
+			AND type LIKE ?
+		ORDER BY type DESC
+		LIMIT 25
+		"""
+
+		async with conn.execute(query, (season_id, f"%{ctx.value.strip()}%")) as cursor:
+			type_list: list[str] = [row["type"] for row in await cursor.fetchall()]
+
+	return type_list
+
+
 class MasterUserProfile(ui.DesignerView):
 	def __init__(self, bot: NatsuminBot, invoker: discord.abc.User, user_id: str):
 		super().__init__(disable_on_timeout=True)
@@ -412,6 +433,108 @@ class FantasyUserProfile(ui.DesignerView):
 			)
 
 
+class SeasonContractInfo(ui.DesignerView):
+	def __init__(self, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str, contract_type: str):
+		super().__init__(disable_on_timeout=True)
+		self.bot = bot
+		self.invoker = invoker
+		self.season_id = season_id
+		self.user_id = user_id
+		self.contract_type = contract_type
+
+	@classmethod
+	async def create(cls, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str, contract_type: str):
+		self = cls(bot, invoker, season_id, user_id, contract_type)
+
+		async with bot.database.connect() as conn:
+			async with conn.execute(
+				"SELECT * FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type LIKE ?", (season_id, user_id, contract_type)
+			) as cursor:
+				contract_row = await cursor.fetchone()
+
+			if contract_row is None:
+				self.add_item(ui.TextDisplay("Contract info not found!"))
+
+				return self
+
+			description_fields: list[str] = []
+			description_fields.append(
+				f"- **Status**: {get_status_name(ContractStatus(contract_row['status']), bool(contract_row['optional']))} {get_status_emote(ContractStatus(contract_row['status']), bool(contract_row['optional']))}"
+			)
+			if contract_row["review_url"]:
+				description_fields.append(f"- **Review**: [Review]({contract_row['review_url']})")
+			if contract_row["contractor"]:
+				description_fields.append(f"- **Contractor**: {contract_row['contractor']}")
+			if contract_row["progress"]:
+				description_fields.append(f"- **Progress**: {contract_row['progress']}")
+			if contract_row["rating"]:
+				description_fields.append(f"- **Rating**: {contract_row['rating']}")
+			if contract_row["medium"]:
+				description_fields.append(f"- **Medium**: {contract_row['medium']}")
+
+			container_color = COLORS.DEFAULT
+
+			media_name: str | None = None
+			media_description: str | None = None
+			media_medium: str | None = None
+			media_url: str | None = None
+			media_data: dict[str] = None
+			table_name = None
+			if contract_row["media_type"] == "steam":
+				table_name = "media_steam"
+			elif contract_row["media_type"] == "anilist":
+				table_name = "media_anilist"
+
+			if table_name is not None:
+				async with conn.execute(
+					"SELECT name, description, medium, url FROM media WHERE type = ? AND id = ?",
+					(contract_row["media_type"], contract_row["media_id"]),
+				) as cursor:
+					row = await cursor.fetchone()
+					media_name, media_description, media_medium, media_url = row["name"], row["description"], row["medium"], row["url"]
+
+				async with conn.execute(f"SELECT * FROM {table_name} WHERE id = ?", (contract_row["media_id"],)) as cursor:
+					media_data = dict(await cursor.fetchone())
+
+			if contract_row["media_type"] == "anilist":
+				if media_data["cover_color"]:
+					container_color = discord.Colour(int(f"0x{media_data['cover_color'].lstrip('#')}", 16))
+			if media_name is not None:
+				header_content = (
+					f"## [{media_name} ({media_medium.title()})]({media_url})\n{media_description}" + f"\n{'\n'.join(description_fields)}"
+				)
+			else:
+				header_content = f"## {contract_row['name']}\n" + f"\n{'\n'.join(description_fields)}"
+
+			if contract_row["media_type"] == "anilist":
+				header_item = (
+					ui.Section(ui.TextDisplay(header_content), accessory=ui.Thumbnail(media_data.get("cover_image")))
+					if not media_data["is_adult"]
+					else ui.TextDisplay(header_content)
+				)
+			elif contract_row["media_type"] == "steam":
+				header_item = ui.Section(ui.TextDisplay(header_content), accessory=ui.Thumbnail(media_data.get("header_image")))
+			else:
+				header_item = ui.TextDisplay(header_content)
+
+			self.add_item(
+				ui.Container(
+					header_item,
+					ui.Separator(),
+					ui.TextDisplay(f"-# <:Kirburger:998705274074435584> {await get_deadline_footer(self.bot.database, season_id, db_conn=conn)}"),
+					color=container_color,
+				)
+			)
+
+		return self
+
+	async def on_timeout(self):
+		try:
+			await super().on_timeout()
+		except (discord.Forbidden, discord.NotFound):
+			pass
+
+
 def get_formatted_contract(contract: OrderContractData, *, is_unselected: bool = False, include_review_url: bool = True) -> str:
 	contract_name = f"[{contract['name']}]({contract['review_url']})" if (contract["review_url"] and include_review_url) else contract["name"]
 	status_emote: str = ""
@@ -548,6 +671,12 @@ class SeasonUserContracts(ui.DesignerView):
 
 class SeasonUserFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
 	user: str | int = commands.flag(aliases=["u"], default=None, positional=True)
+	season: str = commands.flag(aliases=["s"], default=None)
+
+
+class ContractFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
+	contract_type: str = commands.flag(aliases=["c"], name="contract", positional=True)
+	user: str | int = commands.flag(aliases=["u"], default=None)
 	season: str = commands.flag(aliases=["s"], default=None)
 
 
@@ -731,6 +860,71 @@ class UserCog(NatsuminCog):
 
 		await ctx.respond(view=await SeasonUserContracts.create(self.bot, ctx.author, season_id, user_id), ephemeral=hidden)
 
+	@contracts_subgroup.command(name="info", description="Fetch information for a type of contract")
+	@discord.option(
+		"type",
+		str,
+		parameter_name="contract_type",
+		description="The type of contract, only autocompletes from active season",
+		autocomplete=contract_type_autocomplete,
+	)
+	@discord.option(
+		"user",
+		str,
+		description="The user to see contracts of, only autocompletes from active season",
+		default=None,
+		autocomplete=usernames_autocomplete(True),
+	)
+	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, autocomplete=season_autocomplete)
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
+	async def contractinfo(
+		self, ctx: discord.ApplicationContext, contract_type: str, user: str | None = None, season: str | None = None, hidden: bool = False
+	):
+		if user is None:
+			user = ctx.author
+
+		if await self.bot.is_blacklisted(ctx):
+			hidden = True
+
+		async with self.bot.database.connect() as conn:
+			if season is None:
+				season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
+			else:
+				season_id = season
+
+			if season_id not in self.bot.database.available_seasons:
+				return await ctx.respond(
+					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it.",
+					ephemeral=True,
+				)
+
+			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			if not user_id:
+				return await ctx.respond("User not found!", ephemeral=True)
+
+			async with conn.execute(
+				"SELECT (SELECT name FROM season WHERE id = ?) as name, (SELECT username FROM user WHERE id = ?) as username", (season_id, user_id)
+			) as cursor:
+				row = await cursor.fetchone()
+				season_name = row["name"]
+				username = row["username"]
+
+			async with conn.execute("SELECT 1 FROM season_user WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
+				is_user_in_season = await cursor.fetchone()
+
+			if not is_user_in_season:
+				return await ctx.respond(f"{username} has not participated in {season_name}!", ephemeral=True)
+
+			async with conn.execute(
+				"SELECT 1 FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type LIKE ?", (season_id, user_id, contract_type)
+			) as cursor:
+				does_user_have_contract = await cursor.fetchone()
+
+			if not does_user_have_contract:
+				return await ctx.respond(f"{username} does not have a contract of type {contract_type} in {season_name}!", ephemeral=True)
+
+		await ctx.respond(view=await SeasonContractInfo.create(self.bot, ctx.author, season_id, user_id, contract_type), ephemeral=hidden)
+
 	@commands.command("globalprofile", aliases=["gp"], help="Fetch the global profile of a user")
 	@whitelist_channel_only()
 	async def text_globalprofile(self, ctx: commands.Context, user: str | int | discord.abc.User = None):
@@ -816,6 +1010,51 @@ class UserCog(NatsuminCog):
 				return await ctx.reply(f"{username} has not participated in {season_name}!")
 
 		await ctx.reply(view=await SeasonUserContracts.create(self.bot, ctx.author, season_id, user_id))
+
+	@commands.command("contractinfo", aliases=["ci"], help="Fetch info for a specific contract type")
+	@whitelist_channel_only()
+	async def text_contract_info(self, ctx: commands.Context, *, flags: ContractFlags):
+		user = flags.user
+		if user is None:
+			user = ctx.author
+
+		async with self.bot.database.connect() as conn:
+			if flags.season is None:
+				season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
+			else:
+				season_id = flags.season
+
+			if season_id not in self.bot.database.available_seasons:
+				return await ctx.reply(
+					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it."
+				)
+
+			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			if not user_id:
+				return await ctx.reply("User not found!")
+
+			async with conn.execute(
+				"SELECT (SELECT name FROM season WHERE id = ?) as name, (SELECT username FROM user WHERE id = ?) as username", (season_id, user_id)
+			) as cursor:
+				row = await cursor.fetchone()
+				season_name = row["name"]
+				username = row["username"]
+
+			async with conn.execute("SELECT 1 FROM season_user WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
+				is_user_in_season = await cursor.fetchone()
+
+			if not is_user_in_season:
+				return await ctx.reply(f"{username} has not participated in {season_name}!")
+
+			async with conn.execute(
+				"SELECT 1 FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type LIKE ?", (season_id, user_id, flags.contract_type)
+			) as cursor:
+				does_user_have_contract = await cursor.fetchone()
+
+			if not does_user_have_contract:
+				return await ctx.reply(f"{username} does not have a contract of type {flags.contract_type} in {season_name}!")
+
+		await ctx.reply(view=await SeasonContractInfo.create(self.bot, ctx.author, season_id, user_id, flags.contract_type))
 
 	@commands.command("fantasy", aliases=["f"], help="Fetch the fantasy team of a user")
 	@whitelist_channel_only()
