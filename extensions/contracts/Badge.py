@@ -480,12 +480,27 @@ class BadgeCog(NatsuminCog):
 	@discord.option("id", str, autocomplete=badge_autocomplete)
 	@discord.option("user", str, autocomplete=usernames_autocomplete(False), default=None)
 	@discord.option("multiple_users", str, description="Usernames/ids separated by a comma, includes user if set", default=None)
-	async def give(self, ctx: discord.ApplicationContext, id: str, user: str | None = None, multiple_users: str | None = None):
+	@discord.option(
+		"users_file", discord.Attachment, description="A file full of usernames/ids, can be separated by a comma or newlines", default=None
+	)
+	async def give(
+		self,
+		ctx: discord.ApplicationContext,
+		id: str,
+		user: str | None = None,
+		multiple_users: str | None = None,
+		users_file: discord.Attachment | None = None,
+	):
 		list_of_users: list[str] = []
 		if user is not None and user.strip():
 			list_of_users.append(user.strip())
 		if multiple_users is not None:
 			list_of_users.extend(u.strip() for u in multiple_users.split(",") if u.strip())
+		if users_file is not None:
+			raw_text = (await users_file.read()).decode()
+			lines = raw_text.split("\n")
+			for line in lines:
+				list_of_users.extend(u.strip() for u in line.split(",") if u.strip())
 
 		list_of_users = list(set(list_of_users))
 

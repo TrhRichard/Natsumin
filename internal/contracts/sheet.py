@@ -128,9 +128,6 @@ class SheetBlock:
 	name: str
 	rows: list[Row]
 
-	def __post_init__(self):
-		pass
-
 	def get_row(self, index: int) -> Row | None:
 		"""
 		Get a row at a specific index, returns `None` if out of range

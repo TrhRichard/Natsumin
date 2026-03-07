@@ -1141,7 +1141,7 @@ async def sync_season(database: NatsuminDatabase):
 			"Hitome's Challenge!A2:F508",
 			"Sae's Challenge!A2:F508",
 			"Christmas Challenge!A2:E36",
-			"Aid Parade!A4:H106",
+			"Aid Parade!A4:H120",
 		],
 	)
 
