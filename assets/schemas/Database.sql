@@ -214,8 +214,11 @@ CREATE TABLE IF NOT EXISTS media_steam (
 -- Add default config
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.active_season", "season_x");
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_datetime", "2030-01-14T22:00:00Z");
-INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_footer", "Season deadline in {time_till}.");
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.syncing_enabled", "1");
+
+INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_footer", "Season deadline in {time_till}.");
+INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.season_ended_footer", "{season_name} has ended.");
+INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.archived_season_footer", "Archived data from {season_name}.");
 
 -- Add supported seasons 
 INSERT OR IGNORE INTO season (id, name) VALUES ("winter_2025", "Winter 2025");

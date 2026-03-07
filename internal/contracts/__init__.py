@@ -46,20 +46,28 @@ async def get_deadline_footer(database: NatsuminDatabase, season_id: str, *, db_
 		async with conn.execute("SELECT name FROM season WHERE id = ?", (season_id,)) as cursor:
 			season_name: str = (await cursor.fetchone())["name"]
 
-	if season_id == active_season:
-		if deadline_datetime is None:
-			return f"Deadline for {season_name} unknown."
+		if season_id == active_season:
+			if deadline_datetime is None:
+				return f"Deadline for {season_name} unknown."
 
-		current_datetime = datetime.datetime.now(datetime.UTC)
-		difference = deadline_datetime - current_datetime
-		difference_seconds = max(difference.total_seconds(), 0)
+			current_datetime = datetime.datetime.now(datetime.UTC)
+			difference = deadline_datetime - current_datetime
+			difference_seconds = max(difference.total_seconds(), 0)
 
-		if difference_seconds > 0:
-			return deadline_footer.format(time_till=diff_to_str(deadline_datetime, current_datetime, include_seconds=False))
+			if difference_seconds > 0:
+				return deadline_footer.format(time_till=diff_to_str(deadline_datetime, current_datetime, include_seconds=False))
+			else:
+				season_ended_footer = await database.get_config("contracts.season_ended_footer", db_conn=conn)
+				if season_ended_footer is None:
+					season_ended_footer = "{season_name} has ended."
+
+				return season_ended_footer.format(season_name=season_name)
 		else:
-			return f"{season_name} has ended."
-	else:
-		return f"Archived data from {season_name}."
+			archived_season_footer = await database.get_config("contracts.archived_season_footer", db_conn=conn)
+			if archived_season_footer is None:
+				archived_season_footer = "Archived data from {season_name}."
+
+			return archived_season_footer.format(season_name=season_name)
 
 
 async def season_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.OptionChoice]:
