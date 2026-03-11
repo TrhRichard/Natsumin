@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS badge (
 	url         TEXT NOT NULL,
 	type        TEXT NOT NULL DEFAULT 'contracts',
 	created_at	TEXT NOT NULL,
+	rarity		TEXT NOT NULL DEFAULT 'common',
 
 	PRIMARY KEY (id)
 ) STRICT;

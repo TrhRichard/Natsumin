@@ -20,6 +20,7 @@ import datetime
 import discord
 
 BADGE_TYPES = ["contracts", "aria", "event", "misc"]
+BADGE_RARITIES = ["common", "uncommon", "rare", "epic", "legendary", "limited"]
 
 
 async def badge_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.OptionChoice]:
@@ -44,6 +45,7 @@ class FindFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
 	owned_user: str | int | discord.abc.User = commands.flag(aliases=["u"], default=None)
 	owned: bool = commands.flag(aliases=["o"], default=None)
 	type: Literal["contracts", "aria", "event", "misc"] = commands.flag(aliases=["t"], default=None)
+	rarity: Literal["common", "uncommon", "rare", "epic", "legendary", "limited"] = commands.flag(aliases=["r"], default=None)
 
 
 class BadgeCog(NatsuminCog):
@@ -56,6 +58,7 @@ class BadgeCog(NatsuminCog):
 		owned_user: str | None = None,
 		owned: bool | None = None,
 		badge_type: str | None = None,
+		rarity: str | None = None,
 		hidden: bool = False,
 	) -> tuple[str | BadgeDisplay, bool]:
 		async with self.bot.database.connect() as conn:
@@ -85,6 +88,10 @@ class BadgeCog(NatsuminCog):
 			if badge_type is not None:
 				where_conditions.append("type = ?")
 				where_params.append(badge_type)
+
+			if rarity is not None:
+				where_conditions.append("rarity = ?")
+				where_params.append(rarity)
 
 			if owned is not None:
 				if owned_user is None:
@@ -123,6 +130,15 @@ class BadgeCog(NatsuminCog):
 						WHEN b.type = "aria" THEN 1
 						WHEN b.type = "event" THEN 2 
 						WHEN b.type = "misc" THEN 3 
+						ELSE 99
+					END,
+					CASE
+						WHEN b.rarity = "limited" THEN 0 
+						WHEN b.rarity = "legendary" THEN 1
+						WHEN b.rarity = "epic" THEN 2 
+						WHEN b.rarity = "rare" THEN 3 
+						WHEN b.rarity = "uncommon" THEN 4 
+						WHEN b.rarity = "common" THEN 5 
 						ELSE 99
 					END,
 					b.created_at,
@@ -192,6 +208,15 @@ class BadgeCog(NatsuminCog):
 						WHEN b.type = "aria" THEN 1
 						WHEN b.type = "event" THEN 2 
 						WHEN b.type = "misc" THEN 3 
+						ELSE 99
+					END,
+					CASE
+						WHEN b.rarity = "limited" THEN 0 
+						WHEN b.rarity = "legendary" THEN 1
+						WHEN b.rarity = "epic" THEN 2 
+						WHEN b.rarity = "rare" THEN 3 
+						WHEN b.rarity = "uncommon" THEN 4 
+						WHEN b.rarity = "common" THEN 5 
 						ELSE 99
 					END,
 					b.created_at,
@@ -286,6 +311,7 @@ class BadgeCog(NatsuminCog):
 		autocomplete=usernames_autocomplete(False),
 	)
 	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default=None)
+	@discord.option("rarity", str, choices=BADGE_RARITIES, default=None)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
 	async def find(
 		self,
@@ -294,12 +320,13 @@ class BadgeCog(NatsuminCog):
 		owned_user: str | None = None,
 		owned: bool | None = None,
 		badge_type: str | None = None,
+		rarity: str | None = None,
 		hidden: bool = False,
 	):
 		if await self.bot.is_blacklisted(ctx):
 			hidden = True
 
-		content, is_hidden = await self.badge_find_handler(ctx.author, name, owned_user, owned, badge_type, hidden)
+		content, is_hidden = await self.badge_find_handler(ctx.author, name, owned_user, owned, badge_type, rarity, hidden)
 		if isinstance(content, BadgeDisplay):
 			return await ctx.respond(view=content, ephemeral=is_hidden)
 		else:
@@ -339,7 +366,7 @@ class BadgeCog(NatsuminCog):
 	@badge_textgroup.command("find", aliases=["list", "search", "query"], help="Get badges")
 	@whitelist_channel_only()
 	async def text_find(self, ctx: commands.Context, *, flags: FindFlags):
-		content, _ = await self.badge_find_handler(ctx.author, flags.name, flags.owned_user, flags.owned, flags.type, False)
+		content, _ = await self.badge_find_handler(ctx.author, flags.name, flags.owned_user, flags.owned, flags.type, flags.rarity, False)
 		if isinstance(content, BadgeDisplay):
 			return await ctx.reply(view=content)
 		else:
@@ -372,6 +399,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("artist", str, default=None)
 	@discord.option("image_url", str, default=None)
 	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default="contracts")
+	@discord.option("rarity", str, choices=BADGE_RARITIES, default="common")
 	async def add(
 		self,
 		ctx: discord.ApplicationContext,
@@ -380,11 +408,17 @@ class BadgeCog(NatsuminCog):
 		artist: str | None = None,
 		image_url: str | None = None,
 		badge_type: str = "contracts",
+		rarity: str = "common",
 	):
+		if rarity not in BADGE_RARITIES:
+			return await ctx.respond(f"Rarity must be set to one of the following: {frmt_iter(rarity)}")
+		if badge_type not in BADGE_TYPES:
+			return await ctx.respond(f"Type must be set to one of the following: {frmt_iter(BADGE_TYPES)}")
+
 		async with self.bot.database.connect() as conn:
 			badge_id = uuid4()
 			await conn.execute(
-				"INSERT INTO badge (id, name, description, artist, url, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+				"INSERT INTO badge (id, name, description, artist, url, type, created_at, rarity) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 				(
 					str(badge_id),
 					name,
@@ -392,6 +426,7 @@ class BadgeCog(NatsuminCog):
 					artist if artist is not None else "",
 					image_url if image_url is not None else "",
 					badge_type,
+					rarity,
 					datetime.datetime.now(datetime.UTC).isoformat(" "),
 				),
 			)
@@ -407,6 +442,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("artist", str, default=None)
 	@discord.option("image_url", str, default=None)
 	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default=None)
+	@discord.option("rarity", str, choices=BADGE_RARITIES, default=None)
 	async def edit(
 		self,
 		ctx: discord.ApplicationContext,
@@ -416,8 +452,11 @@ class BadgeCog(NatsuminCog):
 		artist: str | None = None,
 		image_url: str | None = None,
 		badge_type: str | None = None,
+		rarity: str | None = None,
 	):
-		if name is None and description is None and artist is None and image_url is None and badge_type is None:  # No changes only id was passed
+		if (
+			name is None and description is None and artist is None and image_url is None and badge_type is None and rarity is None
+		):  # No changes only id was passed
 			return await ctx.respond("No changes were specified.", ephemeral=True)
 
 		async with self.bot.database.connect() as conn:
@@ -447,6 +486,13 @@ class BadgeCog(NatsuminCog):
 			if badge_type is not None:
 				await conn.execute("UPDATE badge SET type = ? WHERE id = ?", (badge_type, id))
 				modifications_done.append(f"Changed type to **{badge_type}**")
+
+			if rarity is not None:
+				if rarity not in BADGE_RARITIES:
+					modifications_done.append(f"Attempted to set rarity to a unknown one: **{rarity}**, no changes were made.")
+				else:
+					await conn.execute("UPDATE badge SET rarity = ? WHERE id = ?", (rarity, id))
+					modifications_done.append(f"Changed rarity to **{rarity}**")
 
 			embed = discord.Embed(title="Modifications", color=COLORS.DEFAULT)
 			embed.set_footer(text=f"ID: {badge_row['id']}")

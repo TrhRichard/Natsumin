@@ -233,6 +233,12 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 					)
 					continue
 
+				if not hasattr(channel, "guild"):
+					await user.send(
+						channelless_response, allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True, replied_user=False)
+					)
+					continue
+
 				bot_perms_in_channel = channel.permissions_for(channel.guild.me)
 				if not bot_perms_in_channel.send_messages:
 					await user.send(
@@ -244,8 +250,8 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 					f"<@{user.id}>, reminder from <t:{reminder.created_timestamp()}:R>{f': `{reminder.message}`' if reminder.message.strip() else ''}",
 					allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True, replied_user=False),
 				)
-			except Exception as e:
-				self.logger.error(f"Could not emit reminder {reminder.id} to user {reminder.user_id}: {e}")
+			except Exception as err:
+				self.logger.error(f"Could not emit reminder {reminder.id} to user {reminder.user_id}", exc_info=err)
 
 	@reminder_loop.before_loop
 	async def before_loop(self):
