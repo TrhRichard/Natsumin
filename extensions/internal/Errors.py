@@ -66,7 +66,7 @@ class Errors(NatsuminCog):
 		err_type, err_details, should_log = self.get_error_info(error)
 
 		if should_log:
-			self.bot.logger.error(f"Command error from @{ctx.author.name} in {ctx.clean_prefix}{ctx.command}", exc_info=error)
+			self.bot.logger.error(f"Command error from @{ctx.author.name} in {ctx.prefix}{ctx.command.qualified_name}", exc_info=error)
 
 		if ctx.channel.guild:
 			channel_perms = ctx.channel.permissions_for(ctx.channel.guild.me)
@@ -76,6 +76,32 @@ class Errors(NatsuminCog):
 		embed = discord.Embed(title=err_type if err_type else None, description=err_details, color=COLORS.ERROR)
 		try:
 			await ctx.reply(embed=embed)
+
+			if not should_log:
+				return
+
+			logging_channel_id = await self.bot.get_config("bot.logging_channel")
+			try:
+				if logging_channel_id is None or int(logging_channel_id) == -1:
+					return
+			except ValueError:
+				return
+
+			try:
+				logging_channel = await self.bot.get_or_fetch(discord.TextChannel, int(logging_channel_id))
+				if not logging_channel:
+					return
+
+				if logging_channel.id == ctx.channel.id:
+					return
+
+				await logging_channel.send(
+					f"Exception thrown at {ctx.message.jump_url} by {ctx.author.mention}, command used: `{ctx.prefix}{ctx.command.qualified_name}`",
+					embed=embed,
+				)
+			except discord.Forbidden:
+				pass
+
 		except discord.NotFound:
 			pass
 
@@ -87,10 +113,35 @@ class Errors(NatsuminCog):
 			return
 
 		if should_log:
-			self.bot.logger.error(f"Application command error from @{ctx.author.name} in /{ctx.command}", exc_info=error)
+			self.bot.logger.error(f"Application command error from @{ctx.author.name} in /{ctx.command.qualified_name}", exc_info=error)
 
 		embed = discord.Embed(title=err_type if err_type else None, description=err_details, color=COLORS.ERROR)
 		try:
 			await ctx.respond(embed=embed, ephemeral=True)
+
+			if not should_log:
+				return
+
+			logging_channel_id = await self.bot.get_config("bot.logging_channel")
+			try:
+				if logging_channel_id is None or int(logging_channel_id) == -1:
+					return
+			except ValueError:
+				return
+
+			try:
+				logging_channel = await self.bot.get_or_fetch(discord.TextChannel, int(logging_channel_id))
+				if not logging_channel:
+					return
+
+				if logging_channel.id == ctx.channel.id:
+					return
+
+				await logging_channel.send(
+					f"Exception thrown at {ctx.message.jump_url} by {ctx.author.mention}, command used: `/{ctx.command.qualified_name}`", embed=embed
+				)
+			except discord.Forbidden:
+				pass
+
 		except discord.NotFound:
 			pass
