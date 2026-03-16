@@ -426,8 +426,8 @@ class BadgeCog(NatsuminCog):
 					artist if artist is not None else "",
 					image_url if image_url is not None else "",
 					badge_type,
-					rarity,
 					datetime.datetime.now(datetime.UTC).isoformat(" "),
+					rarity,
 				),
 			)
 			await conn.commit()
