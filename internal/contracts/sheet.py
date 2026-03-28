@@ -232,13 +232,14 @@ async def fetch_sheets(spreadsheet_id: str, range: str | list[str]) -> SheetBloc
 			for raw_row in block_rows:
 				cells: list[Cell] = []
 
-				raw_cells: list[dict[str]] = raw_row["values"]
-				for raw_cell in raw_cells:
-					if not raw_cell:
-						cells.append(Cell(value=None))
-						continue
+				if len(raw_row) != 0:
+					raw_cells: list[dict[str]] = raw_row["values"]
+					for raw_cell in raw_cells:
+						if not raw_cell:
+							cells.append(Cell(value=None))
+							continue
 
-					cells.append(Cell(value=raw_cell.get("formattedValue", ""), hyperlink=raw_cell.get("hyperlink")))
+						cells.append(Cell(value=raw_cell.get("formattedValue", ""), hyperlink=raw_cell.get("hyperlink")))
 
 				rows.append(Row(cells=cells))
 
