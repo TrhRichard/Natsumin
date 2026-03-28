@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 import datetime
 import discord
 
-BADGE_TYPES = ["contracts", "aria", "event", "misc"]
+BADGE_TYPES = ["contracts", "aria", "blitz", "event", "misc"]
 BADGE_RARITIES = ["common", "uncommon", "rare", "epic", "legendary", "limited"]
 
 
@@ -128,8 +128,9 @@ class BadgeCog(NatsuminCog):
 					CASE
 						WHEN b.type = "contracts" THEN 0 
 						WHEN b.type = "aria" THEN 1
-						WHEN b.type = "event" THEN 2 
-						WHEN b.type = "misc" THEN 3 
+						WHEN b.type = "blitz" THEN 2
+						WHEN b.type = "event" THEN 3 
+						WHEN b.type = "misc" THEN 4
 						ELSE 99
 					END,
 					CASE
@@ -206,8 +207,9 @@ class BadgeCog(NatsuminCog):
 					CASE
 						WHEN b.type = "contracts" THEN 0 
 						WHEN b.type = "aria" THEN 1
-						WHEN b.type = "event" THEN 2 
-						WHEN b.type = "misc" THEN 3 
+						WHEN b.type = "blitz" THEN 2
+						WHEN b.type = "event" THEN 3 
+						WHEN b.type = "misc" THEN 4
 						ELSE 99
 					END,
 					CASE
@@ -411,9 +413,9 @@ class BadgeCog(NatsuminCog):
 		rarity: str = "common",
 	):
 		if rarity not in BADGE_RARITIES:
-			return await ctx.respond(f"Rarity must be set to one of the following: {frmt_iter(rarity)}")
+			return await ctx.respond(f"Rarity must be set to one of the following: {frmt_iter(rarity, final='or')}")
 		if badge_type not in BADGE_TYPES:
-			return await ctx.respond(f"Type must be set to one of the following: {frmt_iter(BADGE_TYPES)}")
+			return await ctx.respond(f"Type must be set to one of the following: {frmt_iter(BADGE_TYPES, final='or')}")
 
 		async with self.bot.database.connect() as conn:
 			badge_id = uuid4()

@@ -23,7 +23,7 @@ def shorten(text: str, max_len: int) -> str:
 	return text if len(text) <= max_len else text[: max_len - 3] + "..."
 
 
-def frmt_iter(iter: Iterable) -> str:
+def frmt_iter(iter: Iterable, delimiter: str = ", ", final: str = "and") -> str:
 	iter = tuple(iter)
 	if not iter:
 		return ""
@@ -31,9 +31,9 @@ def frmt_iter(iter: Iterable) -> str:
 	if len(iter) == 1:
 		return str(iter[0])
 	elif len(iter) == 2:
-		return " and ".join(iter)
+		return f"{iter[0]} {final} {iter[1]}"
 	else:
-		return f"{', '.join(iter[:-1])} and {iter[-1]}"
+		return f"{delimiter.join(iter[:-1])} {final} {iter[-1]}"
 
 
 def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime, *, include_seconds: bool = True) -> str:
