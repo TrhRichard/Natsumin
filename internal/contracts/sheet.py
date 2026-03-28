@@ -208,7 +208,7 @@ async def fetch_sheets(spreadsheet_id: str, range: list[str]) -> Spreadsheet: ..
 async def fetch_sheets(spreadsheet_id: str, range: str | list[str]) -> SheetBlock | Spreadsheet:
 	raw_range = range
 	if isinstance(raw_range, str):
-		range = list(range)
+		range = [raw_range]
 
 	async with aiohttp.ClientSession(headers={"Accept-Encoding": "gzip, deflate"}) as session:
 		async with session.get(
@@ -247,7 +247,7 @@ async def fetch_sheets(spreadsheet_id: str, range: str | list[str]) -> SheetBloc
 		sheets[sheet_name] = Sheet(name=sheet_name, blocks=blocks)
 
 	if isinstance(raw_range, str):
-		sheet: Sheet = sheets.values()[0]
+		sheet: Sheet = tuple(sheets.values())[0]
 		return sheet.blocks[0]
 
 	return Spreadsheet(id=spreadsheet_id, sheets=sheets)
