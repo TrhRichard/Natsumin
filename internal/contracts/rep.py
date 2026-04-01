@@ -69,12 +69,14 @@ class RepName(StrEnum):
 	ORV = "OMNISCIENT READERS VIEWPOINT"
 	ICHI_THE_WITCH = "ICHI THE WITCH"
 
+	REFUGEE = "REFUGEE"  # technically not a rep but it appears, should only be used for global rep
+
 
 ALTERNATIVE_NAMES: dict[RepName, list[str]] = {
 	RepName.BOCCHI: ["bocchi the rock"],
-	RepName.MUSHOKU: ["mushoku tensei"],
+	RepName.MUSHOKU: ["mushoku tensei", "jobless reincarnation"],
 	RepName.PRECURE: ["precord"],
-	RepName.FT_EZ: ["fairy tail x eden zero (ft x ez)"],
+	RepName.FT_EZ: ["fairy tail x eden zero (ft x ez)", "fairy tail", "eden zero"],
 	RepName.MDUD: ["bisque"],
 	RepName.TEARMOON: ["tearmoon empire"],
 	RepName.SBY: ["bunny girl senpai", "aobuta"],
@@ -88,7 +90,7 @@ ALTERNATIVE_NAMES: dict[RepName, list[str]] = {
 	RepName.TENSURA: ["slime", "that time i got reincarnated as a slime", "tensei slime"],
 	RepName.OTONARI: ["otonari no tenshi sama", "the angel next door spoils me rotten"],
 	RepName.GO_TOUBOUN: ["the quintessential quintuplets", "5tbn"],
-	RepName.LYCORIS_RECOIL: ["lycoreco"],
+	RepName.LYCORIS_RECOIL: ["lycoreco", "fish's favorite show"],
 	RepName.VANITAS: ["vnc"],
 	RepName.KING_PROPOSAL: ["kp"],
 	RepName.VISUAL_NOVEL: ["vn", "visual novel fandom"],
@@ -96,6 +98,11 @@ ALTERNATIVE_NAMES: dict[RepName, list[str]] = {
 	RepName.ORV: ["omniscient reader"],
 	RepName.KANOKARI: ["rent a girlfriend"],
 	RepName.OSHI_NO_KO: ["onk"],
+	RepName.SHIELD_HERO: ["the rising of the shield hero"],
+	RepName.TONIKAWA: ["tonikaku kawaii", "fly me to the moon"],
+	RepName.ROSHIDERE: ["alya sometimes hides her feelings in russian"],
+	RepName.KAORU_HANA: ["the fragrant flower blooms with dignity"],
+	RepName.NOKOTAN: ["my deer friend nokotan", "shikanoko nokonoko koshitantan"],
 }
 
 rep_fuzzy_choices: dict[str, RepName] = {}
