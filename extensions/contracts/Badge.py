@@ -360,7 +360,7 @@ class BadgeCog(NatsuminCog):
 		paginator, is_hidden = await self.badge_leaderboard_handler(ctx.author, leaderboard_type, hidden)
 		await paginator.respond(ctx.interaction, ephemeral=is_hidden)
 
-	@commands.group("badge", help="Badges related commands", aliases=["b"], invoke_without_command=True)
+	@commands.group("badge", help="Badges related commands", aliases=["b", "badges"], invoke_without_command=True)
 	async def badge_textgroup(self, ctx: commands.Context, user: str | int = None):
 		if await self.text_inventory.can_run(ctx):
 			await self.text_inventory(ctx, user)

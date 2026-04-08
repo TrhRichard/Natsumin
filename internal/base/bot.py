@@ -167,7 +167,7 @@ class NatsuminBot(commands.Bot):
 		invoker: discord.abc.User | None = None,
 		season_id: str | None = None,
 		db_conn: aiosqlite.Connection = None,
-	) -> tuple[str | None, discord.User | discord.Member | None]:
+	) -> tuple[str | None, discord.abc.User | None]:
 		discord_user: discord.Member = None
 
 		special_tag: str | None = None
@@ -195,7 +195,7 @@ class NatsuminBot(commands.Bot):
 
 			if discord_user:
 				user = discord_user.name
-		elif isinstance(user, (discord.User, discord.Member, discord.abc.User)):
+		elif isinstance(user, discord.abc.User):
 			discord_user = user
 			user = discord_user.name
 
