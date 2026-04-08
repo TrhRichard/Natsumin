@@ -32,6 +32,13 @@ CREATE TABLE IF NOT EXISTS user (
 	PRIMARY KEY (id)
 ) STRICT;
 
+CREATE TABLE IF NOT EXISTS user_config (
+	user_id				TEXT NOT NULL,
+	badge_display_type	TEXT NOT NULL DEFAULT 'one',
+
+	PRIMARY KEY (user_id),
+	FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
+) STRICT;
 
 CREATE TABLE IF NOT EXISTS user_alias (
 	username TEXT NOT NULL,
