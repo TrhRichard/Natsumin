@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from discord.ext import pages as extpages
+from discord.ext import commands, pages as extpages
+from typing import Literal
 from discord import ui
 
 import discord
@@ -162,5 +163,215 @@ class PageModal(ui.Modal):
 
 		if page_number > self.paginator.page_count or page_number < 0:
 			return await interaction.respond(f"Invalid page! Page must be from 1 to {self.paginator.page_count + 1}", ephemeral=True)
+
+		await self.paginator.goto_page(page_number, interaction=interaction)
+
+
+type V2PaginatorButtonType = Literal["previous_page", "page_indicator", "next_page"]
+
+
+class V2PaginatorButton(ui.Button):
+	def __init__(self, button_type: V2PaginatorButtonType):
+		super().__init__(custom_id=button_type)
+
+		self.button_type: V2PaginatorButtonType = button_type
+		self.paginator: V2Paginator | None = None
+
+	def _update_button(self):
+		assert self.paginator is not None
+
+		match self.button_type:
+			case "previous_page":
+				self.label = "↩" if self.paginator.current_page - 1 < 0 else "←"
+				self.disabled = len(self.paginator.pages) == 1
+				self.style = discord.ButtonStyle.secondary
+			case "next_page":
+				self.label = "↪" if self.paginator.current_page + 1 > self.paginator.last_page else "→"
+				self.disabled = len(self.paginator.pages) == 1
+				self.style = discord.ButtonStyle.secondary
+			case "page_indicator":
+				self.label = f"{self.paginator.current_page + 1}/{len(self.paginator.pages)}"
+				self.disabled = len(self.paginator.pages) == 1
+				self.style = discord.ButtonStyle.primary
+
+	async def callback(self, interaction):
+		if self.paginator.author_check and interaction.user != self.paginator.user:
+			return await interaction.respond("You did not trigger this command!", ephemeral=True)
+
+		new_page = self.paginator.current_page
+		match interaction.custom_id:
+			case "previous_page":
+				if self.paginator.current_page == 0:
+					new_page = self.paginator.last_page
+				else:
+					new_page -= 1
+			case "next_page":
+				if self.paginator.current_page == self.paginator.last_page:
+					new_page = 0
+				else:
+					new_page += 1
+			case "page_indicator":
+				await interaction.response.send_modal(ChangePageModal(self.paginator))
+				return
+
+		await self.paginator.goto_page(new_page, interaction=interaction)
+
+
+class V2Page:
+	def __init__(self, items: list[ui.ViewItem], *, extra_buttons: list[ui.Button] | None = None):
+		self.items = items
+		self.extra_buttons = extra_buttons
+
+
+class V2Paginator:
+	def __init__(
+		self,
+		pages: list[ui.ViewItem | list[ui.ViewItem]],
+		*,
+		timeout: float | None = 180,
+		disable_on_timeout: bool = True,
+		store: bool = True,
+		add_default_buttons: bool = True,
+		author_check: bool = True,
+	):
+		self.current_page = 0
+		self.pages: list[ui.ViewItem | list[ui.ViewItem] | V2Page] = []
+		self.user: discord.abc.User | None = None
+		self.message: discord.Message | discord.WebhookMessage | None = None
+		self.author_check = author_check
+
+		self._view = ui.DesignerView(timeout=timeout, disable_on_timeout=disable_on_timeout, store=store)
+		self._button_row = ui.ActionRow()
+
+		for page in pages:
+			self.pages.append(page)
+
+		if add_default_buttons:
+			self._add_default_buttons()
+
+	@property
+	def last_page(self):
+		return len(self.pages) - 1
+
+	def add_button(self, button: V2PaginatorButton):
+		button.paginator = self
+		self._button_row.add_item(button)
+
+	@staticmethod
+	def get_page_content(page_content: ui.ViewItem | list[ui.ViewItem]) -> V2Page:
+		if isinstance(page_content, ui.ViewItem):
+			return V2Page([page_content])
+		elif isinstance(page_content, list):
+			return V2Page(page_content)
+		else:
+			return page_content
+
+	async def respond(self, interaction: discord.Interaction, ephemeral: bool = False):
+		if not isinstance(interaction, discord.Interaction):
+			raise TypeError(f"expected Interaction not {interaction.__class__!r}")
+
+		if ephemeral and (self._view.timeout is None or self._view.timeout >= 900):
+			raise ValueError("paginator responses cannot be ephemeral if the paginator timeout is 15 minutes or greater")
+
+		self._update_content()
+
+		self.user = interaction.user
+
+		if interaction.response.is_done():
+			msg: discord.WebhookMessage = await interaction.followup.send(view=self._view, ephemeral=ephemeral)
+
+			if not ephemeral and not msg.flags.ephemeral:
+				msg = await msg.channel.fetch_message(msg.id)
+		else:
+			msg = await interaction.response.send_message(view=self._view, ephemeral=ephemeral)
+
+		if isinstance(msg, (discord.Message, discord.WebhookMessage)):
+			self.message = msg
+		elif isinstance(msg, discord.Interaction):
+			self.message = await msg.original_response()
+
+		return self.message
+
+	async def send(self, ctx: commands.Context) -> discord.Message:
+		if not isinstance(ctx, commands.Context):
+			raise TypeError(f"expected Context not {ctx.__class__!r}")
+
+		self._update_content()
+
+		self.user = ctx.author
+		self.message = await ctx.send(view=self._view)
+
+		return self.message
+
+	async def reply(self, ctx: commands.Context) -> discord.Message:
+		if not isinstance(ctx, commands.Context):
+			raise TypeError(f"expected Context not {ctx.__class__!r}")
+
+		self._update_content()
+
+		self.user = ctx.author
+		self.message = await ctx.reply(view=self._view)
+
+		return self.message
+
+	async def goto_page(self, page_number: int = 0, *, interaction: discord.Interaction | None = None) -> discord.Message:
+		old_page = self.current_page
+		self.current_page = page_number
+		self._update_content()
+
+		try:
+			if interaction:
+				await interaction.response.defer()
+				await interaction.followup.edit_message(self.message.id, view=self._view)
+			else:
+				await self.message.edit(view=self._view)
+		except discord.DiscordException:
+			self.current_page = old_page
+			self._update_content()
+			raise
+
+	def _update_content(self):
+		self._view.clear_items()
+
+		page = self.get_page_content(self.pages[self.current_page])
+
+		for item in page.items:
+			self._view.add_item(item)
+
+		self._add_default_buttons()
+		if page.extra_buttons is not None:
+			for button in page.extra_buttons:
+				self._button_row.add_item(button)
+
+		self._view.add_item(self._button_row)
+
+		for button in self._button_row.children:
+			if isinstance(button, V2PaginatorButton):
+				button._update_button()
+
+	def _add_default_buttons(self):
+		self._button_row = ui.ActionRow()
+
+		default_buttons = (V2PaginatorButton("previous_page"), V2PaginatorButton("page_indicator"), V2PaginatorButton("next_page"))
+		for button in default_buttons:
+			self.add_button(button)
+
+
+class ChangePageModal(ui.Modal):
+	def __init__(self, paginator: V2Paginator):
+		super().__init__(title="Go to Page", timeout=60)
+		self.paginator = paginator
+
+		self.add_item(ui.InputText(label="Page Number", placeholder=f"Enter page number (1-{self.paginator.last_page + 1})", custom_id="page_number"))
+
+	async def callback(self, interaction: discord.Interaction):
+		raw_page_number: str = self.get_item("page_number").value
+		if not raw_page_number.isdigit():
+			return await interaction.respond("Page number must be a number.", ephemeral=True)
+
+		page_number = int(raw_page_number) - 1
+
+		if page_number > self.paginator.last_page or page_number < 0:
+			return await interaction.respond(f"Invalid page! Page must be from 1 to {self.paginator.last_page + 1}", ephemeral=True)
 
 		await self.paginator.goto_page(page_number, interaction=interaction)
