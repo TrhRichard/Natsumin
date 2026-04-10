@@ -218,15 +218,18 @@ class V2PaginatorButton(ui.Button):
 
 
 class V2Page:
-	def __init__(self, items: list[ui.ViewItem], *, extra_buttons: list[ui.Button] | None = None):
+	def __init__(self, items: list[ui.ViewItem], *, extra_buttons: list[ui.Button] | None = None, custom_view: ui.DesignerView | None = None):
 		self.items = items
 		self.extra_buttons = extra_buttons
+		if custom_view:
+			for item in custom_view.children:
+				self.items.append(item)
 
 
 class V2Paginator:
 	def __init__(
 		self,
-		pages: list[ui.ViewItem | list[ui.ViewItem]],
+		pages: list[ui.ViewItem | list[ui.ViewItem] | V2Page],
 		*,
 		timeout: float | None = 180,
 		disable_on_timeout: bool = True,
@@ -258,11 +261,13 @@ class V2Paginator:
 		self._button_row.add_item(button)
 
 	@staticmethod
-	def get_page_content(page_content: ui.ViewItem | list[ui.ViewItem]) -> V2Page:
+	def get_page_content(page_content: ui.ViewItem | list[ui.ViewItem] | ui.DesignerView) -> V2Page:
 		if isinstance(page_content, ui.ViewItem):
 			return V2Page([page_content])
 		elif isinstance(page_content, list):
 			return V2Page(page_content)
+		elif isinstance(page_content, ui.DesignerView):
+			return V2Page([], custom_view=page_content)
 		else:
 			return page_content
 
