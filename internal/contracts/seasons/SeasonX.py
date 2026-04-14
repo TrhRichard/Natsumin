@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from internal.contracts.sheet import sync_media_data, fetch_sheets, PATTERNS, SyncContext, Spreadsheet, SheetBlock, Row
 from internal.enums import UserStatus, UserKind, ContractStatus, ContractKind
+from internal.contracts.rep import get_rep, RepName
 from internal.functions import get_user_id
-from internal.contracts.rep import get_rep
 from collections import defaultdict
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -191,6 +191,8 @@ async def _sync_basechallenge_sheet(base_challenge_sheet: SheetBlock, conn: aios
 		contractor_id = await get_user_id(conn, contractor)
 
 		user_rep = get_rep(row.get_value(2, "").strip())
+		if user_rep is None:  # In the chance that no rep is found, we fallback to unknown
+			user_rep = RepName.UNKNOWN
 
 		if user_row["contractor_id"] != contractor_id or user_row["veto_used"] != (row.get_value(12) == "TRUE"):
 			await conn.execute(

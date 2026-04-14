@@ -68,8 +68,10 @@ class RepName(StrEnum):
 	GACHIAKUTA = "GACHIAKUTA"
 	ORV = "OMNISCIENT READERS VIEWPOINT"
 	ICHI_THE_WITCH = "ICHI THE WITCH"
+	BIAS_LAST_TRAIN = "MY BIAS GETS ON THE LAST TRAIN"
 
 	REFUGEE = "REFUGEE"  # technically not a rep but it appears, should only be used for global rep
+	UNKNOWN = "UNKNOWN"  # appears if a user's rep is unable to be found
 
 
 ALTERNATIVE_NAMES: dict[RepName, list[str]] = {
@@ -103,6 +105,7 @@ ALTERNATIVE_NAMES: dict[RepName, list[str]] = {
 	RepName.ROSHIDERE: ["alya sometimes hides her feelings in russian"],
 	RepName.KAORU_HANA: ["the fragrant flower blooms with dignity"],
 	RepName.NOKOTAN: ["my deer friend nokotan", "shikanoko nokonoko koshitantan"],
+	RepName.BIAS_LAST_TRAIN: ["nae choeaeneun makchareul tanda"],
 }
 
 rep_fuzzy_choices: dict[str, RepName] = {}
@@ -127,6 +130,8 @@ def get_rep(
 	name: str, min_confidence: int = 80, *, only_include_reps: list[RepName] | None = None, include_confidence: bool = False
 ) -> Union[RepName | None, tuple[RepName | None, int | None]]:
 	if name is None:
+		return (None, None) if include_confidence else None
+	elif name.strip() == "":
 		return (None, None) if include_confidence else None
 
 	if only_include_reps is not None:  # incase you only want to match the name from a specific list of reps instead of all
