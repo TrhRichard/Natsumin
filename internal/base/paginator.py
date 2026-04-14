@@ -229,7 +229,7 @@ class V2Page:
 class V2Paginator:
 	def __init__(
 		self,
-		pages: list[ui.ViewItem | list[ui.ViewItem] | V2Page],
+		pages: list[ui.ViewItem | list[ui.ViewItem] | ui.DesignerView | V2Page],
 		*,
 		timeout: float | None = 180,
 		disable_on_timeout: bool = True,
@@ -238,7 +238,7 @@ class V2Paginator:
 		author_check: bool = True,
 	):
 		self.current_page = 0
-		self.pages: list[ui.ViewItem | list[ui.ViewItem] | V2Page] = []
+		self.pages: list[ui.ViewItem | list[ui.ViewItem] | ui.DesignerView | V2Page] = []
 		self.user: discord.abc.User | None = None
 		self.message: discord.Message | discord.WebhookMessage | None = None
 		self.author_check = author_check
@@ -261,15 +261,18 @@ class V2Paginator:
 		self._button_row.add_item(button)
 
 	@staticmethod
-	def get_page_content(page_content: ui.ViewItem | list[ui.ViewItem] | ui.DesignerView) -> V2Page:
-		if isinstance(page_content, ui.ViewItem):
-			return V2Page([page_content])
-		elif isinstance(page_content, list):
-			return V2Page(page_content)
-		elif isinstance(page_content, ui.DesignerView):
-			return V2Page([], custom_view=page_content)
+	def get_page_content(page: ui.ViewItem | list[ui.ViewItem] | ui.DesignerView | V2Page) -> V2Page:
+		if isinstance(page, ui.ViewItem):
+			return V2Page([page])
+		elif isinstance(page, list):
+			return V2Page(page)
+		elif isinstance(page, ui.DesignerView):
+			return V2Page([], custom_view=page)
 		else:
-			return page_content
+			return page
+
+	def add_page(self, page: ui.ViewItem | list[ui.ViewItem] | ui.DesignerView | V2Page):
+		self.pages.append(page)
 
 	async def respond(self, interaction: discord.Interaction, ephemeral: bool = False):
 		if not isinstance(interaction, discord.Interaction):
