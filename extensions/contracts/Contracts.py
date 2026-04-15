@@ -35,7 +35,7 @@ async def reps_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.Op
 	return reps_list
 
 
-class StatsFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
+class StatsFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 	rep: str = commands.flag(aliases=["r"], default=None, positional=True)
 	season: str = commands.flag(aliases=["s"], default=None)
 
@@ -50,7 +50,7 @@ VALID_USER_STATUSES = {
 VALID_ALL_STATUS = ("*", "all")
 
 
-class UsersFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
+class UsersFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 	rep: str = commands.flag(aliases=["r"], default=None, positional=True)
 	status: str = commands.flag(aliases=["s"], default="*")
 	season: str = commands.flag(aliases=["S"], default=None)

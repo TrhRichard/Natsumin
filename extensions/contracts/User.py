@@ -669,18 +669,18 @@ class SeasonUserContracts(ui.DesignerView):
 			pass
 
 
-class SeasonUserFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
+class SeasonUserFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 	user: str | int = commands.flag(aliases=["u"], default=None, positional=True)
 	season: str = commands.flag(aliases=["s"], default=None)
 
 
-class ContractFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
+class ContractFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 	contract_type: str = commands.flag(aliases=["c"], name="contract", positional=True)
 	user: str | int = commands.flag(aliases=["u"], default=None)
 	season: str = commands.flag(aliases=["s"], default=None)
 
 
-class FantasyUserFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
+class FantasyUserFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 	user: str | int = commands.flag(aliases=["u"], default=None, positional=True)
 	season: Literal["season_x"] = commands.flag(aliases=["s"], default="season_x")
 

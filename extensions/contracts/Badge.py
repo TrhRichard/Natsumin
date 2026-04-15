@@ -135,7 +135,7 @@ def get_badge_pages_list(badges: list[BadgeData], badges_per_page: int = 10) -> 
 	return pages
 
 
-class FindFlags(commands.FlagConverter, delimiter=" ", prefix="-"):
+class FindFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 	name: str = commands.flag(aliases=["n"], default=None, positional=True)
 	owned_user: str | int | discord.abc.User = commands.flag(aliases=["u"], default=None)
 	owned: bool = commands.flag(aliases=["o"], default=None)

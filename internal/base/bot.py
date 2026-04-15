@@ -282,7 +282,7 @@ def get_command_signature(cmd: commands.Command):
 				origin = getattr(annotation, "__origin__", None)
 
 		if origin is Literal:
-			name = "|".join(f'"{v}"' if isinstance(v, str) else str(v) for v in annotation.__args__)
+			name = " | ".join(f'"{v}"' if isinstance(v, str) else str(v) for v in annotation.__args__)
 		if param.default is not param.empty:
 			# We don't want None or '' to trigger the [name=value] case, and instead it should
 			# do [name] since [name=None] or [name=] are not exactly useful for the user.
@@ -304,6 +304,8 @@ def get_command_signature(cmd: commands.Command):
 		elif issubclass(annotation, commands.FlagConverter):
 			flags: commands.FlagConverter = annotation
 			pairs = []
+			positional_flag: commands.Flag | None = None
+			positional_pair: str | None = None
 			for flag in flags.get_flags().values():
 				value: str = ""
 				try:
@@ -312,10 +314,29 @@ def get_command_signature(cmd: commands.Command):
 					if flag.default is not discord.utils.MISSING:
 						value = f"{flag.default!r}"
 
-				formatted_flag = f"{flag.attribute}={value}" if value else flag.attribute
-				pairs.append(f"[{formatted_flag}]" if flag.positional else formatted_flag)
+				should_print = (
+					flag.default if isinstance(flag.default, str) else flag.default is not None
+				) and flag.default is not discord.utils.MISSING
+				if should_print:
+					formatted_flag = f"{flag.attribute}={value}"
+				else:
+					formatted_flag = flag.attribute
 
-			result.append(f"<flags {' '.join(pairs)}>")
+				if flag.positional:
+					positional_flag = flag
+					positional_pair = formatted_flag
+				else:
+					pairs.append(f"--{formatted_flag}")
+
+			if positional_pair is not None:
+				if positional_flag.default is discord.utils.MISSING:
+					pos_pair = f"<{positional_pair}>"
+				else:
+					pos_pair = f"[{positional_pair}]"
+
+				result.append(f"{pos_pair} {' '.join(pairs)}")
+			else:
+				result.append(f"{' '.join(pairs)}>")
 		else:
 			result.append(f"<{name}>")
 
