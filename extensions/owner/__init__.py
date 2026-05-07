@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from internal.functions import frmt_iter, get_user_id, get_legacy_rank
+from internal.functions import frmt_iter, get_legacy_rank
 from internal.constants import FILE_LOGGING_FORMATTER, COLORS
 from internal.contracts import sync_season
+from internal.contracts.rep import get_rep
 from internal.base.cog import NatsuminCog
 from discord.ext import commands
 from typing import TYPE_CHECKING
 from discord import ui
+from uuid import uuid4
 
 import aiosqlite
 import sqlite3
@@ -414,6 +416,27 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 		else:
 			file = discord.File(io.BytesIO(str_output.encode("utf-8")), filename="result.json")
 			await ctx.reply("", file=file)
+
+	@commands.command()
+	async def create_user(self, ctx: commands.Context, user: discord.abc.User, rep: str, gen: int | None = None):
+		async with self.bot.database.connect() as conn:
+			async with conn.execute("SELECT id FROM user WHERE username = ? or discord_id = ?", (user.name, user.id)) as cursor:
+				row = await cursor.fetchone()
+				if row:
+					return await ctx.reply("User already exists!")
+
+			user_rep = get_rep(rep, 90)
+			if not user_rep:
+				return await ctx.reply(f"Could not identify a proper rep for {rep}")
+
+			user_id = str(uuid4())
+
+			await conn.execute(
+				"INSERT INTO user (id, username, discord_id, rep, gen) VALUES (?, ?, ?, ?, ?)", (user_id, user.name, user.id, user_rep.value, gen)
+			)
+			await conn.commit()
+
+			await ctx.reply(f"Added {user.name} to the database ({user_id})")
 
 	@commands.command()  # temporary
 	async def cleanup_media(self, ctx: commands.Context, media_type: str = "anilist"):

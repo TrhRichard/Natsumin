@@ -106,7 +106,7 @@ class MasterUserProfile(ui.DesignerView):
 
 			header_content = f"# {username}'s Profile\n{profile_data.strip() or 'No information available.'}"
 
-			badges_button = ui.Button(style=discord.ButtonStyle.secondary, label="Check badges", custom_id="check_badges")
+			badges_button = ui.Button(style=discord.ButtonStyle.secondary, label="Check badges", custom_id="check_badges", disabled=True)
 			badges_button.callback = self.button_callback
 
 			self.add_item(
