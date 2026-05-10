@@ -889,13 +889,6 @@ async def _sync_fantasy_sheet(fantasy_sheet: SheetBlock, conn: aiosqlite.Connect
 				i += 1
 				continue
 
-			async with conn.execute("SELECT 1 FROM season_user WHERE season_id = ? AND user_id = ?", (SEASON_ID, user_id)) as cursor:
-				does_user_exist = await cursor.fetchone()
-
-			if not does_user_exist:
-				i += 1
-				continue
-
 			async with conn.execute("SELECT * FROM season_user_fantasy WHERE season_id = ? AND user_id = ?", (SEASON_ID, user_id)) as cursor:
 				fantasy_row = await cursor.fetchone()
 

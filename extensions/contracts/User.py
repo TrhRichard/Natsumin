@@ -324,17 +324,18 @@ class SeasonUserProfile(ui.DesignerView):
 
 
 class FantasyUserProfile(ui.DesignerView):
-	def __init__(self, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str):
+	def __init__(self, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str, is_user_in_season: bool):
 		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
 		self.season_id = season_id
 		self.user_id = user_id
+		self.is_user_in_season = is_user_in_season
 		self.member_ids: list[str] = []
 
 	@classmethod
-	async def create(cls, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str):
-		self = cls(bot, invoker, season_id, user_id)
+	async def create(cls, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str, is_user_in_season: bool):
+		self = cls(bot, invoker, season_id, user_id, is_user_in_season)
 
 		async with bot.database.connect() as conn:
 			async with conn.execute("SELECT * FROM season_user_fantasy WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
@@ -347,38 +348,41 @@ class FantasyUserProfile(ui.DesignerView):
 
 			fantasy_row = dict(fantasy_row)
 
+			_, discord_user = await bot.fetch_user_from_database(user_id, db_conn=conn)
 			USER_DATA_QUERY = "SELECT u.username, u.discord_id, su.status FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND su.user_id = ?"
 
-			async with conn.execute(USER_DATA_QUERY, (season_id, user_id)) as cursor:
-				user_row = await cursor.fetchone()
+			if is_user_in_season:
+				async with conn.execute(USER_DATA_QUERY, (season_id, user_id)) as cursor:
+					user_row = await cursor.fetchone()
 
-			if user_row is None:
-				self.add_item(ui.TextDisplay("User data not found!"))
+				if user_row is None:
+					self.add_item(ui.TextDisplay("User data not found!"))
 
-				return self
+					return self
 
-			if user_row["status"] in (UserStatus.FAILED.value, UserStatus.INCOMPLETE.value):
-				self.add_item(
-					ui.TextDisplay(
-						f"{'You have' if invoker.id == user_row['discord_id'] else 'This user has'} been disqualified due to failing the season."
+				if user_row["status"] in (UserStatus.FAILED.value, UserStatus.INCOMPLETE.value):
+					self.add_item(
+						ui.TextDisplay(
+							f"{'You have' if invoker.id == user_row['discord_id'] else 'This user has'} been disqualified due to failing the season."
+						)
 					)
+
+					return self
+
+				username = f"<@{discord_user.id}>" if discord_user else user_row["username"]
+
+				user_status = UserStatus(user_row["status"])
+				status_name = get_status_name(user_status)
+				if user_status in (UserStatus.FAILED, UserStatus.INCOMPLETE):
+					status_name = "Disqualified"
+
+				user_description = (
+					f"- **Status**: {status_name} {get_status_emote(UserStatus(user_row['status']))}\n"
+					+ f"- **Total Score**: {fantasy_row['total_score']}\n"
 				)
-
-				return self
-
-			_, discord_user = await bot.fetch_user_from_database(user_id, db_conn=conn)
-
-			username = f"<@{discord_user.id}>" if discord_user else user_row["username"]
-
-			user_status = UserStatus(user_row["status"])
-			status_name = get_status_name(user_status)
-			if user_status in (UserStatus.FAILED, UserStatus.INCOMPLETE):
-				status_name = "Disqualified"
-
-			user_description = (
-				f"- **Status**: {status_name} {get_status_emote(UserStatus(user_row['status']))}\n"
-				+ f"- **Total Score**: {fantasy_row['total_score']}\n"
-			)
+			else:
+				username = f"<@{discord_user.id}>" if discord_user else user_row["username"]
+				user_description = f"- **Total Score**: {fantasy_row['total_score']}\n"
 
 			header_content = f"## {username}'s Fantasy Team\n{user_description}"
 
@@ -692,7 +696,7 @@ class ContractFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 
 class FantasyUserFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 	user: str | int = commands.flag(aliases=["u"], default=None, positional=True)
-	season: Literal["season_x"] = commands.flag(aliases=["s"], default="season_x")
+	season: Literal["season_x", "season_xi"] = commands.flag(aliases=["s"], default="season_xi")
 
 
 class UserCog(NatsuminCog):
@@ -811,16 +815,13 @@ class UserCog(NatsuminCog):
 			async with conn.execute("SELECT 1 FROM season_user WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
 				is_user_in_season = await cursor.fetchone()
 
-			if not is_user_in_season:
-				return await ctx.respond(f"{username} has not participated in {season_name}!", ephemeral=True)
-
 			async with conn.execute("SELECT 1 FROM season_user_fantasy WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
 				does_user_have_fantasy = await cursor.fetchone()
 
 			if not does_user_have_fantasy:
 				return await ctx.respond(f"{username} doesn't have a fantasy team for {season_name}!", ephemeral=True)
 
-		await ctx.respond(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, user_id), ephemeral=hidden)
+		await ctx.respond(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, user_id, is_user_in_season), ephemeral=hidden)
 
 	@contracts_subgroup.command(name="get", description="Fetch the contracts of a user")
 	@discord.option(
@@ -1098,13 +1099,10 @@ class UserCog(NatsuminCog):
 			async with conn.execute("SELECT 1 FROM season_user WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
 				is_user_in_season = await cursor.fetchone()
 
-			if not is_user_in_season:
-				return await ctx.reply(f"{username} has not participated in {season_name}!")
-
 			async with conn.execute("SELECT 1 FROM season_user_fantasy WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
 				does_user_have_fantasy = await cursor.fetchone()
 
 			if not does_user_have_fantasy:
 				return await ctx.reply(f"{username} doesn't have a fantasy team for {season_name}!")
 
-		await ctx.reply(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, user_id))
+		await ctx.reply(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, user_id, is_user_in_season))

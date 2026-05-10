@@ -458,6 +458,35 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await conn.commit()
 			await ctx.reply(f"Cleaned up {len(rows)} rows!")
 
+	@commands.command()
+	async def sync_discord_ids(self, ctx: commands.Context):
+		async with self.bot.database.connect() as conn:
+			if not self.bot.anicord:
+				return await ctx.reply("Bot is not in Anicord!")
+
+			async with conn.execute("SELECT id, username FROM user WHERE discord_id IS NULL") as cursor:
+				users: list[tuple[str, str]] = [(row["id"], row["username"]) for row in await cursor.fetchall()]
+
+			username_to_id: dict[str, str] = {user[1].lower(): user[0] for user in users}
+			users_changed: int = 0
+
+			async with ctx.typing():
+				async for member in self.bot.anicord.fetch_members(limit=None):
+					user_id = username_to_id.get(member.name.lower())
+					if not user_id:
+						continue
+
+					try:
+						await conn.execute("UPDATE user SET discord_id = ? WHERE id = ?", (member.id, user_id))
+					except sqlite3.IntegrityError:
+						pass
+					else:
+						users_changed += 1
+
+			await conn.commit()
+
+		await ctx.reply(f"Set discord id to {users_changed}/{len(users)} users")
+
 
 def setup(bot: NatsuminBot):
 	bot.add_cog(OwnerExt(bot))

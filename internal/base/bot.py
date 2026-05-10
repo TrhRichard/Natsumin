@@ -4,10 +4,10 @@ from internal.constants import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER
 from config import BOT_PREFIX, DEV_BOT_PREFIX, OWNER_IDS, DISABLED_EXTENSIONS
 from internal.exceptions import BlacklistedUser, NotWhitelistedChannel
 from internal.database.Reminder import ReminderDatabase
-from typing import TYPE_CHECKING, Literal, overload
 from internal.contracts.order import OrderCategory
 from internal.database import NatsuminDatabase
 from internal.functions import get_user_id
+from typing import TYPE_CHECKING, Literal
 from discord.ext import commands
 from pathlib import Path
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from internal.contracts.seasons import SeasonX
+from internal.contracts.seasons import SeasonX, SeasonXI
 from internal.functions import diff_to_str
 from typing import TYPE_CHECKING
 
@@ -23,6 +23,8 @@ async def sync_season(database: NatsuminDatabase, season_id: str) -> float:
 	match season_id:
 		case "season_x":
 			await SeasonX.sync_season(database)
+		case "season_xi":
+			await SeasonXI.sync_season(database)
 
 	return time.perf_counter() - start
 
