@@ -175,6 +175,7 @@ class SeasonUserProfile(ui.DesignerView):
 
 				return self
 
+			contractor_username: str | None = None
 			if user_row["contractor_id"]:
 				async with conn.execute("SELECT username FROM user WHERE id = ?", (user_row["contractor_id"],)) as cursor:
 					row = await cursor.fetchone()
@@ -185,6 +186,7 @@ class SeasonUserProfile(ui.DesignerView):
 			username = f"<@{discord_user.id}>" if discord_user else user_row["username"]
 			user_description = f"- **Status**: {get_status_name(UserStatus(user_row['status']))} {get_status_emote(UserStatus(user_row['status']))}\n"
 
+			contractees: tuple[str, ...] | None = None
 			if user_row["kind"] == UserKind.NORMAL:
 				user_description += f"- **Rep**: {user_row['rep'] or 'Unknown'}\n"
 				user_description += f"- **Contractor**: {contractor_username or 'None'}\n"
@@ -224,7 +226,12 @@ class SeasonUserProfile(ui.DesignerView):
 					disabled=user_row["contractor_id"] is None,
 					custom_id="get_contractor_profile",
 				),
-				ui.Button(style=discord.ButtonStyle.secondary, label="Get Contractee", custom_id="get_contractee_profile"),
+				ui.Button(
+					style=discord.ButtonStyle.secondary,
+					label="Get Contractee",
+					disabled=not contractees or len(contractees) == 0,
+					custom_id="get_contractee_profile",
+				),
 				ui.Button(style=discord.ButtonStyle.secondary, label="Check Contracts", custom_id="get_contracts"),
 			)
 
@@ -571,6 +578,7 @@ class SeasonUserContracts(ui.DesignerView):
 
 				return self
 
+			contractor_username: str | None = None
 			if user_row["contractor_id"]:
 				async with conn.execute("SELECT username FROM user WHERE id = ?", (user_row["contractor_id"],)) as cursor:
 					row = await cursor.fetchone()
@@ -632,6 +640,8 @@ class SeasonUserContracts(ui.DesignerView):
 				category_texts.append(f"### {category['name']} ({passed}/{total})\n{'\n'.join(type_texts)}")
 
 			sorted_categories_text = "\n".join(category_texts)
+			if not sorted_categories_text:
+				sorted_categories_text = "### No contracts found, has the season started?"
 
 			if not include_reviews:
 				footer_messages.append(

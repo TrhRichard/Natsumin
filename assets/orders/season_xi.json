@@ -1,0 +1,16 @@
+[
+	{
+		"name": "Normal Contracts",
+		"order": ["base contract"]
+	},
+	{
+		"name": "Aid Contracts",
+		"order": [
+			{
+				"type": "regex",
+				"pattern": "aid contract \\d+",
+				"order_by": "last_number"
+			}
+		]
+	}
+]

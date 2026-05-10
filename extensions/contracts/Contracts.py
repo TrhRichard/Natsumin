@@ -107,8 +107,8 @@ class StatsView(ui.DesignerView):
 				params.append(rep.value)
 			async with conn.execute(query, params) as cursor:
 				row = await cursor.fetchone()
-				normal_contracts_count: tuple[int, int] = (row["normal_passed"], row["normal_total"])
-				aid_contracts_count: tuple[int, int] = (row["aid_passed"], row["aid_total"])
+				normal_contracts_count: tuple[int, int] = (row["normal_passed"] or 0, row["normal_total"] or 0)
+				aid_contracts_count: tuple[int, int] = (row["aid_passed"] or 0, row["aid_total"] or 0)
 
 			query = f"""
 				SELECT
@@ -128,7 +128,11 @@ class StatsView(ui.DesignerView):
 
 			stats_display = ui.TextDisplay(
 				f"**Users passed**: {get_percentage_formatted(normal_users_count[0], normal_users_count[1])}\n"
-				f"**Contracts passed**: {get_percentage_formatted(normal_contracts_count[0], normal_contracts_count[1])}\n"
+				+ (
+					f"**Contracts passed**: {get_percentage_formatted(normal_contracts_count[0], normal_contracts_count[1])}\n"
+					if normal_contracts_count[1] > 1
+					else ""
+				)
 				+ (
 					f"**Aid Contracts passed**: {get_percentage_formatted(aid_contracts_count[0], aid_contracts_count[1])}"
 					if aid_contracts_count[1] > 0
@@ -151,7 +155,12 @@ class StatsView(ui.DesignerView):
 
 					type_texts.append(f"> **{cat_type}**: {get_percentage_formatted(type_status[0], type_status[1])}")
 
+				if not type_texts:
+					continue
 				category_texts.append(f"### {category['name']} ({passed}/{total})\n{'\n'.join(type_texts)}")
+
+			if not category_texts:
+				category_texts.append("### No contracts found, has the season started?")
 
 			self.add_item(
 				ui.Container(
