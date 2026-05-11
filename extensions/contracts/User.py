@@ -780,7 +780,7 @@ class UserCog(NatsuminCog):
 		default=None,
 		autocomplete=fantasy_usernames_autocomplete,
 	)
-	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, choices=["season_x"])
+	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, choices=["season_x", "season_xi"])
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
 	async def fantasy(self, ctx: discord.ApplicationContext, user: str | None = None, season: str | None = None, hidden: bool = False):
 		if user is None:
@@ -1067,9 +1067,68 @@ class UserCog(NatsuminCog):
 
 		await ctx.reply(view=await SeasonContractInfo.create(self.bot, ctx.author, season_id, user_id, flags.contract_type))
 
-	@commands.command("fantasy", aliases=["f"], help="Fetch the fantasy team of a user")
+	@commands.group(
+		"fantasy",
+		help="Fantasy Contracts related commands",
+		aliases=["f"],
+		description="If no sub-command is specified then leader command will run",
+		invoke_without_command=True,
+	)
+	async def fantasy_textgroup(self, ctx: commands.Context, *, flags: FantasyUserFlags):
+		if await self.text_fantasy_leader.can_run(ctx):
+			await self.text_fantasy_leader(ctx, flags=flags)
+
+	@fantasy_textgroup.command("member", aliases=["m"], help="Fetch the fantasy team the user is in")
 	@whitelist_channel_only()
-	async def text_fantasy(self, ctx: commands.Context, *, flags: FantasyUserFlags):
+	async def text_fantasy_member(self, ctx: commands.Context, *, flags: FantasyUserFlags):
+		user = flags.user
+		if user is None:
+			user = ctx.author
+
+		async with self.bot.database.connect() as conn:
+			if flags.season is None:
+				season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
+			else:
+				season_id = flags.season
+
+			if season_id not in self.bot.database.available_seasons:
+				return await ctx.reply(
+					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it."
+				)
+
+			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			if not user_id:
+				return await ctx.reply("User not found!")
+
+			async with conn.execute(
+				"SELECT (SELECT name FROM season WHERE id = ?) as name, (SELECT username FROM user WHERE id = ?) as username", (season_id, user_id)
+			) as cursor:
+				row = await cursor.fetchone()
+				season_name = row["name"]
+				username = row["username"]
+
+			async with conn.execute(
+				"""
+				SELECT user_id FROM season_user_fantasy 
+				WHERE 
+					season_id = ? 
+					AND ? IN (member1_id, member2_id, member3_id, member4_id, member5_id)
+			""",
+				(season_id, user_id),
+			) as cursor:
+				row = await cursor.fetchone()
+				if not row:
+					return await ctx.reply(f"{username} is not in any fantasy team for {season_name}!")
+				leader_id = row["user_id"]
+
+			async with conn.execute("SELECT 1 FROM season_user WHERE season_id = ? AND user_id = ?", (season_id, leader_id)) as cursor:
+				is_leader_in_season = await cursor.fetchone()
+
+		await ctx.reply(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, leader_id, is_leader_in_season))
+
+	@fantasy_textgroup.command("leader", aliases=["l"], help="Fetch the fantasy team the user is leader of")
+	@whitelist_channel_only()
+	async def text_fantasy_leader(self, ctx: commands.Context, *, flags: FantasyUserFlags):
 		user = flags.user
 		if user is None:
 			user = ctx.author

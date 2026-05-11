@@ -348,6 +348,10 @@ class BotHelp(commands.HelpCommand):
 		signature = f"**{self.context.clean_prefix}{command.qualified_name}**"
 		if isinstance(command, commands.Group):
 			signature += " [sub-command]"
+			if command.invoke_without_command:
+				cmd_signature = get_command_signature(command)
+				if cmd_signature:
+					signature += f" **or** {get_command_signature(command)}"
 		elif command.signature:
 			signature += f" {get_command_signature(command)}"
 
@@ -357,7 +361,8 @@ class BotHelp(commands.HelpCommand):
 		embed = discord.Embed(
 			color=COLORS.DEFAULT,
 			title=f"{self.context.me.name}'s commands",
-			description=f"-# For more information about a command you can run: `{self.context.clean_prefix}help [command-name]`",
+			description=f"-# For more information about a command you can run: `{self.context.clean_prefix}help [command-name]`\n"
+			+ f"-# For commands that have arguments that start with -- the following syntax is used: `{self.context.clean_prefix}contractinfo Base Contract --user=madfigs --season=season_x`",
 		)
 
 		category_signatures: dict[str, list[str]] = {}
