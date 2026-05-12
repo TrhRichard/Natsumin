@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from internal.contracts import get_deadline_footer, season_autocomplete, usernames_autocomplete, get_season_spreadsheet_ids
 from internal.functions import get_legacy_rank, get_rank_emoteid, get_status_emote, get_status_name, frmt_iter
-from internal.contracts import get_deadline_footer, season_autocomplete, usernames_autocomplete
 from internal.contracts.order import OrderContractData, sort_contract_types
 from internal.enums import UserKind, UserStatus, ContractStatus
 from internal.checks import whitelist_channel_only
@@ -17,8 +17,6 @@ import discord
 
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuminBot
-
-FANTASY_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1IRg3plGydWluhIIxM4uQfwzb5xdQdDF83ETVTcnUKRo/edit?gid=2045734957"
 
 
 async def fantasy_usernames_autocomplete(ctx: discord.AutocompleteContext) -> list[str]:
@@ -409,6 +407,8 @@ class FantasyUserProfile(ui.DesignerView):
 				button.callback = self.button_callback
 
 			header_display = ui.TextDisplay(header_content + f"### Members\n{'\n'.join(body_content)}")
+			_, fantasy_spreadsheet_id = get_season_spreadsheet_ids(self.bot.database, season_id)
+			spreadsheet_url = f"https://docs.google.com/spreadsheets/d/{fantasy_spreadsheet_id}"
 
 			self.add_item(
 				ui.Container(
@@ -417,7 +417,7 @@ class FantasyUserProfile(ui.DesignerView):
 						if discord_user and discord_user.display_avatar
 						else header_display
 					),
-					ui.TextDisplay(f"-# More information on the [spreadsheet]({FANTASY_SPREADSHEET_URL})."),
+					ui.TextDisplay(f"-# More information on the [spreadsheet]({spreadsheet_url})."),
 					ui.Separator(),
 					# ui.ActionRow(*buttons),
 					ui.TextDisplay(f"-# <:Kirburger:998705274074435584> {await get_deadline_footer(self.bot.database, season_id, db_conn=conn)}"),

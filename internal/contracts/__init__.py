@@ -29,6 +29,19 @@ async def sync_season(database: NatsuminDatabase, season_id: str) -> float:
 	return time.perf_counter() - start
 
 
+def get_season_spreadsheet_ids(database: NatsuminDatabase, season_id: str) -> tuple[str, str]:
+	if season_id not in database.available_seasons:
+		raise ValueError(f"Invalid season: {season_id}")
+
+	match season_id:
+		case "season_x":
+			return SeasonX.SEASON_SPREADSHEET_ID, SeasonX.FANTASY_SPREADSHEET_ID
+		case "season_xi":
+			return SeasonXI.SEASON_SPREADSHEET_ID, SeasonXI.FANTASY_SPREADSHEET_ID
+
+	raise RuntimeError(f"Could not find ids for season {season_id}")
+
+
 async def get_deadline_footer(database: NatsuminDatabase, season_id: str, *, db_conn: aiosqlite.Connection = None) -> str:
 	if season_id not in database.available_seasons:
 		raise ValueError(f"Invalid season: {season_id}")
