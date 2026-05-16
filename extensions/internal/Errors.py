@@ -36,6 +36,9 @@ class Errors(NatsuminCog):
 		elif isinstance(error, commands.CommandOnCooldown):
 			err_type = "Cooldown"
 			err_details = f"You may retry again in **{error.retry_after:.2f}** seconds."
+		elif isinstance(error, (commands.BadLiteralArgument, commands.BadArgument, commands.BadFlagArgument, commands.BadUnionArgument)):
+			err_type = "Bad Argument"
+			err_details = str(error)
 		elif isinstance(error, NotWhitelistedChannel):
 			err_details = f"This command can only be used in {frmt_iter(f'<#{channel_id}>' for channel_id in error.valid_channel_ids)}"
 			should_log = False

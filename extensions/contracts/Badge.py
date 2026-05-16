@@ -347,7 +347,7 @@ class BadgeCog(NatsuminCog):
 				badges: list[BadgeData] = [dict(row) for row in await cursor.fetchall()]
 
 		if len(badges) == 0:
-			return f"{"You don't" if invoker.id == discord_user.id else "This user doesn't"} have any badges.", True
+			return f"{"You don't" if discord_user and invoker.id == discord_user.id else "This user doesn't"} have any badges.", True
 
 		if author_display_badge_type == "one" or len(badges) == 1:
 			pages = [get_badge_page(badge_data) for badge_data in badges]
