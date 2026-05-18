@@ -562,7 +562,7 @@ class BadgeCog(NatsuminCog):
 		async with self.bot.database.connect() as conn:
 			badge_id = uuid4()
 			await conn.execute(
-				"INSERT INTO badge (id, name, description, artist, url, type, created_at, rarity) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+				"INSERT INTO badge (id, name, description, artist, url, type, rarity) VALUES (?, ?, ?, ?, ?, ?, ?)",
 				(
 					str(badge_id),
 					name,
@@ -570,7 +570,6 @@ class BadgeCog(NatsuminCog):
 					artist if artist is not None else "",
 					image_url if image_url is not None else "",
 					badge_type,
-					datetime.datetime.now(datetime.UTC).isoformat(" "),
 					rarity,
 				),
 			)

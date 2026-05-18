@@ -7,7 +7,6 @@ from internal.constants import COLORS
 from discord.ext import commands
 
 import aiosqlite
-import datetime
 import sqlite3
 import discord
 

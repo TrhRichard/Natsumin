@@ -2,8 +2,10 @@ PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS bot_config (
-	key TEXT NOT NULL,
-	value TEXT NOT NULL,
+	key 		TEXT NOT NULL,
+	value 		TEXT NOT NULL,
+	created_at	TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at	TEXT,
 
 	PRIMARY KEY (key)
 ) STRICT;
@@ -23,11 +25,13 @@ CREATE TABLE IF NOT EXISTS whitelist_channel (
 );
 
 CREATE TABLE IF NOT EXISTS user (
-	id         TEXT NOT NULL, 
-	discord_id INTEGER UNIQUE,
-	username   TEXT NOT NULL,
-	rep        TEXT,
-	gen        INTEGER,
+	id        	TEXT NOT NULL, 
+	discord_id	INTEGER UNIQUE,
+	username  	TEXT NOT NULL,
+	rep       	TEXT,
+	gen       	INTEGER,
+	created_at	TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at	TEXT,
 
 	PRIMARY KEY (id)
 ) STRICT;
@@ -41,8 +45,9 @@ CREATE TABLE IF NOT EXISTS user_config (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS user_alias (
-	username TEXT NOT NULL,
-	user_id  TEXT NOT NULL,
+	username 	TEXT NOT NULL,
+	user_id  	TEXT NOT NULL,
+	created_at	TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 
 	PRIMARY KEY (username),
 	FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
@@ -73,15 +78,17 @@ CREATE TABLE IF NOT EXISTS badge (
 	artist      TEXT NOT NULL,
 	url         TEXT NOT NULL,
 	type        TEXT NOT NULL DEFAULT 'contracts',
-	created_at	TEXT NOT NULL,
 	rarity		TEXT NOT NULL DEFAULT 'common',
+	created_at	TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at	TEXT,
 
 	PRIMARY KEY (id)
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS user_badge (
-	user_id  TEXT NOT NULL,                     
-	badge_id TEXT NOT NULL,
+	user_id		TEXT NOT NULL,                     
+	badge_id	TEXT NOT NULL,
+	added_at	TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 
 	PRIMARY KEY (user_id, badge_id),
 	FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -108,6 +115,8 @@ CREATE TABLE IF NOT EXISTS season_user (
 	accepting_ln    	INTEGER NOT NULL DEFAULT 0,
 	preferences     	TEXT,
 	bans            	TEXT,
+	created_at			TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at			TEXT,
 
 	PRIMARY KEY (season_id, user_id),
 	FOREIGN KEY (season_id) REFERENCES season(id) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -129,6 +138,8 @@ CREATE TABLE IF NOT EXISTS season_user_fantasy (
 	member4_score	INTEGER NOT NULL DEFAULT 0,
 	member5_id		TEXT NOT NULL,
 	member5_score	INTEGER NOT NULL DEFAULT 0,
+	created_at		TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at		TEXT,
 
 	PRIMARY KEY (season_id, user_id),
 	FOREIGN KEY (season_id) REFERENCES season(id) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -156,6 +167,8 @@ CREATE TABLE IF NOT EXISTS season_contract (
 	medium    		TEXT,
 	media_type		TEXT,
 	media_id		TEXT,
+	created_at		TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at		TEXT,
 
 	PRIMARY KEY (season_id, id),
 	UNIQUE (season_id, type, contractee_id),
@@ -170,6 +183,7 @@ CREATE TABLE IF NOT EXISTS media (
 	description	TEXT,
 	medium		TEXT,
 	url			TEXT NOT NULL,
+	created_at	TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 	updated_at	TEXT NOT NULL,
 
 	PRIMARY KEY (type, id)
@@ -219,9 +233,53 @@ CREATE TABLE IF NOT EXISTS media_steam (
 	FOREIGN KEY (type, id) REFERENCES media(type, id) ON DELETE CASCADE ON UPDATE CASCADE
 ) STRICT;
 
+-- Automated updated_at triggers
+
+CREATE TRIGGER IF NOT EXISTS bot_config_updated_at
+	AFTER UPDATE ON bot_config FOR EACH ROW
+BEGIN
+    UPDATE bot_config SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE key = OLD.key;
+END;
+
+CREATE TRIGGER IF NOT EXISTS user_updated_at
+	AFTER UPDATE ON user FOR EACH ROW
+BEGIN
+    UPDATE user SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS badge_updated_at
+	AFTER UPDATE ON badge FOR EACH ROW
+BEGIN
+    UPDATE badge SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS season_user_updated_at
+	AFTER UPDATE ON season_user FOR EACH ROW
+BEGIN
+    UPDATE season_user SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE season_id = OLD.season_id AND user_id = OLD.user_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS season_user_fantasy_updated_at
+	AFTER UPDATE ON season_user_fantasy FOR EACH ROW
+BEGIN
+    UPDATE season_user_fantasy SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE season_id = OLD.season_id AND user_id = OLD.user_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS season_contract_updated_at
+	AFTER UPDATE ON season_contract FOR EACH ROW
+BEGIN
+    UPDATE season_contract SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE season_id = OLD.season_id AND id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS media_updated_at
+    AFTER UPDATE ON media FOR EACH ROW
+BEGIN
+    UPDATE media SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE type = OLD.type AND id = OLD.id;
+END;
+
 -- Add default config
-INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.active_season", "season_x");
-INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_datetime", "2030-01-14T22:00:00Z");
+INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.active_season", "season_xi");
+INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_datetime", "2030-01-15T00:00:00.000Z");
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.syncing_enabled", "1");
 
 INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_footer", "Season deadline in {time_till}.");
@@ -231,3 +289,4 @@ INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.archived_season
 -- Add supported seasons 
 INSERT OR IGNORE INTO season (id, name) VALUES ("winter_2025", "Winter 2025");
 INSERT OR IGNORE INTO season (id, name) VALUES ("season_x", "Season X");
+INSERT OR IGNORE INTO season (id, name) VALUES ("season_xi", "Season XI");

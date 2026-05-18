@@ -417,23 +417,15 @@ async def sync_media_data(conn: aiosqlite.Connection, ctx: SyncContext):
 					ctx.missing_steam_ids.remove(str(game.id))
 
 				await conn.execute(
-					"INSERT OR IGNORE INTO media (type, id, name, description, medium, url, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-					(
-						"steam",
-						game.id,
-						game.name,
-						game.description,
-						game.type.upper(),
-						f"https://store.steampowered.com/app/{game.id}/",
-						str(datetime.datetime.now(datetime.UTC)),
-					),
+					"INSERT OR IGNORE INTO media (type, id, name, description, medium, url) VALUES (?, ?, ?, ?, ?, ?)",
+					("steam", game.id, game.name, game.description, game.type.upper(), f"https://store.steampowered.com/app/{game.id}/"),
 				)
 
 				query = """
 					INSERT OR IGNORE INTO media_steam (
 						id, developer, publisher,
 						release_date, header_image
-					) VALUES (?, ?, ?, ?, ?, ?)
+					) VALUES (?, ?, ?, ?, ?)
 				"""
 				await conn.execute(query, (game.id, game.developer, game.publisher, game.release_date, game.header_image))
 
@@ -469,8 +461,8 @@ async def sync_media_data(conn: aiosqlite.Connection, ctx: SyncContext):
 					ctx.missing_mal_ids.remove(str(media.mal_id))
 
 				await conn.execute(
-					"INSERT OR IGNORE INTO media (type, id, name, description, medium, url, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-					("anilist", media.id, name_to_use, media.description, media.type, media.url, str(datetime.datetime.now(datetime.UTC))),
+					"INSERT OR IGNORE INTO media (type, id, name, description, medium, url) VALUES (?, ?, ?, ?, ?, ?)",
+					("anilist", media.id, name_to_use, media.description, media.type, media.url),
 				)
 
 				query = """

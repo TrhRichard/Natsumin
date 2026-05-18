@@ -9,6 +9,7 @@ class BadgeData(TypedDict):
 	url: str
 	type: Literal["contracts", "aria", "event", "misc"]
 	created_at: str
+	updated_at: str | None
 	rarity: Literal["common", "uncommon", "rare", "epic", "legendary", "limited"]
 
 	author_owns_badge: int | None
