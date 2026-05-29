@@ -160,7 +160,7 @@ class StatsView(ui.DesignerView):
 				category_texts.append(f"### {category['name']} ({passed}/{total})\n{'\n'.join(type_texts)}")
 
 			if not category_texts:
-				category_texts.append("### No contracts found, has the season started?")
+				category_texts.append("### No contracts found.")
 
 			self.add_item(
 				ui.Container(

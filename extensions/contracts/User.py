@@ -645,7 +645,7 @@ class SeasonUserContracts(ui.DesignerView):
 
 			sorted_categories_text = "\n".join(category_texts)
 			if not sorted_categories_text:
-				sorted_categories_text = "### No contracts found, has the season started?"
+				sorted_categories_text = "### No contracts found."
 
 			if not include_reviews:
 				footer_messages.append(

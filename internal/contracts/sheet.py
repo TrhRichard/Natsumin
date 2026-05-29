@@ -5,7 +5,6 @@ from config import GOOGLE_API_KEY
 from typing import overload
 
 import aiosqlite
-import datetime
 import aiofiles
 import aiohttp
 import re
