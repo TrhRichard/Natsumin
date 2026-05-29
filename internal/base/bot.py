@@ -131,6 +131,9 @@ class NatsuminBot(commands.Bot):
 				discord_id = ctx.author.id
 
 				if ctx.guild is not None and not ignore_channel:
+					if isinstance(ctx.channel, discord.PartialMessageable):
+						return False, None
+
 					author_perms = ctx.channel.permissions_for(ctx.author)
 					if author_perms and author_perms.administrator:
 						return False, None

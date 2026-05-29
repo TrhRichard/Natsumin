@@ -192,7 +192,7 @@ class ContractsCog(NatsuminCog):
 	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, autocomplete=season_autocomplete)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
 	async def stats(self, ctx: discord.ApplicationContext, rep: str | None = None, season: str | None = None, hidden: bool = False):
-		if await self.bot.is_blacklisted(ctx):
+		if (await self.bot.is_blacklisted(ctx))[0]:
 			hidden = True
 
 		async with self.bot.database.connect() as conn:

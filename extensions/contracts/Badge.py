@@ -16,7 +16,6 @@ from uuid import uuid4
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuminBot
 
-import datetime
 import discord
 
 BADGE_TYPES = ["contracts", "aria", "blitz", "event", "misc"]
@@ -440,7 +439,7 @@ class BadgeCog(NatsuminCog):
 		rarity: str | None = None,
 		hidden: bool = False,
 	):
-		if await self.bot.is_blacklisted(ctx):
+		if (await self.bot.is_blacklisted(ctx))[0]:
 			hidden = True
 
 		content, is_hidden = await self.badge_find_handler(ctx.author, name, owned_user, owned, badge_type, rarity, hidden)
@@ -456,7 +455,7 @@ class BadgeCog(NatsuminCog):
 		if user is None:
 			user = ctx.author
 
-		if await self.bot.is_blacklisted(ctx):
+		if (await self.bot.is_blacklisted(ctx))[0]:
 			hidden = True
 
 		content, is_hidden = await self.badge_inventory_handler(ctx.author, user, hidden)
@@ -470,6 +469,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
 	async def leaderboard(self, ctx: discord.ApplicationContext, leaderboard_type: Literal["badges", "users"], hidden: bool):
 		if await self.bot.is_blacklisted(ctx):
+		if (await self.bot.is_blacklisted(ctx))[0]:
 			hidden = True
 
 		paginator, is_hidden = await self.badge_leaderboard_handler(ctx.author, leaderboard_type, hidden)
