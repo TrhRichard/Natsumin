@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS season_contract (
 	id        		TEXT NOT NULL,
 	name      		TEXT NOT NULL,
 	type      		TEXT NOT NULL,
+	type_label		TEXT,
 	kind      		INTEGER NOT NULL,
 	status    		INTEGER NOT NULL,
 	contractee_id	TEXT NOT NULL,

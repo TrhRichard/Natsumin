@@ -555,7 +555,7 @@ def get_formatted_contract(contract: OrderContractData, *, is_unselected: bool =
 	else:
 		status_emote = get_status_emote(ContractStatus(contract["status"]), contract["optional"])
 
-	return f"> {status_emote} **{contract['type']}**: {contract_name}"
+	return f"> {status_emote} **{contract['type_label'] or contract['type']}**: {contract_name}"
 
 
 class SeasonUserContracts(ui.DesignerView):
@@ -599,7 +599,7 @@ class SeasonUserContracts(ui.DesignerView):
 			header_content = f"## {username}'s Contracts\n{user_description}"
 
 			async with conn.execute(
-				"SELECT name, type, kind, status, optional, review_url FROM season_contract WHERE season_id = ? AND contractee_id = ?",
+				"SELECT name, type, type_label, kind, status, optional, review_url FROM season_contract WHERE season_id = ? AND contractee_id = ?",
 				(season_id, user_id),
 			) as cursor:
 				user_contracts: dict[str, OrderContractData] = {row["type"]: dict(row) for row in await cursor.fetchall()}

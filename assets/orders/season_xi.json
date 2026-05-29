@@ -1,7 +1,174 @@
 [
 	{
-		"name": "Normal Contracts",
-		"order": ["base contract"]
+		"name": "Token Wheels",
+		"order": [
+			"token #1",
+			"token #2",
+			"token #3",
+			"token #4",
+			"token #5",
+			"token #6",
+			"free spin"
+		]
+	},
+	{
+		"name": "Bonus Wheels",
+		"order": [
+			{
+				"type": "regex",
+				"pattern": "yuzuki wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Yuzuki Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "shiori wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Shiori Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "kimiko wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Kimiko Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "kohana wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Kohana Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "rio anime wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Rei Anime Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "rio manga wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Rei Manga Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "rei wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Rio Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "sumira wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Sumira Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "yume wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Yume Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "uta wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Uta Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "kirburger wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Kirburger Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "momo wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Momo Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "mvr wheel \\d+",
+				"order_by": "last_number",
+				"compress": "MVR Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "aria wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Aria Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "premium wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Premium Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "co-op game wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Co-Op Game Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "discount game wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Discount Game Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "casual game wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Casual Game Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "aria classic wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Aria Classic Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "nozomi wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Nozomi Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "anzu wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Anzu Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "umika wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Umika Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "frazzle wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Frazzle Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "hitome wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Hitome Wheel"
+			},
+			{
+				"type": "regex",
+				"pattern": "sumira gem wheel \\d+",
+				"order_by": "last_number",
+				"compress": "Sumira Gem Wheel"
+			}
+		]
+	},
+	{
+		"name": "Special Contracts",
+		"order": ["extreme special", "base buddy", "challenge buddy"]
 	},
 	{
 		"name": "Aid Contracts",

@@ -148,12 +148,34 @@ class StatsView(ui.DesignerView):
 				total = 0
 				type_texts: list[str] = []
 
-				for cat_type in category["types"]:
-					type_status = type_completions.get(cat_type, (0, 0))
-					passed += type_status[0]
-					total += type_status[1]
+				index = 0
+				while index < len(category["types"]):
+					c_type = category["types"][index]
+					c_rule = category["rules"].get(c_type)
 
-					type_texts.append(f"> **{cat_type}**: {get_percentage_formatted(type_status[0], type_status[1])}")
+					if c_rule is None or "compress" not in c_rule:
+						type_status = type_completions.get(c_type, (0, 0))
+						passed += type_status[0]
+						total += type_status[1]
+						type_texts.append(f"> **{c_type}**: {get_percentage_formatted(type_status[0], type_status[1])}")
+						index += 1
+					else:
+						group_passed = 0
+						group_total = 0
+						group_label = c_rule.get("compress", c_type)
+
+						while index < len(category["types"]):
+							c_type = category["types"][index]
+							if category["rules"].get(c_type) != c_rule:
+								break
+							type_status = type_completions.get(c_type, (0, 0))
+							group_passed += type_status[0]
+							group_total += type_status[1]
+							passed += type_status[0]
+							total += type_status[1]
+							index += 1
+
+						type_texts.append(f"> **{group_label}**: {get_percentage_formatted(group_passed, group_total)}")
 
 				if not type_texts:
 					continue
