@@ -140,7 +140,8 @@ class Errors(NatsuminCog):
 					return
 
 				await logging_channel.send(
-					f"Exception thrown at {ctx.message.jump_url} by {ctx.author.mention}, command used: `/{ctx.command.qualified_name}`", embed=embed
+					f"Exception thrown at {ctx.message.jump_url if ctx.message else '**?**'} by {ctx.author.mention}, command used: `/{ctx.command.qualified_name}`",
+					embed=embed,
 				)
 			except discord.Forbidden:
 				pass

@@ -192,9 +192,12 @@ class BadgeCog(NatsuminCog):
 				where_conditions.append("rarity = ?")
 				where_params.append(rarity)
 
-			if owned is not None:
-				if owned_user is None:
-					owned_user = invoker
+			if owned is not None and owned_user is None:
+				owned_user = invoker
+
+			if owned_user is not None:
+				if owned is None:
+					owned = True
 				owned_user_id, _ = await self.bot.fetch_user_from_database(owned_user, db_conn=conn)
 
 				if owned_user_id is None:
@@ -267,13 +270,17 @@ class BadgeCog(NatsuminCog):
 
 		return V2Paginator(pages), hidden
 
-	async def badge_inventory_handler(self, invoker: discord.abc.User, user: str | None, hidden: bool) -> tuple[str | V2Paginator, bool]:
+	async def badge_inventory_handler(
+		self, invoker: discord.abc.User, user: str | None, badge_type: str | None = None, rarity: str | None = None, hidden: bool = False
+	) -> tuple[str | V2Paginator, bool]:
 		async with self.bot.database.connect() as conn:
 			user_id, discord_user = await self.bot.fetch_user_from_database(user, db_conn=conn)
 			if not user_id:
 				return "User not found!", True
 
 			select_list: list[str] = ["b.*"]
+			where_conditions: list[str] = ["ub.user_id = ?"]
+			where_params = [user_id]
 			joins_list: list[str] = []
 			joins_params = []
 			params = []
@@ -295,6 +302,14 @@ class BadgeCog(NatsuminCog):
 			else:
 				select_list.append("NULL AS author_owns_badge")
 
+			if badge_type is not None:
+				where_conditions.append("type = ?")
+				where_params.append(badge_type)
+
+			if rarity is not None:
+				where_conditions.append("rarity = ?")
+				where_params.append(rarity)
+
 			select_list.append("""
 				(
 					SELECT COUNT(*)
@@ -310,8 +325,7 @@ class BadgeCog(NatsuminCog):
 				JOIN badge b ON 
 					ub.badge_id = b.id 
 				{"\n".join(joins_list)}
-				WHERE 
-					ub.user_id = ? 
+				{f" WHERE {' AND '.join(where_conditions)}" if where_conditions else ""}
 				ORDER BY 
 					CASE
 						WHEN b.type = "contracts" THEN 0 
@@ -340,8 +354,9 @@ class BadgeCog(NatsuminCog):
 
 			if joins_list:
 				params.extend(joins_params)
+			if where_conditions:
+				params.extend(where_params)
 
-			params.append(user_id)
 			async with conn.execute(query, params) as cursor:
 				badges: list[BadgeData] = [dict(row) for row in await cursor.fetchall()]
 
@@ -356,23 +371,31 @@ class BadgeCog(NatsuminCog):
 		return V2Paginator(pages), hidden
 
 	async def badge_leaderboard_handler(
-		self, invoker: discord.abc.User, leaderboard_type: Literal["badges", "users"], hidden: bool
+		self, invoker: discord.abc.User, leaderboard_type: Literal["badges", "users"], user_badge_type: str | None = None, hidden: bool = False
 	) -> tuple[CustomPaginator, bool]:
 		async with self.bot.database.connect() as conn:
+			if user_badge_type is not None:
+				leaderboard_type = "users"
+
 			if leaderboard_type == "users":
-				query = """
+				query = f"""
 						SELECT
 							u.username,
 							u.discord_id,
-							COUNT(ub.badge_id) AS badge_count
+							{"SUM(CASE WHEN b.type = ? THEN 1 ELSE 0 END)" if user_badge_type else "COUNT(ub.badge_id)"} AS badge_count
 						FROM user u
 						JOIN user_badge ub ON 
 							ub.user_id = u.id
+						{"JOIN badge b ON b.id = ub.badge_id" if user_badge_type is not None else ""}
 						GROUP BY u.id, u.username
+						HAVING badge_count > 0
 						ORDER BY badge_count DESC, u.username ASC
 					"""
+				params = []
+				if user_badge_type is not None:
+					params.append(user_badge_type)
 
-				async with conn.execute(query) as cursor:
+				async with conn.execute(query, params) as cursor:
 					user_rows: list[tuple[str, int, int]] = [
 						(row["username"], row["discord_id"], row["badge_count"]) for row in await cursor.fetchall()
 					]
@@ -386,7 +409,11 @@ class BadgeCog(NatsuminCog):
 
 							lines.append(line_to_add)
 
-						embed = discord.Embed(title="Users leaderboard", description="\n".join(lines), color=COLORS.DEFAULT)
+						embed = discord.Embed(
+							title=f"Users leaderboard{f' ({user_badge_type.upper()})' if user_badge_type is not None else ''}",
+							description="\n".join(lines),
+							color=COLORS.DEFAULT,
+						)
 						all_pages.append(embed)
 			else:
 				query = """
@@ -419,13 +446,7 @@ class BadgeCog(NatsuminCog):
 	@badge_group.command(description="Get badges")
 	@discord.option("name", str, min_length=1, default=None)
 	@discord.option("owned", bool, default=None)
-	@discord.option(
-		"owned_user",
-		str,
-		description="User to check owned status of, does nothing if owned is not set",
-		default=None,
-		autocomplete=usernames_autocomplete(False),
-	)
+	@discord.option("owned_user", str, description="User to check owned status of", default=None, autocomplete=usernames_autocomplete(False))
 	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default=None)
 	@discord.option("rarity", str, choices=BADGE_RARITIES, default=None)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
@@ -450,15 +471,19 @@ class BadgeCog(NatsuminCog):
 
 	@badge_group.command(description="Get the badges of a user")
 	@discord.option("user", str, description="The user to get badges from", default=None, autocomplete=usernames_autocomplete(False))
+	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default=None)
+	@discord.option("rarity", str, choices=BADGE_RARITIES, default=None)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
-	async def inventory(self, ctx: discord.ApplicationContext, user: str | None, hidden: bool):
+	async def inventory(
+		self, ctx: discord.ApplicationContext, user: str | None, badge_type: str | None = None, rarity: str | None = None, hidden: bool = False
+	):
 		if user is None:
 			user = ctx.author
 
 		if (await self.bot.is_blacklisted(ctx))[0]:
 			hidden = True
 
-		content, is_hidden = await self.badge_inventory_handler(ctx.author, user, hidden)
+		content, is_hidden = await self.badge_inventory_handler(ctx.author, user, badge_type, rarity, hidden)
 		if isinstance(content, V2Paginator):
 			return await content.respond(ctx.interaction, ephemeral=is_hidden)
 		else:
@@ -466,13 +491,15 @@ class BadgeCog(NatsuminCog):
 
 	@badge_group.command(description="Leaderboard of badge/user badge counts")
 	@discord.option("type", str, choices=["badges", "users"], parameter_name="leaderboard_type", default="badges")
+	@discord.option("user_badge_type", str, choices=BADGE_TYPES, default=None)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
-	async def leaderboard(self, ctx: discord.ApplicationContext, leaderboard_type: Literal["badges", "users"], hidden: bool):
-		if await self.bot.is_blacklisted(ctx):
+	async def leaderboard(
+		self, ctx: discord.ApplicationContext, leaderboard_type: Literal["badges", "users"], user_badge_type: str | None, hidden: bool
+	):
 		if (await self.bot.is_blacklisted(ctx))[0]:
 			hidden = True
 
-		paginator, is_hidden = await self.badge_leaderboard_handler(ctx.author, leaderboard_type, hidden)
+		paginator, is_hidden = await self.badge_leaderboard_handler(ctx.author, leaderboard_type, user_badge_type, hidden)
 		await paginator.respond(ctx.interaction, ephemeral=is_hidden)
 
 	@badge_group.command(name="toggle-view", description="Toggle the viewing of badges to either list or one-by-one")
@@ -522,7 +549,7 @@ class BadgeCog(NatsuminCog):
 		if user is None:
 			user = ctx.author
 
-		content, _ = await self.badge_inventory_handler(ctx.author, user, False)
+		content, _ = await self.badge_inventory_handler(ctx.author, user, None, None, False)
 		if isinstance(content, V2Paginator):
 			return await content.reply(ctx)
 		else:
@@ -531,7 +558,7 @@ class BadgeCog(NatsuminCog):
 	@badge_textgroup.command("leaderboard", aliases=["lb"], help="Leaderboard of badge/user badge counts")
 	@whitelist_channel_only()
 	async def text_leaderboard(self, ctx: commands.Context, leaderboard_type: Literal["badges", "users"] = "badges"):
-		paginator, _ = await self.badge_leaderboard_handler(ctx.author, leaderboard_type, False)
+		paginator, _ = await self.badge_leaderboard_handler(ctx.author, leaderboard_type, None, False)
 		await paginator.send(ctx, reference=ctx.message)
 
 	# Badge management commands
