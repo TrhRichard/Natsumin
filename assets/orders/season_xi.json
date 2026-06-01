@@ -168,7 +168,7 @@
 	},
 	{
 		"name": "Special Contracts",
-		"order": ["extreme special", "base buddy", "challenge buddy"]
+		"order": ["base buddy", "challenge buddy", "extreme special"]
 	},
 	{
 		"name": "Aid Contracts",

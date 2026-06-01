@@ -79,7 +79,7 @@ class Errors(NatsuminCog):
 		try:
 			await ctx.reply(embed=embed)
 
-			if not should_log:
+			if not should_log or await self.bot.is_owner(ctx.author):
 				return
 
 			logging_channel_id = await self.bot.get_config("bot.logging_channel")
@@ -121,7 +121,7 @@ class Errors(NatsuminCog):
 		try:
 			await ctx.respond(embed=embed, ephemeral=True)
 
-			if not should_log:
+			if not should_log or await self.bot.is_owner(ctx.author):
 				return
 
 			logging_channel_id = await self.bot.get_config("bot.logging_channel")

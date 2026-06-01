@@ -343,22 +343,39 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 	async def getaliases(self, ctx: commands.Context, id_or_username: str = None):
 		async with self.bot.database.connect() as conn:
 			if id_or_username is None:
-				async with conn.execute("SELECT * FROM user_alias") as cursor:
-					user_aliases: tuple[(str, str), ...] = [(row["username"], row["user_id"]) for row in await cursor.fetchall()]
+				async with conn.execute("""
+					SELECT ua.username as alias, u.username as username, ua.user_id
+					FROM user_alias ua
+					JOIN user u ON u.id = ua.user_id
+					ORDER BY u.username, ua.username
+				""") as cursor:
+					rows = await cursor.fetchall()
+
+				if not rows:
+					return await ctx.reply("No aliases found.")
+
+				grouped: dict[str, list[str]] = {}
+				for row in rows:
+					grouped.setdefault(row["username"], []).append(row["alias"])
+
+				content = "\n".join(f"{username}: {', '.join(aliases)}" for username, aliases in grouped.items())
 			else:
 				user_id, _ = await self.bot.fetch_user_from_database(id_or_username, invoker=ctx.author, db_conn=conn)
 				if user_id is None:
-					return await ctx.reply("no user")
+					return await ctx.reply("No user found.")
 
-				async with conn.execute("SELECT * FROM user_alias WHERE user_id = ?", (user_id,)) as cursor:
-					user_aliases: tuple[(str, str), ...] = [(row["username"], row["user_id"]) for row in await cursor.fetchall()]
+				async with conn.execute("SELECT username FROM user_alias WHERE user_id = ? ORDER BY username", (user_id,)) as cursor:
+					aliases: list[str] = [row["username"] for row in await cursor.fetchall()]
 
-			if not user_aliases:
-				return await ctx.reply("No aliases found.")
+				if not aliases:
+					return await ctx.reply("No aliases found.")
 
-			await ctx.reply(
-				f"Aliases: {', '.join([f'`{alias}` ({u_id})' if id_or_username is None else f'`{alias}`' for alias, u_id in user_aliases])}"
-			)
+				content = ", ".join(aliases)
+
+		if len(content) > 1987:
+			await ctx.reply(file=discord.File(fp=io.BytesIO(content.encode()), filename="aliases.txt"))
+		else:
+			await ctx.reply(f"```\n{content}\n```")
 
 	@commands.command()
 	async def sync_season(self, ctx: commands.Context, *, season: str | None = None):
