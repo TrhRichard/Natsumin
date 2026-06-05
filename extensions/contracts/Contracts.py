@@ -144,8 +144,7 @@ class StatsView(ui.DesignerView):
 
 			category_texts: list[str] = []
 			for category in sort_contract_types(type_completions.keys(), season_order_data):
-				passed = 0
-				total = 0
+				passed, total = 0, 0
 				type_texts: list[str] = []
 
 				index = 0
@@ -160,8 +159,7 @@ class StatsView(ui.DesignerView):
 						type_texts.append(f"> **{c_type}**: {get_percentage_formatted(type_status[0], type_status[1])}")
 						index += 1
 					else:
-						group_passed = 0
-						group_total = 0
+						group_passed, group_total = 0, 0
 						group_label = c_rule.get("compress", c_type)
 
 						while index < len(category["types"]):

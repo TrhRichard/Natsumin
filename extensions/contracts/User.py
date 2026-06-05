@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from internal.functions import get_legacy_rank, get_rank_emoteid, get_status_emote, get_status_name, frmt_iter, get_percentage_formatted
 from internal.contracts import get_deadline_footer, season_autocomplete, usernames_autocomplete, get_season_spreadsheet_ids
-from internal.functions import get_legacy_rank, get_rank_emoteid, get_status_emote, get_status_name, frmt_iter
 from internal.contracts.order import OrderContractData, sort_contract_types
 from internal.enums import UserKind, UserStatus, ContractStatus
 from internal.checks import whitelist_channel_only
@@ -546,7 +546,7 @@ class SeasonContractInfo(ui.DesignerView):
 			pass
 
 
-def get_formatted_contract(contract: OrderContractData, *, is_unselected: bool = False, include_review_url: bool = True) -> str:
+def _build_contract(contract: OrderContractData, *, is_unselected: bool = False, include_review_url: bool = True) -> str:
 	contract_name = f"[{contract['name']}]({contract['review_url']})" if (contract["review_url"] and include_review_url) else contract["name"]
 	status_emote: str = ""
 	if is_unselected:
@@ -556,6 +556,84 @@ def get_formatted_contract(contract: OrderContractData, *, is_unselected: bool =
 		status_emote = get_status_emote(ContractStatus(contract["status"]), contract["optional"])
 
 	return f"> {status_emote} **{contract['type_label'] or contract['type']}**: {contract_name}"
+
+
+# TODO: Instead of compressing everything instead only compress biggest groups till it fits
+CONTRACTS_UNSELECTED_STRINGS = ("please select", "undecided", "pending")
+CONTRACTS_CHAR_LIMIT = 3700
+CONTRACTS_DISPLAY_OPTIONS: list[tuple[bool, bool]] = [
+	(True, False),  # reviews, no compress
+	(False, False),  # no reviews, no compress
+	(True, True),  # reviews, compress
+	(False, True),  # no reviews, compress
+]
+
+
+def _build_contracts_body(
+	user_contracts: dict[str, OrderContractData], season_order_data: list, include_reviews: bool, compress: bool
+) -> tuple[str, list[str], list[str], list[str]]:
+	footer_messages: list[str] = []
+	unselected_types: list[str] = []
+	category_texts: list[str] = []
+	categories_passed: list[str] = []
+
+	for category in sort_contract_types(user_contracts.keys(), season_order_data):
+		passed, total = 0, 0
+		type_texts: list[str] = []
+
+		index = 0
+		types = category["types"]
+
+		while index < len(types):
+			cat_type = types[index]
+			c_rule = category["rules"].get(cat_type)
+
+			if compress and c_rule is not None and "compress" in c_rule:
+				group_label = c_rule["compress"]
+				group_passed, group_total = 0, 0
+				group_unselected = False
+
+				while index < len(types):
+					if category["rules"].get(types[index]) != c_rule:
+						break
+					contract = user_contracts.get(types[index])
+					if contract is not None:
+						group_total += 1
+						if contract["status"] in (ContractStatus.PASSED, ContractStatus.LATE_PASS):
+							group_passed += 1
+						if contract["name"].strip().lower() in CONTRACTS_UNSELECTED_STRINGS:
+							unselected_types.append(contract["type"])
+							group_unselected = True
+					index += 1
+
+				passed += group_passed
+				total += group_total
+				status_emote = (
+					"⚠️"
+					if group_unselected
+					else get_status_emote(ContractStatus.PASSED if group_passed == group_total else ContractStatus.PENDING, False)
+				)
+				type_texts.append(f"> {status_emote} **{group_label}**: {get_percentage_formatted(group_passed, group_total)}")
+
+			else:
+				contract = user_contracts.get(cat_type)
+				if contract is not None:
+					total += 1
+					if contract["status"] in (ContractStatus.PASSED, ContractStatus.LATE_PASS):
+						passed += 1
+					is_unselected = contract["name"].strip().lower() in CONTRACTS_UNSELECTED_STRINGS
+					if is_unselected:
+						unselected_types.append(contract["type"])
+					type_texts.append(_build_contract(contract, is_unselected=is_unselected, include_review_url=include_reviews))
+				index += 1
+
+		if type_texts:
+			if passed == total and total > 0:
+				categories_passed.append(category["name"])
+			category_texts.append(f"### {category['name']} ({passed}/{total})\n{'\n'.join(type_texts)}")
+
+	body = "\n".join(category_texts) if category_texts else "### No contracts found."
+	return body, footer_messages, unselected_types, categories_passed
 
 
 class SeasonUserContracts(ui.DesignerView):
@@ -604,57 +682,44 @@ class SeasonUserContracts(ui.DesignerView):
 			) as cursor:
 				user_contracts: dict[str, OrderContractData] = {row["type"]: dict(row) for row in await cursor.fetchall()}
 
-			async with conn.execute(
-				"SELECT COUNT(*) as count FROM season_contract WHERE season_id = ? AND contractee_id = ? AND (review_url IS NOT NULL AND review_url != '')",
-				(season_id, user_id),
-			) as cursor:
-				total_contracts_with_reviews: int = (await cursor.fetchone())["count"]
-
 			season_order_data = self.bot.season_orders.get(self.season_id, [])
+
+			sorted_categories_text = ""
 			footer_messages: list[str] = []
 			unselected_types: list[str] = []
+			categories_passed: list[str] = []
+			showing_reviews = True
+			compressed_contracts = False
+			trimmed = False
 
-			category_texts: list[str] = []
-			include_reviews: bool = total_contracts_with_reviews <= 20
-			for category in sort_contract_types(user_contracts.keys(), season_order_data):
-				passed = 0
-				total = 0
-				type_texts: list[str] = []
-
-				for cat_type in category["types"]:
-					contract = user_contracts.get(cat_type)
-					if contract is None:
-						continue
-					total += 1
-					if contract["status"] == ContractStatus.PASSED or contract["status"] == ContractStatus.LATE_PASS:
-						passed += 1
-
-					is_unselected = False
-					if contract["name"].strip().lower() in ("please select", "undecided", "pending"):
-						unselected_types.append(contract["type"])
-						is_unselected = True
-
-					type_texts.append(get_formatted_contract(contract, is_unselected=is_unselected, include_review_url=include_reviews))
-
-				if passed == total:
-					footer_messages.append(
-						f"{'You have' if invoker.name == user_row['username'] else 'This user has'} finished all **{category['name']}**!"
-					)
-
-				category_texts.append(f"### {category['name']} ({passed}/{total})\n{'\n'.join(type_texts)}")
-
-			sorted_categories_text = "\n".join(category_texts)
-			if not sorted_categories_text:
-				sorted_categories_text = "### No contracts found."
-
-			if not include_reviews:
-				footer_messages.append(
-					f"{'You have' if invoker.name == user_row['username'] else 'This user has'} way too many contracts to display in one message, review urls have been disabled."
+			for include_reviews, compress in CONTRACTS_DISPLAY_OPTIONS:
+				sorted_categories_text, footer_messages, unselected_types, categories_passed = _build_contracts_body(
+					user_contracts, season_order_data, include_reviews, compress
 				)
+				if len(sorted_categories_text) <= CONTRACTS_CHAR_LIMIT:
+					showing_reviews = include_reviews
+					compressed_contracts = compress
+					break
+
+			# gonna cry if i have to repeat these for each thing so shortcuts here
+			is_invoker = invoker.name == user_row["username"]
+			they = "You" if is_invoker else "This user"
+			their = "Your" if is_invoker else "This user's"
+
+			if categories_passed:
+				for category_name in categories_passed:
+					footer_messages.append(f"{they} {'have' if is_invoker else 'has'} finished all **{category_name}**!")
+
+			if trimmed:
+				footer_messages.append(f"{their} contract list was too long to display fully.")
+			elif not showing_reviews:
+				footer_messages.append(f"{they} {'have' if is_invoker else 'has'} too many contracts to show review links.")
+			if compressed_contracts:
+				footer_messages.append(f"{their} contracts were compressed to display.")
 
 			if unselected_types:
 				footer_messages.append(
-					f"{"You haven't" if invoker.name == user_row['username'] else "This user hasn't"} picked anything for {frmt_iter(f'**{type}**' for type in unselected_types)}!"
+					f"{they} {"haven't" if is_invoker else "hasn't"} picked anything for {frmt_iter(f'**{type}**' for type in unselected_types)}!"
 				)
 
 			container = ui.Container(
