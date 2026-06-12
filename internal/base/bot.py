@@ -3,10 +3,10 @@ from __future__ import annotations
 from internal.constants import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER, COLORS
 from config import BOT_PREFIX, DEV_BOT_PREFIX, OWNER_IDS, DISABLED_EXTENSIONS
 from internal.exceptions import BlacklistedUser, NotWhitelistedChannel
+from internal.functions import get_user_id, get_user_config
 from internal.database.Reminder import ReminderDatabase
 from internal.contracts.order import OrderCategory
 from internal.database import NatsuminDatabase
-from internal.functions import get_user_id
 from typing import TYPE_CHECKING, Literal
 from discord.ext import commands
 from pathlib import Path
@@ -97,8 +97,12 @@ class NatsuminBot(commands.Bot):
 			if not user_id:
 				return
 
+			user_config = await get_user_config(conn, user_id)
+
 			await conn.execute("UPDATE user SET username = ? WHERE id = ?", (new.name, user_id))
-			await conn.execute("INSERT OR IGNORE INTO user_alias (username, user_id) VALUES (?, ?)", (old.name, user_id))
+			if user_config.track_username_history:
+				await conn.execute("INSERT OR IGNORE INTO user_alias (username, user_id) VALUES (?, ?)", (old.name, user_id))
+
 			await conn.commit()
 
 	async def is_owner(self, user: discord.abc.User) -> bool:

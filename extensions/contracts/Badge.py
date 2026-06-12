@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from internal.checks import whitelist_channel_only, can_modify_badges
 from internal.base.paginator import CustomPaginator, V2Paginator, V2Page
+from internal.functions import frmt_iter, get_user_config
 from internal.contracts import usernames_autocomplete
 from internal.base.cog import NatsuminCog
 from typing import TYPE_CHECKING, Literal
-from internal.functions import frmt_iter
 from internal.schemas import BadgeData
 from internal.constants import COLORS
 from discord.ext import commands
@@ -174,9 +174,8 @@ class BadgeCog(NatsuminCog):
 				joins_params.append(author_user_id)
 				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
 
-				async with conn.execute("SELECT badge_display_type FROM user_config WHERE user_id = ?", (author_user_id,)) as cursor:
-					if row := await cursor.fetchone():
-						author_display_badge_type = row["badge_display_type"]
+				user_config = await get_user_config(conn, author_user_id)
+				author_display_badge_type = user_config.badge_display_type
 			else:
 				select_list.append("NULL AS author_owns_badge")
 
@@ -296,9 +295,8 @@ class BadgeCog(NatsuminCog):
 				joins_params.append(author_user_id)
 				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
 
-				async with conn.execute("SELECT badge_display_type FROM user_config WHERE user_id = ?", (author_user_id,)) as cursor:
-					if row := await cursor.fetchone():
-						author_display_badge_type = row["badge_display_type"]
+				user_config = await get_user_config(conn, author_user_id)
+				author_display_badge_type = user_config.badge_display_type
 			else:
 				select_list.append("NULL AS author_owns_badge")
 
@@ -509,19 +507,14 @@ class BadgeCog(NatsuminCog):
 			if user_id is None:
 				return await ctx.respond("User not found!", ephemeral=True)
 
-			async with conn.execute("SELECT badge_display_type FROM user_config WHERE user_id = ?", (user_id,)) as cursor:
-				row = await cursor.fetchone()
-				if row is None:
-					async with conn.execute("INSERT INTO user_config (user_id) VALUES (?) RETURNING badge_display_type", (user_id,)) as cursor:
-						row = await cursor.fetchone()
-					await conn.commit()
+			user_config = await get_user_config(conn, user_id)
 
-				badge_display_type: Literal["one", "list"] = row["badge_display_type"]
-				badge_display_type = "list" if badge_display_type == "one" else "one"
+			badge_display_type: Literal["one", "list"] = user_config.badge_display_type
+			badge_display_type = "list" if badge_display_type == "one" else "one"
 
-				await conn.execute("UPDATE user_config SET badge_display_type = ? WHERE user_id = ?", (badge_display_type, user_id))
-				await conn.commit()
-				await ctx.respond(f"Changed badge display type from `{row['badge_display_type']}` to `{badge_display_type}`!", ephemeral=True)
+			await conn.execute("UPDATE user_config SET badge_display_type = ? WHERE user_id = ?", (badge_display_type, user_id))
+			await conn.commit()
+			await ctx.respond(f"Changed badge display type from `{user_config.badge_display_type}` to `{badge_display_type}`!", ephemeral=True)
 
 	@commands.group(
 		"badge",

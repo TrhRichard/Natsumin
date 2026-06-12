@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from internal.enums import UserStatus, ContractStatus, LegacyRank
+from internal.schemas import UserConfig
 from typing import TYPE_CHECKING
 from thefuzz import process
 
@@ -96,6 +97,19 @@ async def get_user_id(conn: aiosqlite.Connection, username: str | None, *, score
 			return fuzzy_result[2]
 		else:
 			return None
+
+
+async def get_user_config(conn: aiosqlite.Connection, user_id: str) -> UserConfig | None:
+	async with conn.execute("SELECT * FROM user_config WHERE user_id = ?", (user_id,)) as cursor:
+		row = await cursor.fetchone()
+		if not row:
+			async with conn.execute("INSERT INTO user_config (user_id) VALUES (?) RETURNING *", (user_id,)) as cursor:
+				row = await cursor.fetchone()
+			await conn.commit()
+	dict_row = dict(row)
+	del dict_row["user_id"]
+
+	return UserConfig(**dict_row)
 
 
 def get_status_name(status: UserStatus | ContractStatus, is_optional: bool = False) -> str:

@@ -37,8 +37,10 @@ CREATE TABLE IF NOT EXISTS user (
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS user_config (
-	user_id				TEXT NOT NULL,
-	badge_display_type	TEXT NOT NULL DEFAULT 'one',
+	user_id					TEXT NOT NULL,
+	badge_display_type		TEXT NOT NULL DEFAULT 'one',
+	track_username_history	INTEGER NOT NULL DEFAULT 1,
+	updated_at	TEXT,
 
 	PRIMARY KEY (user_id),
 	FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
@@ -246,6 +248,12 @@ CREATE TRIGGER IF NOT EXISTS user_updated_at
 	AFTER UPDATE ON user FOR EACH ROW
 BEGIN
     UPDATE user SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS user_config_updated_at
+	AFTER UPDATE ON user_config FOR EACH ROW
+BEGIN
+    UPDATE user_config SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE user_id = OLD.user_id;
 END;
 
 CREATE TRIGGER IF NOT EXISTS badge_updated_at
