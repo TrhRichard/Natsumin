@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from internal.exceptions import NotWhitelistedChannel, BlacklistedUser
+from internal.exceptions import NotWhitelistedChannel, BlacklistedUser, UnauthorizedUser
 from internal.base.cog import NatsuminCog
 from internal.functions import frmt_iter
 from internal.constants import COLORS
@@ -40,12 +40,15 @@ class Errors(NatsuminCog):
 			err_details = str(error)
 		elif isinstance(error, NotWhitelistedChannel):
 			err_details = f"This command can only be used in {frmt_iter(f'<#{channel_id}>' for channel_id in error.valid_channel_ids)}"
-			should_log = False
 		elif isinstance(error, BlacklistedUser):
 			err_details = "You have been blacklisted from using the bot."
 			if error.reason:
 				err_details += f"\n\nReason: {error.reason}"
 
+			should_log = False
+		elif isinstance(error, UnauthorizedUser):
+			err_type = "Unauthorized!"
+			err_details = "You are unauthorized to use this command."
 			should_log = False
 		elif isinstance(error, (aiosqlite.Error, sqlite3.Error)):
 			err_type = "SQLite Exception"

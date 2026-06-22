@@ -13,3 +13,6 @@ class NotWhitelistedChannel(commands.CommandError):
 		self.valid_channel_ids = valid_channel_ids
 
 		super().__init__(f"Channel not whitelisted, whitelisted channels: {', '.join(str(c) for c in valid_channel_ids)}", *args)
+
+
+class UnauthorizedUser(commands.CommandError): ...

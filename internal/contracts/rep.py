@@ -157,6 +157,20 @@ def get_rep(
 	return (None, None) if include_confidence else None
 
 
+def search_reps(query: str, min_confidence: int = 80, *, limit: int = 25) -> list[tuple[RepName, int | None]]:
+	if query is None or query.strip() == "":
+		return [(rep, None) for rep in RepName.__members__.values()]
+
+	reps_found: dict[RepName, int] = {}
+	fuzzy_results: list[tuple[str, int]] = process.extract(query.lower(), [k for k in rep_fuzzy_choices.keys()], limit=limit)
+	for rep_name, confidence in fuzzy_results:
+		if confidence >= min_confidence:
+			found_rep = rep_fuzzy_choices[rep_name]
+			reps_found[found_rep] = confidence
+
+	return [(rep, confidence) for rep, confidence in reps_found.items()]
+
+
 if __name__ == "__main__":
 	try:
 		while True:

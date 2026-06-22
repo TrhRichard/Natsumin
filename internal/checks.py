@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from internal.exceptions import UnauthorizedUser
 from discord.ext import commands
 from typing import TYPE_CHECKING
 
@@ -17,7 +18,7 @@ def can_modify_badges[T]() -> Callable[[T], T]:
 		if await bot.is_owner(ctx.author) or ctx.author.id in CAN_MODIFY_BADGES:
 			return True
 
-		raise commands.MissingPermissions(["badge_edit"])
+		raise UnauthorizedUser()
 
 	return commands.check(predicate)
 
