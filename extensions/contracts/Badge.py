@@ -750,11 +750,59 @@ class BadgeCog(NatsuminCog):
 			await conn.executemany("INSERT INTO user_badge (user_id, badge_id) VALUES (?, ?)", [(user_id, id) for user_id in valid_users])
 			await conn.commit()
 
-		message = f"Gave **{badge_row['name']}** to **{len(valid_users)}** users!"
-		if already_has_users:
-			message += f"\n**{len(already_has_users)}** users already have the badge: {frmt_iter(already_has_users)}"
+		await ctx.respond(
+			f"Gave **{badge_row['name']}** to **{len(valid_users)}** user{'s' if len(valid_users) > 1 else ''}!"
+			+ (f"\n**{len(already_has_users)}** users already have the badge: {frmt_iter(already_has_users)}" if already_has_users else ""),
+			ephemeral=True,
+		)
 
-		await ctx.respond(message, ephemeral=True)
+	@badge_group.command(description="Give a badge to all users that own a role")
+	@can_modify_badges()
+	@discord.option("id", str, autocomplete=badge_autocomplete)
+	@discord.option("role", discord.Role)
+	async def giverole(self, ctx: discord.ApplicationContext, id: str, role: discord.Role):
+		if not role.members:
+			return await ctx.respond("Could not find any users with this role!", ephemeral=True)
+
+		async with self.bot.database.connect() as conn:
+			async with conn.execute("SELECT * FROM badge WHERE id = ?", (id,)) as cursor:
+				badge_row = await cursor.fetchone()
+				if not badge_row:
+					return await ctx.respond("Badge not found.", ephemeral=True)
+
+			valid_users: list[str] = []
+			already_has_users: list[str] = []
+			invalid_users: list[str] = []
+			for user in role.members:
+				user_id, _ = await self.bot.fetch_user_from_database(user, db_conn=conn)
+
+				if (user_id in valid_users) or (user_id in invalid_users) or (user_id in already_has_users):
+					continue
+
+				if user_id is None:
+					invalid_users.append(user)
+					continue
+
+				async with conn.execute("SELECT 1 FROM user_badge WHERE user_id = ? AND badge_id = ?", (user_id, id)) as cursor:
+					if (await cursor.fetchone()) is not None:
+						already_has_users.append(user)
+						continue
+
+				valid_users.append(user_id)
+
+			if invalid_users:
+				return await ctx.respond(
+					f"Attempted to give badge **{badge_row['name']}** to invalid users: {frmt_iter(invalid_users)}", ephemeral=True
+				)
+
+			await conn.executemany("INSERT INTO user_badge (user_id, badge_id) VALUES (?, ?)", [(user_id, id) for user_id in valid_users])
+			await conn.commit()
+
+		await ctx.respond(
+			f"Gave **{badge_row['name']}** to **{len(valid_users)}** user{'s' if len(valid_users) > 1 else ''}!"
+			+ (f"\n**{len(already_has_users)}** users already have the badge: {frmt_iter(already_has_users)}" if already_has_users else ""),
+			ephemeral=True,
+		)
 
 	@badge_group.command(description="Remove a badge from a user")
 	@can_modify_badges()
