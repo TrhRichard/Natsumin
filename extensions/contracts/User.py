@@ -4,9 +4,9 @@ from internal.contracts import get_deadline_footer, season_autocomplete, usernam
 from internal.functions import get_legacy_rank, get_rank_emoteid, get_status_emote, get_status_name, frmt_iter, get_percentage_formatted
 from internal.contracts.order import OrderContractData, sort_contract_types
 from internal.checks import whitelist_channel_only, can_modify_badges
+from internal.contracts.rep import get_rep, get_rep_from_member
 from internal.enums import UserKind, UserStatus, ContractStatus
 from internal.base.view import BadgeDisplay
-from internal.contracts.rep import get_rep
 from typing import TYPE_CHECKING, Literal
 from internal.base.cog import NatsuminCog
 from internal.schemas import BadgeData
@@ -1235,19 +1235,24 @@ class UserCog(NatsuminCog):
 		await ctx.reply(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, user_id, is_user_in_season))
 
 	@commands.slash_command(name="create-user", description="Create a new user", guild_ids=GUILD_IDS)
-	@discord.option("user", discord.User)
-	@discord.option("rep", str, autocomplete=rep_autocomplete)
+	@discord.option("user", discord.Member)
+	@discord.option("rep", str, default=None, autocomplete=rep_autocomplete)
 	@can_modify_badges()
-	async def create_user(self, ctx: discord.ApplicationContext, user: discord.User, rep: str, gen: int | None = None):
+	async def create_user(self, ctx: discord.ApplicationContext, user: discord.Member, rep: str | None = None, gen: int | None = None):
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT id FROM user WHERE username = ? or discord_id = ?", (user.name, user.id)) as cursor:
 				row = await cursor.fetchone()
 				if row:
 					return await ctx.respond("User already exists!", ephemeral=True)
 
-			user_rep = get_rep(rep, 90)
-			if not user_rep:
-				return await ctx.respond(f"Could not identify a proper rep for {rep}", ephemeral=True)
+			if rep is None:
+				user_rep = get_rep_from_member(user)
+				if user_rep == "UNKNOWN":
+					return await ctx.respond("Could not identify a rep from the user's roles, please specify a rep manually.", ephemeral=True)
+			else:
+				user_rep = get_rep(rep, 90)
+				if not user_rep:
+					return await ctx.respond(f"Could not identify a proper rep for {rep}", ephemeral=True)
 
 			user_id = str(uuid4())
 
