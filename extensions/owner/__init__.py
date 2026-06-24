@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-from internal.functions import frmt_iter, get_legacy_rank
+
 from internal.constants import FILE_LOGGING_FORMATTER, COLORS
+from internal.functions import frmt_iter, get_legacy_rank
+from internal.contracts.rep import get_rep_from_member
 from internal.contracts import sync_season
-from internal.contracts.rep import get_rep
 from internal.base.cog import NatsuminCog
 from discord.ext import commands
 from typing import TYPE_CHECKING
-from discord import ui
 from uuid import uuid4
+from discord import ui
 
 import aiosqlite
+import asyncio
 import sqlite3
 import discord
 import logging
@@ -456,10 +458,10 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 
 	@commands.command()
 	async def sync_discord_ids(self, ctx: commands.Context):
-		async with self.bot.database.connect() as conn:
-			if not self.bot.anicord:
-				return await ctx.reply("Bot is not in Anicord!")
+		if not self.bot.anicord:
+			return await ctx.reply("Bot is not in Anicord!")
 
+		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT id, username FROM user WHERE discord_id IS NULL") as cursor:
 				users: list[tuple[str, str]] = [(row["id"], row["username"]) for row in await cursor.fetchall()]
 
@@ -482,6 +484,75 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await conn.commit()
 
 		await ctx.reply(f"Set discord id to {users_changed}/{len(users)} users")
+
+	@commands.command()
+	async def massadd_anicord_users(self, ctx: commands.Context):
+		if not self.bot.anicord:
+			return await ctx.reply("Bot is not in Anicord!")
+
+		await ctx.reply(
+			f"You are about to request {self.bot.anicord.member_count} users, this may take a while.\n"
+			+ "Type `confirm` to continue or `cancel` to cancel the request (timeout is 30 seconds)."
+		)
+
+		def confirm_check(message: discord.Message):
+			return message.author.id == ctx.author.id and message.channel == ctx.channel and message.content.strip().lower() in ("confirm", "cancel")
+
+		try:
+			msg: discord.Message = await self.bot.wait_for("message", check=confirm_check, timeout=30)
+		except asyncio.TimeoutError:
+			return await ctx.reply("Request timed out, please run the command again.")
+
+		if msg.content.strip().lower() == "cancel":
+			return await msg.reply("Request canceled!")
+
+		async with self.bot.database.connect() as conn:
+			username_to_id: dict[str, str] = {}
+			discord_to_id: dict[int, str] = {}
+
+			async with conn.execute("SELECT id, discord_id, username FROM user") as cursor:
+				for row in await cursor.fetchall():
+					user_id, discord_id, username = row["id"], row["discord_id"], row["username"]
+					username_to_id[username] = user_id
+					if discord_id:
+						discord_to_id[discord_id] = user_id
+
+			users_not_in_db: int = 0
+			users_found: int = 0
+			users_added: int = 0
+			unknown_rep_users: int = 0
+
+			async with ctx.typing():
+				async for member in self.bot.anicord.fetch_members(limit=None):
+					users_found += 1
+
+					user_id = discord_to_id.get(member.id, username_to_id.get(member.name.lower()))
+					if user_id:
+						continue
+					users_not_in_db += 1
+
+					member_rep = get_rep_from_member(member)
+
+					try:
+						await conn.execute(
+							"INSERT INTO user (id, username, discord_id, rep) VALUES (?, ?, ?, ?)", (str(uuid4()), member.name, member.id, member_rep)
+						)
+					except sqlite3.IntegrityError:
+						pass
+					else:
+						users_added += 1
+						if member_rep == "UNKNOWN":
+							unknown_rep_users += 1
+
+			await conn.commit()
+
+		msg_content = f"Added {users_added}/{users_not_in_db} (reported count: {users_found}/{self.bot.anicord.member_count})" + (
+			f", unknown rep for {unknown_rep_users} users" if unknown_rep_users > 0 else ""
+		)
+		try:
+			await msg.reply(msg_content)
+		except discord.HTTPException:
+			await ctx.reply(msg_content)
 
 
 def setup(bot: NatsuminBot):
