@@ -9,34 +9,25 @@ from internal.base.cog import NatsuminCog
 from discord.ext import commands
 from typing import TYPE_CHECKING
 from uuid import uuid4
-from discord import ui
 
+import contextlib
+import traceback
 import aiosqlite
+import textwrap
 import asyncio
 import sqlite3
 import discord
 import logging
 import json
+import ast
 import io
 import re
 
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuminBot
 
-
-class SQLOutputView(ui.DesignerView):
-	def __init__(self, output: str | Exception):
-		super().__init__(store=False)
-
-		if isinstance(output, Exception):
-			main_display = ui.TextDisplay(f"### {output.__class__.__name__}\n```{str(output)}```")
-		else:
-			main_display = ui.TextDisplay(f"```json\n{output}```")
-
-		self.add_item(ui.Container(main_display, color=COLORS.ERROR if isinstance(output, Exception) else COLORS.DEFAULT))
-
-
 CODEBLOCK_PATTERN = r"(?<!\\)(?P<start>```)(?<=```)(?:(?P<lang>[a-z][a-z0-9]*)\s)?(?P<content>.*?)(?<!\\)(?=```)(?P<end>(?:\\\\)*```)"
+INLINE_CODE_PATTERN = r"(?<!\\)(?P<start>``?)(?P<content>(?:(?!(?<!`)(?P=start)(?!`))[^\\]|\\.)*)(?P<end>(?P=start))(?!`)"
 
 
 class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
@@ -57,6 +48,13 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			return True
 
 		raise commands.NotOwner()
+
+	@commands.Cog.listener()
+	async def on_message_edit(self, before: discord.Message, after: discord.Message):
+		if before.content.strip() == after.content.strip() or not (await self.bot.is_owner(after.author)):
+			return
+
+		await self.bot.process_commands(after)
 
 	@commands.command(aliases=["r"])
 	async def reload(self, ctx: commands.Context, extension: str | None = None):
@@ -406,12 +404,19 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 				await ctx.reply(embed=discord.Embed(description=f"❌ Failed to sync **{season_name}**:\n```{e}```", color=COLORS.ERROR))
 
 	@commands.command()
-	async def sql(self, ctx: commands.Context, *, query: str):
-		codeblock_match = re.match(CODEBLOCK_PATTERN, query, re.DOTALL)
-		if not codeblock_match:
-			return await ctx.reply("Queries must be inside codeblocks, like:\n```sql\nSELECT * FROM user LIMIT 1\n```")
+	async def sql(self, ctx: commands.Context, *, query: str = ""):
+		if ctx.message.attachments:
+			first_file = ctx.message.attachments[0]
+			query = (await first_file.read()).decode("utf-8").strip()
+		elif match := re.match(CODEBLOCK_PATTERN, query, re.DOTALL):
+			query = match.group("content").strip()
+		elif match := re.match(INLINE_CODE_PATTERN, query):
+			query = match.group("content").strip()
+		elif query:
+			return await ctx.reply("Query must be wrapped in either a code block or inline code.")
+		else:
+			return await ctx.reply("No query provided.")
 
-		query = codeblock_match.group("content").strip()
 		async with self.bot.database.connect() as conn:
 			try:
 				statements = [s.strip() for s in query.split(";") if s.strip()]
@@ -425,16 +430,81 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 				await conn.commit()
 			except (aiosqlite.Error, sqlite3.Error) as err:
 				await conn.rollback()
-				return await ctx.reply(view=SQLOutputView(err))
+				return await ctx.reply(f"### {err.__class__.__name__}\n```\n{str(err)}\n```")
 
-		formatted_rows = (dict(row) for row in rows)
-		str_output = json.dumps(list(formatted_rows), indent=4)
+		final_output = json.dumps([dict(row) for row in rows], indent=4)
 
-		if len(str_output) < 1900:
-			await ctx.reply(view=SQLOutputView(str_output))
+		if len(final_output) < 1990:
+			await ctx.reply(f"```json\n{final_output}\n```")
 		else:
-			file = discord.File(io.BytesIO(str_output.encode("utf-8")), filename="result.json")
-			await ctx.reply("", file=file)
+			file = discord.File(io.BytesIO(final_output.encode("utf-8")), filename="output.json")
+			await ctx.reply(file=file)
+
+	@commands.command()
+	async def eval(self, ctx: commands.Context, *, body: str = ""):
+		if ctx.message.attachments:
+			first_file = ctx.message.attachments[0]
+			body = (await first_file.read()).decode("utf-8").strip()
+		elif match := re.match(CODEBLOCK_PATTERN, body, re.DOTALL):
+			body = match.group("content").strip()
+		elif match := re.match(INLINE_CODE_PATTERN, body):
+			body = match.group("content").strip()
+		elif body:
+			return await ctx.reply("Body must be wrapped in either a code block or inline code.")
+		else:
+			return await ctx.reply("No code provided.")
+
+		try:
+			tree = ast.parse(body)
+			tree.body = [
+				node for node in tree.body if not (isinstance(node, ast.If) and isinstance(node.test, ast.Name) and node.test.id == "TYPE_CHECKING")
+			]  # Remove TYPE_CHECKING if statements to stop python from screaming
+			ast.fix_missing_locations(tree)
+			body = ast.unparse(tree)
+		except SyntaxError as err:
+			return await ctx.reply(f"```py\n{err}\n```")
+
+		has_main_entry = any(isinstance(node, ast.AsyncFunctionDef) and node.name == "main" for node in ast.iter_child_nodes(tree))
+		env = {
+			"bot": self.bot,
+			"database": self.bot.database,
+			"ctx": ctx,
+			"channel": ctx.channel,
+			"author": ctx.author,
+			"guild": ctx.guild,
+			"message": ctx.message,
+		}
+		env.update(globals())
+
+		if has_main_entry:
+			body += "\nawait main()"
+
+		inject_env = f"	global {', '.join(k for k in env if not k.startswith('__'))}"
+		body = f"async def __eval_func__():\n{inject_env}\n{textwrap.indent(body, '	')}"
+		stdout = io.StringIO()
+		try:
+			exec(body, env)
+		except SyntaxError as err:
+			return await ctx.reply(f"```py\n{err}\n```")
+
+		eval_func = env["__eval_func__"]
+		try:
+			with contextlib.redirect_stdout(stdout):
+				await eval_func()
+		except Exception:
+			final_output = f"{stdout.getvalue()}{traceback.format_exc()}"
+		else:
+			final_output = stdout.getvalue()
+
+		await ctx.message.add_reaction("✅")
+		if not final_output:
+			return
+
+		if len(final_output) < 1990:
+			await ctx.reply(f"```\n{final_output}\n```")
+		else:
+			file = discord.File(io.BytesIO(final_output.encode("utf-8")), filename="output.txt")
+			await ctx.reply(file=file)
 
 	@commands.command()  # temporary
 	async def cleanup_media(self, ctx: commands.Context, media_type: str = "anilist"):

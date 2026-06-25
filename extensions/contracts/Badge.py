@@ -48,7 +48,9 @@ async def get_badge_members_callback(badge_data: BadgeData, interaction: discord
 			FROM user u
 			JOIN user_badge ub ON ub.user_id = u.id
 			WHERE ub.badge_id = ?
-			ORDER BY u.username ASC
+			ORDER BY 
+				ub.added_at,
+				u.username
 		"""
 		async with conn.execute(query, (badge_data["id"],)) as cursor:
 			user_rows: list[tuple[str, int]] = [(row["username"], row["discord_id"]) for row in await cursor.fetchall()]
