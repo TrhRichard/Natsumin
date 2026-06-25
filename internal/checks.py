@@ -9,13 +9,12 @@ if TYPE_CHECKING:
 	from typing import Callable
 
 
-CAN_MODIFY_BADGES = (448318227219742720, 243880818651430912, 133087204980424704)
+DATABASE_EDIT_PERM = (546659584727580692, 448318227219742720, 243880818651430912, 133087204980424704)
 
 
-def can_modify_badges[T]() -> Callable[[T], T]:
-	async def predicate(ctx: commands.Context) -> bool:
-		bot: NatsuminBot = ctx.bot
-		if await bot.is_owner(ctx.author) or ctx.author.id in CAN_MODIFY_BADGES:
+def can_modify_database[T]() -> Callable[[T], T]:
+	async def predicate(ctx: commands.Context[NatsuminBot]) -> bool:
+		if ctx.author.id in DATABASE_EDIT_PERM or await ctx.bot.is_owner(ctx.author):
 			return True
 
 		raise UnauthorizedUser()

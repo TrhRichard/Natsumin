@@ -1,11 +1,6 @@
 from enum import StrEnum, IntEnum
 
 
-class BadgeType(StrEnum):
-	CONTRACTS = "contracts"
-	ARIA = "aria"
-
-
 class UserStatus(IntEnum):
 	PENDING = 0
 	PASSED = 1

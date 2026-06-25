@@ -3,7 +3,7 @@ from __future__ import annotations
 from internal.contracts import get_deadline_footer, season_autocomplete, usernames_autocomplete, get_season_spreadsheet_ids, rep_autocomplete
 from internal.functions import get_legacy_rank, get_rank_emoteid, get_status_emote, get_status_name, frmt_iter, get_percentage_formatted
 from internal.contracts.order import OrderContractData, sort_contract_types
-from internal.checks import whitelist_channel_only, can_modify_badges
+from internal.checks import whitelist_channel_only, can_modify_database
 from internal.contracts.rep import get_rep, get_rep_from_member
 from internal.enums import UserKind, UserStatus, ContractStatus
 from internal.base.view import BadgeDisplay
@@ -1237,7 +1237,7 @@ class UserCog(NatsuminCog):
 	@commands.slash_command(name="create-user", description="Create a new user", guild_ids=GUILD_IDS)
 	@discord.option("user", discord.Member)
 	@discord.option("rep", str, default=None, autocomplete=rep_autocomplete)
-	@can_modify_badges()
+	@can_modify_database()
 	async def create_user(self, ctx: discord.ApplicationContext, user: discord.Member, rep: str | None = None, gen: int | None = None):
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT id FROM user WHERE username = ? or discord_id = ?", (user.name, user.id)) as cursor:

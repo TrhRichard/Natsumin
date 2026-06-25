@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from internal.checks import whitelist_channel_only, can_modify_badges
+from internal.checks import whitelist_channel_only, can_modify_database
 from internal.base.paginator import CustomPaginator, V2Paginator, V2Page
 from internal.functions import frmt_iter, get_user_config
 from internal.contracts import usernames_autocomplete
@@ -559,13 +559,13 @@ class BadgeCog(NatsuminCog):
 	# Badge management commands
 
 	@badge_group.command(description="Add a new badge")
-	@can_modify_badges()
 	@discord.option("name", str, min_length=1)
 	@discord.option("description", str, default=None)
 	@discord.option("artist", str, default=None)
 	@discord.option("image_url", str, default=None)
 	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default="contracts")
 	@discord.option("rarity", str, choices=BADGE_RARITIES, default="common")
+	@can_modify_database()
 	async def add(
 		self,
 		ctx: discord.ApplicationContext,
@@ -600,7 +600,6 @@ class BadgeCog(NatsuminCog):
 		await ctx.respond(f"Created badge **{name}** ({badge_id})", ephemeral=True)
 
 	@badge_group.command(description="Edit a existing badge")
-	@can_modify_badges()
 	@discord.option("id", str, autocomplete=badge_autocomplete)
 	@discord.option("name", str, min_length=1, default=None)
 	@discord.option("description", str, default=None)
@@ -608,6 +607,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("image_url", str, default=None)
 	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default=None)
 	@discord.option("rarity", str, choices=BADGE_RARITIES, default=None)
+	@can_modify_database()
 	async def edit(
 		self,
 		ctx: discord.ApplicationContext,
@@ -670,8 +670,8 @@ class BadgeCog(NatsuminCog):
 			await ctx.respond("Done! Below is a list of all the modifications done.", embed=embed, ephemeral=True)
 
 	@badge_group.command(description="Delete a existing badge")
-	@can_modify_badges()
 	@discord.option("id", str, autocomplete=badge_autocomplete)
+	@can_modify_database()
 	async def delete(self, ctx: discord.ApplicationContext, id: str):
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT 1 FROM badge WHERE id = ?", (id,)) as cursor:
@@ -687,13 +687,13 @@ class BadgeCog(NatsuminCog):
 		await ctx.respond(f"Deleted badge **{badge_row['name']}**", ephemeral=True)
 
 	@badge_group.command(description="Give a badge to a user/multiple users")
-	@can_modify_badges()
 	@discord.option("id", str, autocomplete=badge_autocomplete)
 	@discord.option("user", str, autocomplete=usernames_autocomplete(False), default=None)
 	@discord.option("multiple_users", str, description="Usernames/ids separated by a comma, includes user if set", default=None)
 	@discord.option(
 		"users_file", discord.Attachment, description="A file full of usernames/ids, can be separated by a comma or newlines", default=None
 	)
+	@can_modify_database()
 	async def give(
 		self,
 		ctx: discord.ApplicationContext,
@@ -759,9 +759,9 @@ class BadgeCog(NatsuminCog):
 		)
 
 	@badge_group.command(description="Give a badge to all users that own a role")
-	@can_modify_badges()
 	@discord.option("id", str, autocomplete=badge_autocomplete)
 	@discord.option("role", discord.Role)
+	@can_modify_database()
 	async def giverole(self, ctx: discord.ApplicationContext, id: str, role: discord.Role):
 		if not role.members:
 			return await ctx.respond("Could not find any users with this role!", ephemeral=True)
@@ -807,9 +807,9 @@ class BadgeCog(NatsuminCog):
 		)
 
 	@badge_group.command(description="Remove a badge from a user")
-	@can_modify_badges()
 	@discord.option("id", str, autocomplete=badge_autocomplete)
 	@discord.option("user", str, autocomplete=usernames_autocomplete(False))
+	@can_modify_database()
 	async def remove(self, ctx: discord.ApplicationContext, id: str, user: str):
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT * FROM badge WHERE id = ?", (id,)) as cursor:
