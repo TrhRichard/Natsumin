@@ -81,47 +81,63 @@ class ReminderDatabase:
 		await self._setup_complete.wait()
 
 	async def create_reminder(self, user_id: int, channel_id: int, remind_at: datetime.datetime, message: str, hidden: bool = False) -> Reminder:
-		async with self.connect() as db:
-			async with await db.execute(
+		async with self.connect() as conn:
+			async with await conn.execute(
 				"""
 				INSERT INTO reminders (user_id, channel_id, message, remind_at, hidden)
 				VALUES (?, ?, ?, ?, ?)
 				""",
 				(user_id, channel_id, message, to_utc_timestamp(remind_at), int(hidden)),
 			) as cursor:
-				await db.commit()
+				await conn.commit()
 				reminder_id = cursor.lastrowid
 
-			async with await db.execute("SELECT * FROM reminders WHERE id = ?", (reminder_id,)) as cursor:
+			async with await conn.execute("SELECT * FROM reminders WHERE id = ?", (reminder_id,)) as cursor:
 				row = await cursor.fetchone()
 
 			return self._row_to_reminder(row)
 
+	async def edit_reminder(self, reminder_id: int, *, remind_at: datetime.datetime | None = None, message: str | None = None) -> Reminder:
+		async with self.connect() as conn:
+			where_conditions = []
+			params = []
+
+			if remind_at is not None:
+				where_conditions.append("remind_at = ?")
+				params.append(to_utc_timestamp(remind_at))
+			if message is not None:
+				where_conditions.append("message = ?")
+				params.append(message)
+
+			params.append(reminder_id)
+			async with await conn.execute(f"UPDATE reminders SET {','.join(where_conditions)} WHERE id = ? RETURNING *", params) as cursor:
+				return self._row_to_reminder(await cursor.fetchone())
+
 	async def delete_reminder(self, id: int):
-		async with self.connect() as db:
-			await db.execute("DELETE FROM reminders WHERE id = ?", (id,))
-			await db.commit()
+		async with self.connect() as conn:
+			await conn.execute("DELETE FROM reminders WHERE id = ?", (id,))
+			await conn.commit()
 
 	async def get_reminder(self, id: int) -> Reminder | None:
-		async with self.connect() as db:
-			async with await db.execute("SELECT * FROM reminders WHERE id = ?", (id,)) as cursor:
+		async with self.connect() as conn:
+			async with await conn.execute("SELECT * FROM reminders WHERE id = ?", (id,)) as cursor:
 				row = await cursor.fetchone()
 				return self._row_to_reminder(row) if row else None
 
 	async def get_reminders(self, *, user_id: int | None = None) -> list[Reminder]:
-		async with self.connect() as db:
+		async with self.connect() as conn:
 			if user_id is None:
-				cursor = await db.execute("SELECT * FROM reminders")
+				cursor = await conn.execute("SELECT * FROM reminders")
 			else:
-				cursor = await db.execute("SELECT * FROM reminders WHERE user_id = ?", (user_id,))
+				cursor = await conn.execute("SELECT * FROM reminders WHERE user_id = ?", (user_id,))
 
 			rows = await cursor.fetchall()
 			await cursor.close()
 			return [self._row_to_reminder(row) for row in rows]
 
 	async def get_due_reminders(self) -> list[Reminder]:
-		async with self.connect() as db:
-			async with await db.execute(
+		async with self.connect() as conn:
+			async with await conn.execute(
 				"SELECT * FROM reminders WHERE remind_at <= ?", (to_utc_timestamp(datetime.datetime.now(datetime.UTC)),)
 			) as cursor:
 				rows = await cursor.fetchall()
@@ -132,8 +148,8 @@ class ReminderDatabase:
 
 			ids = [row["id"] for row in rows]
 			placeholders = ",".join("?" for _ in ids)
-			await db.execute(f"DELETE FROM reminders WHERE id IN ({placeholders})", ids)
-			await db.commit()
+			await conn.execute(f"DELETE FROM reminders WHERE id IN ({placeholders})", ids)
+			await conn.commit()
 
 			return [self._row_to_reminder(row) for row in rows]
 
