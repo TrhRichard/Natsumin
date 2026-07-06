@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from internal.contracts.sheet import sync_media_data, fetch_sheets, PATTERNS, SyncContext, Spreadsheet, SheetBlock, Row
+from internal.contracts.sheet import fetch_sheets, PATTERNS, Spreadsheet, SheetBlock, Row
 from internal.enums import UserStatus, UserKind, ContractStatus, ContractKind
 from internal.contracts.rep import get_rep, RepName
 from internal.functions import get_user_id
@@ -37,20 +37,7 @@ DASHBOARD_ROW_INDEXES: dict[int, tuple[str, int]] = {
 OPTIONAL_CONTRACTS: tuple[str, ...] = ("Aria Special", "Sumira's Challenge", "Hitome's Challenge", "Sae's Challenge", "Christmas Challenge")
 
 
-async def _sync_dashboard_sheet(dashboard_sheet: SheetBlock, conn: aiosqlite.Connection, ctx: SyncContext):
-	async with conn.execute("SELECT id, mal_id FROM media_anilist") as cursor:
-		rows = await cursor.fetchall()
-		existing_anilist_ids: list[str] = [row["id"] for row in rows]
-		mal_id_to_anilist: dict[str, str] = {row["mal_id"]: row["id"] for row in rows if "mal_id" in dict(row)}
-	async with conn.execute("SELECT type, id FROM media_no_match") as cursor:
-		rows = await cursor.fetchall()
-		impossible_ids: defaultdict[str, list[str]] = defaultdict(list)
-		for row in rows:
-			impossible_ids[row["type"]].append(row["id"])
-	async with conn.execute("SELECT id FROM media WHERE type = ?", ("steam",)) as cursor:
-		rows = await cursor.fetchall()
-		existing_steam_ids: list[str] = [row["id"] for row in rows]
-
+async def _sync_dashboard_sheet(dashboard_sheet: SheetBlock, conn: aiosqlite.Connection):
 	for row in dashboard_sheet.rows:
 		status = row.get_value(0, "")
 		username = row.get_value(1, "").strip().lower()
@@ -102,40 +89,6 @@ async def _sync_dashboard_sheet(dashboard_sheet: SheetBlock, conn: aiosqlite.Con
 				case _:
 					contract_status = ContractStatus.PENDING
 
-			media_type: str | None = None
-			media_id: str | None = None
-			if contract_cell.hyperlink is not None:
-				if match := re.match(PATTERNS.ANILIST, contract_cell.hyperlink):
-					media_type = "anilist"
-					media_id = match.group(1)
-				elif match := re.match(PATTERNS.MAL, contract_cell.hyperlink):
-					media_type = "myanimelist"
-					media_id = match.group(1)
-				elif match := re.match(PATTERNS.STEAM, contract_cell.hyperlink):
-					media_type = "steam"
-					media_id = match.group(1)
-
-			if media_type is not None:
-				if media_type == "anilist":
-					if media_id not in existing_anilist_ids:
-						ctx.missing_anilist_ids.add(media_id)
-				elif media_type == "myanimelist":
-					if media_id not in mal_id_to_anilist:
-						if media_id not in impossible_ids["mal"]:  # No Anilist ID found for these MAL ids
-							ctx.missing_mal_ids.add(media_id)
-						media_type, media_id = None, None
-					else:
-						media_type = "anilist"
-						media_id = mal_id_to_anilist.get(media_id)
-				elif media_type == "steam":
-					if media_id not in existing_steam_ids:
-						if media_id not in impossible_ids["steam"]:
-							ctx.missing_steam_ids.add(media_id)
-						else:
-							media_type, media_id = None, None
-				else:
-					media_type, media_id = None, None
-
 			async with conn.execute(
 				"SELECT * FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type = ?", (SEASON_ID, user_id, contract_type)
 			) as cursor:
@@ -144,18 +97,8 @@ async def _sync_dashboard_sheet(dashboard_sheet: SheetBlock, conn: aiosqlite.Con
 			if not contract_row:
 				contract_id = str(uuid4())
 				async with conn.execute(
-					"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id, media_type, media_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *",
-					(
-						SEASON_ID,
-						contract_id,
-						contract_name,
-						contract_type,
-						ContractKind.NORMAL.value,
-						contract_status.value,
-						user_id,
-						media_type,
-						media_id,
-					),
+					"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *",
+					(SEASON_ID, contract_id, contract_name, contract_type, ContractKind.NORMAL.value, contract_status.value, user_id),
 				) as cursor:
 					contract_row = await cursor.fetchone()
 			else:
@@ -164,8 +107,6 @@ async def _sync_dashboard_sheet(dashboard_sheet: SheetBlock, conn: aiosqlite.Con
 					await conn.execute("UPDATE season_contract SET status = ? WHERE id = ?", (contract_status.value, contract_id))
 				if contract_row["name"] != contract_name:
 					await conn.execute("UPDATE season_contract SET name = ? WHERE id = ?", (contract_name, contract_id))
-				if contract_row["media_type"] != media_type or contract_row["media_id"] != media_id:
-					await conn.execute("UPDATE season_contract SET media_type = ?, media_id = ? WHERE id = ?", (media_type, media_id, contract_id))
 
 	await conn.commit()
 
@@ -964,20 +905,7 @@ async def _sync_fantasy_sheet(fantasy_sheet: SheetBlock, conn: aiosqlite.Connect
 	await conn.commit()
 
 
-async def _sync_aids_sheet(aids_sheet: SheetBlock, conn: aiosqlite.Connection, ctx: SyncContext):
-	async with conn.execute("SELECT id, mal_id FROM media_anilist") as cursor:
-		rows = await cursor.fetchall()
-		existing_anilist_ids: list[str] = [row["id"] for row in rows]
-		mal_id_to_anilist: dict[str, str] = {row["mal_id"]: row["id"] for row in rows if "mal_id" in dict(row)}
-	async with conn.execute("SELECT type, id FROM media_no_match") as cursor:
-		rows = await cursor.fetchall()
-		impossible_ids: defaultdict[str, list[str]] = defaultdict(list)
-		for row in rows:
-			impossible_ids[row["type"]].append(row["id"])
-	async with conn.execute("SELECT id FROM media WHERE type = ?", ("steam",)) as cursor:
-		rows = await cursor.fetchall()
-		existing_steam_ids: list[str] = [row["id"] for row in rows]
-
+async def _sync_aids_sheet(aids_sheet: SheetBlock, conn: aiosqlite.Connection):
 	user_id_occurances: defaultdict[str, int] = defaultdict(int)
 	aid_user_passed: defaultdict[str, int] = defaultdict(int)
 	aid_user_total: defaultdict[str, int] = defaultdict(int)
@@ -1006,7 +934,7 @@ async def _sync_aids_sheet(aids_sheet: SheetBlock, conn: aiosqlite.Connection, c
 		aid_number = user_id_occurances.get(user_id)
 
 		async with conn.execute(
-			"SELECT id, rating, progress, review_url, name, media_type, media_id FROM season_contract WHERE season_id = ? AND contractee_id = ? AND kind = ? AND type = ?",
+			"SELECT id, rating, progress, review_url, name FROM season_contract WHERE season_id = ? AND contractee_id = ? AND kind = ? AND type = ?",
 			(SEASON_ID, user_id, ContractKind.AID.value, f"Aid Contract {aid_number}"),
 		) as cursor:
 			aid_contract_row = await cursor.fetchone()
@@ -1024,40 +952,6 @@ async def _sync_aids_sheet(aids_sheet: SheetBlock, conn: aiosqlite.Connection, c
 			if contract_status == ContractStatus.PASSED:
 				aid_user_passed[user_id] += 1
 
-		media_type: str | None = None
-		media_id: str | None = None
-		if name_hyperlink := row.get_url(6):
-			if match := re.match(PATTERNS.ANILIST, name_hyperlink):
-				media_type = "anilist"
-				media_id = match.group(1)
-			elif match := re.match(PATTERNS.MAL, name_hyperlink):
-				media_type = "myanimelist"
-				media_id = match.group(1)
-			elif match := re.match(PATTERNS.STEAM, name_hyperlink):
-				media_type = "steam"
-				media_id = match.group(1)
-
-		if media_type is not None:
-			if media_type == "anilist":
-				if media_id not in existing_anilist_ids:
-					ctx.missing_anilist_ids.add(media_id)
-			elif media_type == "myanimelist":
-				if media_id not in mal_id_to_anilist:
-					if media_id not in impossible_ids["mal"]:  # No Anilist ID found for these MAL ids
-						ctx.missing_mal_ids.add(media_id)
-					media_type, media_id = None, None
-				else:
-					media_type = "anilist"
-					media_id = mal_id_to_anilist.get(media_id)
-			elif media_type == "steam":
-				if media_id not in existing_steam_ids:
-					if media_id not in impossible_ids["steam"]:
-						ctx.missing_steam_ids.add(media_id)
-					else:
-						media_type, media_id = None, None
-			else:
-				media_type, media_id = None, None
-
 		contract_name = row.get_value(6, "").strip().replace("\n", ", ")
 		contract_progress = row.get_value(5, "").replace("\n", "")
 		contract_review_url = row.get_url(7)
@@ -1070,10 +964,9 @@ async def _sync_aids_sheet(aids_sheet: SheetBlock, conn: aiosqlite.Connection, c
 			or aid_contract_row["progress"] != contract_progress
 			or aid_contract_row["review_url"] != contract_review_url
 			or aid_contract_row["name"] != contract_name
-			or (aid_contract_row["media_type"] != media_type or aid_contract_row["media_id"] != media_id)
 		):
 			await conn.execute(
-				"UPDATE season_contract SET contractor = ?, progress = ?, rating = ?, review_url = ?, medium = ?, status = ?, name = ?, media_type = ?, media_id = ? WHERE season_id = ? AND id = ?",
+				"UPDATE season_contract SET contractor = ?, progress = ?, rating = ?, review_url = ?, medium = ?, status = ?, name = ? WHERE season_id = ? AND id = ?",
 				(
 					contract_contractor,
 					contract_progress,
@@ -1082,8 +975,6 @@ async def _sync_aids_sheet(aids_sheet: SheetBlock, conn: aiosqlite.Connection, c
 					contract_medium,
 					contract_status.value,
 					contract_name,
-					media_type,
-					media_id,
 					SEASON_ID,
 					aid_contract_row["id"],
 				),
@@ -1091,7 +982,7 @@ async def _sync_aids_sheet(aids_sheet: SheetBlock, conn: aiosqlite.Connection, c
 		elif not aid_contract_row:
 			contract_id = str(uuid4())
 			await conn.execute(
-				"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, progress, rating, review_url, medium, media_type, media_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, progress, rating, review_url, medium) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 				(
 					SEASON_ID,
 					contract_id,
@@ -1105,8 +996,6 @@ async def _sync_aids_sheet(aids_sheet: SheetBlock, conn: aiosqlite.Connection, c
 					contract_rating,
 					contract_review_url,
 					contract_medium,
-					media_type,
-					media_id,
 				),
 			)
 
@@ -1140,20 +1029,16 @@ async def sync_season(database: NatsuminDatabase):
 		],
 	)
 
-	ctx = SyncContext()
-
 	async with database.connect() as conn:
-		await _sync_dashboard_sheet(spreadsheet.get_sheet("Dashboard", block=0), conn, ctx)
+		await _sync_dashboard_sheet(spreadsheet.get_sheet("Dashboard", block=0), conn)
 		await _sync_basechallenge_sheet(spreadsheet.get_sheet("Base", block=0), conn)
 		await _sync_special_sheets(spreadsheet, conn)
 		await _sync_buddies_sheet(spreadsheet.get_sheet("Buddying", block=0), conn)
 		await _sync_arcana_sheet(spreadsheet.get_sheet("Arcana Special", block=0), conn)
-		await _sync_aids_sheet(spreadsheet.get_sheet("Aid Parade", block=0), conn, ctx)
+		await _sync_aids_sheet(spreadsheet.get_sheet("Aid Parade", block=0), conn)
 
 		try:
 			fantasy_sheet = await fetch_sheets(FANTASY_SPREADSHEET_ID, "Draft Picks!A1:L312")
 			await _sync_fantasy_sheet(fantasy_sheet, conn)
 		except aiohttp.ClientResponseError:
 			pass  # Ignore response errors for fantasy sheet
-
-		await sync_media_data(conn, ctx)  # In case of missing media ids sync at the end

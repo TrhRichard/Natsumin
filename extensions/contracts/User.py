@@ -486,57 +486,12 @@ class SeasonContractInfo(ui.DesignerView):
 			if contract_row["medium"]:
 				description_fields.append(f"- **Medium**: {contract_row['medium']}")
 
-			container_color = COLORS.DEFAULT
-
-			media_name: str | None = None
-			media_description: str | None = None
-			media_medium: str | None = None
-			media_url: str | None = None
-			media_data: dict[str] = None
-			table_name = None
-			if contract_row["media_type"] == "steam":
-				table_name = "media_steam"
-			elif contract_row["media_type"] == "anilist":
-				table_name = "media_anilist"
-
-			if table_name is not None:
-				async with conn.execute(
-					"SELECT name, description, medium, url FROM media WHERE type = ? AND id = ?",
-					(contract_row["media_type"], contract_row["media_id"]),
-				) as cursor:
-					row = await cursor.fetchone()
-					media_name, media_description, media_medium, media_url = row["name"], row["description"], row["medium"], row["url"]
-
-				async with conn.execute(f"SELECT * FROM {table_name} WHERE id = ?", (contract_row["media_id"],)) as cursor:
-					media_data = dict(await cursor.fetchone())
-
-			if contract_row["media_type"] == "anilist":
-				if media_data["cover_color"]:
-					container_color = discord.Colour(int(f"0x{media_data['cover_color'].lstrip('#')}", 16))
-			if media_name is not None:
-				header_content = (
-					f"## [{media_name} ({media_medium.title()})]({media_url})\n{media_description}" + f"\n{'\n'.join(description_fields)}"
-				)
-			else:
-				header_content = f"## {contract_row['name']}\n" + f"\n{'\n'.join(description_fields)}"
-
-			if contract_row["media_type"] == "anilist":
-				header_item = (
-					ui.Section(ui.TextDisplay(header_content), accessory=ui.Thumbnail(media_data.get("cover_image")))
-					if not media_data["is_adult"]
-					else ui.TextDisplay(header_content)
-				)
-			elif contract_row["media_type"] == "steam":
-				header_item = ui.Section(ui.TextDisplay(header_content), accessory=ui.Thumbnail(media_data.get("header_image")))
-			else:
-				header_item = ui.TextDisplay(header_content)
-
 			self.add_item(
 				ui.Container(
-					header_item,
+					ui.TextDisplay(f"## {contract_row['name']}\n" + f"\n{'\n'.join(description_fields)}"),
 					ui.Separator(),
 					ui.TextDisplay(f"-# <:Kirburger:998705274074435584> {await get_deadline_footer(self.bot.database, season_id, db_conn=conn)}"),
-					color=container_color,
+					color=COLORS.DEFAULT,
 				)
 			)
 

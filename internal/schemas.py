@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
 from typing import TypedDict, Literal
+from dataclasses import dataclass
 from datetime import datetime
 
 

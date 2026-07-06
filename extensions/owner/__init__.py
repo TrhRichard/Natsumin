@@ -506,26 +506,6 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			file = discord.File(io.BytesIO(final_output.encode("utf-8")), filename="output.txt")
 			await ctx.reply(file=file)
 
-	@commands.command()  # temporary
-	async def cleanup_media(self, ctx: commands.Context, media_type: str = "anilist"):
-		async with self.bot.database.connect() as conn:
-			async with conn.execute("SELECT type, id, description FROM media WHERE type = ?", (media_type,)) as cursor:
-				rows = await cursor.fetchall()
-
-			for row in rows:
-				description: str = row["description"]
-				if not description:
-					continue
-
-				new_desc = description.replace("<br>", "").replace("<i>", "*").replace("</i>", "*").replace("<b>", "**").replace("</b>", "**")
-				new_desc = new_desc.replace("<BR>", "")
-				new_desc = new_desc.strip()
-
-				await conn.execute("UPDATE media SET description = ? WHERE type = ? AND id = ?", (new_desc, row["type"], row["id"]))
-
-			await conn.commit()
-			await ctx.reply(f"Cleaned up {len(rows)} rows!")
-
 	@commands.command()
 	async def sync_discord_ids(self, ctx: commands.Context):
 		if not self.bot.anicord:

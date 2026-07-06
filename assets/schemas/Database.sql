@@ -168,8 +168,6 @@ CREATE TABLE IF NOT EXISTS season_contract (
 	rating    		TEXT,
 	review_url		TEXT,
 	medium    		TEXT,
-	media_type		TEXT,
-	media_id		TEXT,
 	created_at		TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 	updated_at		TEXT,
 
@@ -177,63 +175,6 @@ CREATE TABLE IF NOT EXISTS season_contract (
 	UNIQUE (season_id, type, contractee_id),
 	FOREIGN KEY (season_id) REFERENCES season(id) ON DELETE CASCADE ON UPDATE CASCADE,
 	FOREIGN KEY (contractee_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
-) STRICT;
-
-CREATE TABLE IF NOT EXISTS media (
-	type		TEXT NOT NULL,
-	id			TEXT NOT NULL,
-	name		TEXT NOT NULL,
-	description	TEXT,
-	medium		TEXT,
-	url			TEXT NOT NULL,
-	created_at	TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-	updated_at	TEXT NOT NULL,
-
-	PRIMARY KEY (type, id)
-) STRICT;
-
-CREATE TABLE IF NOT EXISTS media_no_match (
-	type	TEXT NOT NULL,
-	id		TEXT NOT NULL,
-
-	PRIMARY KEY (type, id)
-) STRICT;
-
-CREATE TABLE IF NOT EXISTS media_anilist (
-	type			TEXT NOT NULL DEFAULT 'anilist', -- here because sqlite
-	id				TEXT NOT NULL,
-
-	format			TEXT NOT NULL,
-	is_adult		INTEGER NOT NULL DEFAULT 0,
-	cover_image		TEXT,
-	cover_color		TEXT,
-	mal_id			TEXT,
-	start_date		TEXT,
-	end_date		TEXT,
-
-	romaji_name		TEXT,
-	english_name	TEXT,
-	native_name		TEXT,
-
-	episodes		INTEGER,
-	chapters		INTEGER,
-	volumes			INTEGER,
-
-	PRIMARY KEY (id),
-	FOREIGN KEY (type, id) REFERENCES media(type, id) ON DELETE CASCADE ON UPDATE CASCADE
-) STRICT;
-
-CREATE TABLE IF NOT EXISTS media_steam (
-	type			TEXT NOT NULL DEFAULT 'steam', -- here because sqlite
-	id				TEXT NOT NULL,
-
-	developer		TEXT NOT NULL,
-	publisher		TEXT,
-	release_date	TEXT,
-	header_image	TEXT,
-
-	PRIMARY KEY (id),
-	FOREIGN KEY (type, id) REFERENCES media(type, id) ON DELETE CASCADE ON UPDATE CASCADE
 ) STRICT;
 
 -- Automated updated_at triggers
@@ -278,12 +219,6 @@ CREATE TRIGGER IF NOT EXISTS season_contract_updated_at
 	AFTER UPDATE ON season_contract FOR EACH ROW
 BEGIN
     UPDATE season_contract SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE season_id = OLD.season_id AND id = OLD.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS media_updated_at
-    AFTER UPDATE ON media FOR EACH ROW
-BEGIN
-    UPDATE media SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE type = OLD.type AND id = OLD.id;
 END;
 
 -- Add default config
