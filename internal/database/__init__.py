@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+from config import IS_PRODUCTION
+from pathlib import Path
 
 import aiosqlite
 import aiofiles
@@ -7,16 +9,18 @@ import logging
 import sqlite3
 
 
-class NatsuminDatabase:
-	def __init__(self, production: bool = False):
+class NatsuDatabase:
+	def __init__(self):
 		self.logger = logging.getLogger("bot")
-		self.production = production
+
 		self.available_seasons: tuple[str, ...] = tuple()
 
+		self._db_path = Path("data", f"database-{'prod' if IS_PRODUCTION else 'dev'}.sqlite")
+		self._schema_path = Path("assets", "schemas", "Database.sql")
 		self._setup_complete = asyncio.Event()
 
 	async def open(self) -> aiosqlite.Connection:
-		conn = await aiosqlite.connect("data/database-prod.sqlite" if self.production else "data/database-dev.sqlite")
+		conn = await aiosqlite.connect(self._db_path)
 		conn.row_factory = aiosqlite.Row
 		await conn.executescript("""
 			PRAGMA journal_mode = WAL;
@@ -42,7 +46,7 @@ class NatsuminDatabase:
 				await conn.close()
 
 	async def setup(self):
-		async with aiofiles.open("assets/schemas/Database.sql") as f:
+		async with aiofiles.open(self._schema_path) as f:
 			schema = await f.read()
 
 		async with self.connect() as conn:

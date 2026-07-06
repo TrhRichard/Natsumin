@@ -7,7 +7,7 @@ from discord import ui
 import discord
 
 if TYPE_CHECKING:
-	from .bot import NatsuminBot
+	from .bot import NatsuBot
 
 
 from .paginator import CustomPaginator
@@ -47,7 +47,7 @@ class BadgeDisplay(ui.DesignerView):
 			case "page_indicator":
 				return await interaction.response.send_modal(BadgeDisplayPageModal(self))
 			case "get_badge_users":
-				bot: NatsuminBot = interaction.client
+				bot: NatsuBot = interaction.client
 				badge_data = self.badges[self.current_badge_selected]
 				async with bot.database.connect() as conn:
 					query = """

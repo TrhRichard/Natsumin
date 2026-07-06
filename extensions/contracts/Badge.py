@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from internal.checks import whitelist_channel_only, can_modify_database
+from internal.base.context import NatsuAutoContext, NatsuContext, NatsuAppContext
 from internal.base.paginator import CustomPaginator, V2Paginator, V2Page
+from internal.checks import whitelist_channel_only, can_modify_database
 from internal.functions import frmt_iter, get_user_config
 from internal.contracts import usernames_autocomplete
-from internal.base.cog import NatsuminCog
 from typing import TYPE_CHECKING, Literal
+from internal.base.cog import NatsuCog
 from internal.schemas import BadgeData
 from internal.constants import COLORS
 from discord.ext import commands
@@ -14,7 +15,7 @@ from discord import ui
 from uuid import uuid4
 
 if TYPE_CHECKING:
-	from internal.base.bot import NatsuminBot
+	from internal.base.bot import NatsuBot
 
 import discord
 
@@ -22,9 +23,8 @@ BADGE_TYPES = ["contracts", "aria", "blitz", "event", "misc"]
 BADGE_RARITIES = ["common", "uncommon", "rare", "epic", "legendary", "limited"]
 
 
-async def badge_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.OptionChoice]:
-	bot: NatsuminBot = ctx.bot
-	async with bot.database.connect() as conn:
+async def badge_autocomplete(ctx: NatsuAutoContext) -> list[discord.OptionChoice]:
+	async with ctx.database.connect() as conn:
 		query = """
 			SELECT
 				id, name, type
@@ -40,7 +40,7 @@ async def badge_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.O
 
 
 async def get_badge_members_callback(badge_data: BadgeData, interaction: discord.Interaction):
-	bot: NatsuminBot = interaction.client
+	bot: NatsuBot = interaction.client
 	async with bot.database.connect() as conn:
 		query = """
 			SELECT 
@@ -144,7 +144,7 @@ class FindFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 	rarity: Literal["common", "uncommon", "rare", "epic", "legendary", "limited"] = commands.flag(aliases=["r"], default=None)
 
 
-class BadgeCog(NatsuminCog):
+class BadgeCog(NatsuCog):
 	badge_group = discord.commands.SlashCommandGroup("badge", description="Various badge related commands", guild_ids=GUILD_IDS)
 
 	async def badge_find_handler(
@@ -452,7 +452,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
 	async def find(
 		self,
-		ctx: discord.ApplicationContext,
+		ctx: NatsuAppContext,
 		name: str | None = None,
 		owned_user: str | None = None,
 		owned: bool | None = None,
@@ -474,9 +474,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default=None)
 	@discord.option("rarity", str, choices=BADGE_RARITIES, default=None)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
-	async def inventory(
-		self, ctx: discord.ApplicationContext, user: str | None, badge_type: str | None = None, rarity: str | None = None, hidden: bool = False
-	):
+	async def inventory(self, ctx: NatsuAppContext, user: str | None, badge_type: str | None = None, rarity: str | None = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
 
@@ -493,9 +491,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("type", str, choices=["badges", "users"], parameter_name="leaderboard_type", default="badges")
 	@discord.option("user_badge_type", str, choices=BADGE_TYPES, default=None)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
-	async def leaderboard(
-		self, ctx: discord.ApplicationContext, leaderboard_type: Literal["badges", "users"], user_badge_type: str | None, hidden: bool
-	):
+	async def leaderboard(self, ctx: NatsuAppContext, leaderboard_type: Literal["badges", "users"], user_badge_type: str | None, hidden: bool):
 		if (await self.bot.is_blacklisted(ctx))[0]:
 			hidden = True
 
@@ -503,7 +499,7 @@ class BadgeCog(NatsuminCog):
 		await paginator.respond(ctx.interaction, ephemeral=is_hidden)
 
 	@badge_group.command(name="toggle-view", description="Toggle the viewing of badges to either list or one-by-one")
-	async def toggle_view(self, ctx: discord.ApplicationContext):
+	async def toggle_view(self, ctx: NatsuAppContext):
 		async with self.bot.database.connect() as conn:
 			user_id, _ = await self.bot.fetch_user_from_database(ctx.author, db_conn=conn)
 			if user_id is None:
@@ -525,13 +521,13 @@ class BadgeCog(NatsuminCog):
 		description="If no sub-command is specified then inventory command will run",
 		invoke_without_command=True,
 	)
-	async def badge_textgroup(self, ctx: commands.Context, user: str | int = None):
+	async def badge_textgroup(self, ctx: NatsuContext, user: str | int = None):
 		if await self.text_inventory.can_run(ctx):
 			await self.text_inventory(ctx, user)
 
 	@badge_textgroup.command("find", aliases=["list", "search", "query"], help="Get badges")
 	@whitelist_channel_only()
-	async def text_find(self, ctx: commands.Context, *, flags: FindFlags):
+	async def text_find(self, ctx: NatsuContext, *, flags: FindFlags):
 		content, _ = await self.badge_find_handler(ctx.author, flags.name, flags.owned_user, flags.owned, flags.type, flags.rarity, False)
 		if isinstance(content, V2Paginator):
 			return await content.reply(ctx)
@@ -540,7 +536,7 @@ class BadgeCog(NatsuminCog):
 
 	@badge_textgroup.command("inventory", aliases=["inv", "i"], help="Get the badges of a user")
 	@whitelist_channel_only()
-	async def text_inventory(self, ctx: commands.Context, user: str | int = None):
+	async def text_inventory(self, ctx: NatsuContext, user: str | int = None):
 		if user is None:
 			user = ctx.author
 
@@ -552,7 +548,7 @@ class BadgeCog(NatsuminCog):
 
 	@badge_textgroup.command("leaderboard", aliases=["lb"], help="Leaderboard of badge/user badge counts")
 	@whitelist_channel_only()
-	async def text_leaderboard(self, ctx: commands.Context, leaderboard_type: Literal["badges", "users"] = "badges"):
+	async def text_leaderboard(self, ctx: NatsuContext, leaderboard_type: Literal["badges", "users"] = "badges"):
 		paginator, _ = await self.badge_leaderboard_handler(ctx.author, leaderboard_type, None, False)
 		await paginator.send(ctx, reference=ctx.message)
 
@@ -568,7 +564,7 @@ class BadgeCog(NatsuminCog):
 	@can_modify_database()
 	async def add(
 		self,
-		ctx: discord.ApplicationContext,
+		ctx: NatsuAppContext,
 		name: str,
 		description: str | None = None,
 		artist: str | None = None,
@@ -610,7 +606,7 @@ class BadgeCog(NatsuminCog):
 	@can_modify_database()
 	async def edit(
 		self,
-		ctx: discord.ApplicationContext,
+		ctx: NatsuAppContext,
 		id: str,
 		name: str | None = None,
 		description: str | None = None,
@@ -672,7 +668,7 @@ class BadgeCog(NatsuminCog):
 	@badge_group.command(description="Delete a existing badge")
 	@discord.option("id", str, autocomplete=badge_autocomplete)
 	@can_modify_database()
-	async def delete(self, ctx: discord.ApplicationContext, id: str):
+	async def delete(self, ctx: NatsuAppContext, id: str):
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT 1 FROM badge WHERE id = ?", (id,)) as cursor:
 				badge_exists = (await cursor.fetchone()) is not None
@@ -695,12 +691,7 @@ class BadgeCog(NatsuminCog):
 	)
 	@can_modify_database()
 	async def give(
-		self,
-		ctx: discord.ApplicationContext,
-		id: str,
-		user: str | None = None,
-		multiple_users: str | None = None,
-		users_file: discord.Attachment | None = None,
+		self, ctx: NatsuAppContext, id: str, user: str | None = None, multiple_users: str | None = None, users_file: discord.Attachment | None = None
 	):
 		list_of_users: list[str] = []
 		if user is not None and user.strip():
@@ -762,7 +753,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("id", str, autocomplete=badge_autocomplete)
 	@discord.option("role", discord.Role)
 	@can_modify_database()
-	async def giverole(self, ctx: discord.ApplicationContext, id: str, role: discord.Role):
+	async def giverole(self, ctx: NatsuAppContext, id: str, role: discord.Role):
 		if not role.members:
 			return await ctx.respond("Could not find any users with this role!", ephemeral=True)
 
@@ -810,7 +801,7 @@ class BadgeCog(NatsuminCog):
 	@discord.option("id", str, autocomplete=badge_autocomplete)
 	@discord.option("user", str, autocomplete=usernames_autocomplete(False))
 	@can_modify_database()
-	async def remove(self, ctx: discord.ApplicationContext, id: str, user: str):
+	async def remove(self, ctx: NatsuAppContext, id: str, user: str):
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT * FROM badge WHERE id = ?", (id,)) as cursor:
 				badge_row = await cursor.fetchone()

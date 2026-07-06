@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from internal.base.context import NatsuAppContext, NatsuContext
 from discord.ext import commands, pages as extpages
 from typing import Literal
 from discord import ui
@@ -300,9 +301,9 @@ class V2Paginator:
 
 		return self.message
 
-	async def send(self, ctx: commands.Context) -> discord.Message:
-		if not isinstance(ctx, commands.Context):
-			raise TypeError(f"expected Context not {ctx.__class__!r}")
+	async def send(self, ctx: NatsuContext) -> discord.Message:
+		if not isinstance(ctx, NatsuContext):
+			raise TypeError(f"expected NatsuContext not {ctx.__class__!r}")
 
 		self._update_content()
 
@@ -311,9 +312,9 @@ class V2Paginator:
 
 		return self.message
 
-	async def reply(self, ctx: commands.Context) -> discord.Message:
-		if not isinstance(ctx, commands.Context):
-			raise TypeError(f"expected Context not {ctx.__class__!r}")
+	async def reply(self, ctx: NatsuContext) -> discord.Message:
+		if not isinstance(ctx, NatsuContext):
+			raise TypeError(f"expected NatsuContext not {ctx.__class__!r}")
 
 		self._update_content()
 

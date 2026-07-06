@@ -13,7 +13,7 @@ import aiohttp
 import re
 
 if TYPE_CHECKING:
-	from internal.database import NatsuminDatabase
+	from internal.database import NatsuDatabase
 
 SEASON_SPREADSHEET_ID = "1AJLtpQ0KcFo7hecX2GSpv_aXGL1zKu5LbScGxxVpVGU"
 FANTASY_SPREADSHEET_ID = "1LaaERlU7vlDdpdu-1XvIU1Hn0jvvmeU-hqHObbE4wHA"
@@ -442,7 +442,7 @@ async def _sync_fantasy_sheet(fantasy_sheet: SheetBlock, conn: aiosqlite.Connect
 	await conn.commit()
 
 
-async def sync_season(database: NatsuminDatabase):
+async def sync_season(database: NatsuDatabase):
 	spreadsheet = await fetch_sheets(SEASON_SPREADSHEET_ID, ["Dashboard!A2:AA330", "Base!A2:J2857", "Extreme Special!A2:G84", "Buddying!A2:P329"])
 
 	async with database.connect() as conn:

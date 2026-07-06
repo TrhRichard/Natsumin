@@ -2,20 +2,19 @@ from __future__ import annotations
 
 from internal.contracts.rep import get_rep, RepName
 from internal.enums import UserStatus, UserKind
-from internal.database import NatsuminDatabase
+from internal.database import NatsuDatabase
 from internal.functions import get_user_id
 from uuid import uuid4
 
 import aiofiles
-import argparse
 import asyncio
 
 
 SEASON_ID = "season_xi"
 
 
-async def main(*, production: bool):
-	database = NatsuminDatabase(production)
+async def main():
+	database = NatsuDatabase()
 	await database.setup()
 
 	async with aiofiles.open("scripts/preseason_list.txt") as f:
@@ -55,8 +54,4 @@ async def main(*, production: bool):
 
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser()
-	parser.add_argument("--production", action="store_true")
-	args = parser.parse_args()
-
-	asyncio.run(main(production=args.production))
+	asyncio.run(main())

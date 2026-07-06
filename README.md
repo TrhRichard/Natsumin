@@ -8,6 +8,9 @@ Before being able to run the bot or any of the scripts you will need to create a
 
 ```toml
 DISCORD_TOKEN = "DISCORD-TOKEN-HERE"
+DISCORD_PREFIX = "%"
+PRODUCTION = true # or false
+
 GOOGLE_API_KEY = "GOOGLE-API-KEY-HERE" # Required for Google Sheets API
 ```
 

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from internal.exceptions import NotWhitelistedChannel, BlacklistedUser, UnauthorizedUser
-from internal.base.cog import NatsuminCog
+from internal.base.context import NatsuAppContext, NatsuContext
 from internal.functions import frmt_iter
+from internal.base.cog import NatsuCog
 from internal.constants import COLORS
 from discord.ext import commands
 
@@ -11,7 +12,7 @@ import sqlite3
 import discord
 
 
-class Errors(NatsuminCog):
+class Errors(NatsuCog):
 	def get_error_info(self, error: Exception) -> tuple[str, str, bool]:
 		err_type, err_details, should_log = "", "", False
 		if isinstance(error, commands.NotOwner):
@@ -62,7 +63,7 @@ class Errors(NatsuminCog):
 		return err_type, err_details, should_log
 
 	@commands.Cog.listener()
-	async def on_command_error(self, ctx: commands.Context, error: Exception):
+	async def on_command_error(self, ctx: NatsuContext, error: Exception):
 		error = getattr(error, "original", error)
 
 		if isinstance(error, commands.CommandNotFound):
@@ -111,7 +112,7 @@ class Errors(NatsuminCog):
 			pass
 
 	@commands.Cog.listener()
-	async def on_application_command_error(self, ctx: discord.ApplicationContext, error: Exception):
+	async def on_application_command_error(self, ctx: NatsuAppContext, error: Exception):
 		error = getattr(error, "original", error)
 		err_type, err_details, should_log = self.get_error_info(error)
 		if err_type is None and err_details is None:

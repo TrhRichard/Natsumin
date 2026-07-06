@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from config import OWNER_IDS, CONTRIBUTOR_IDS, BOT_PREFIX, DEV_BOT_PREFIX, REPOSITORY_URL
+from config import OWNER_IDS, CONTRIBUTOR_IDS, BOT_PREFIX, REPOSITORY_URL
+from internal.base.context import NatsuAppContext, NatsuContext
 from internal.constants import FILE_LOGGING_FORMATTER, COLORS
-from internal.base.cog import NatsuminCog
+from internal.base.cog import NatsuCog
 from discord.ext import commands
 from typing import TYPE_CHECKING
 
@@ -10,13 +11,13 @@ import discord
 import logging
 
 if TYPE_CHECKING:
-	from internal.base.bot import NatsuminBot
+	from internal.base.bot import NatsuBot
 
 
-class OtherExt(NatsuminCog, name="Other"):
+class OtherExt(NatsuCog, name="Other"):
 	"""Other commands that don't fit in a category"""
 
-	def __init__(self, bot: NatsuminBot):
+	def __init__(self, bot: NatsuBot):
 		super().__init__(bot)
 		self.logger = logging.getLogger("bot.other")
 		if not self.logger.handlers:
@@ -49,37 +50,37 @@ class OtherExt(NatsuminCog, name="Other"):
 			(f"**Maintainers**: {','.join(owner_names)}\n" if owner_names else "")
 			+ (f"**Contributors**: {','.join(contributor_names)}\n" if contributor_names else "")
 			+ f"**Ping**: {ping_ms}ms\n"
-			+ f"**Prefix**: `{BOT_PREFIX if self.bot.is_production else DEV_BOT_PREFIX}`\n"
+			+ f"**Prefix**: `{BOT_PREFIX}`\n"
 		)
 		container.add_item(discord.ui.ActionRow(discord.ui.Button(label="Repository", url=REPOSITORY_URL)))
 		return container
 
 	@commands.command(help="Get information on the bot")
-	async def botinfo(self, ctx: commands.Context):
+	async def botinfo(self, ctx: NatsuContext):
 		await ctx.reply(view=discord.ui.DesignerView(self.get_bot_info_container(), store=False))
 
 	@commands.slash_command(name="botinfo", description="Get information on the bot")
-	async def slash_botinfo(self, ctx: discord.ApplicationContext):
+	async def slash_botinfo(self, ctx: NatsuAppContext):
 		await ctx.respond(view=discord.ui.DesignerView(self.get_bot_info_container(), store=False))
 
 	@commands.command(help="Check the bot's latency", aliases=["latency"])
-	async def ping(self, ctx: commands.Context):
+	async def ping(self, ctx: NatsuContext):
 		embed = discord.Embed(color=COLORS.DEFAULT)
 		embed.description = f":ping_pong: Pong! ({round(self.bot.latency * 1000)}ms)"
 		await ctx.reply(embed=embed)
 
 	@commands.slash_command(name="ping", description="Check the bot's latency")
-	async def slash_ping(self, ctx: discord.ApplicationContext):
+	async def slash_ping(self, ctx: NatsuAppContext):
 		embed = discord.Embed(color=COLORS.DEFAULT)
 		embed.description = f":ping_pong: Pong! ({round(self.bot.latency * 1000)}ms)"
 		await ctx.respond(embed=embed)
 
 	@commands.command(help="Get the time when the bot started")
-	async def uptime(self, ctx: commands.Context):
+	async def uptime(self, ctx: NatsuContext):
 		await ctx.reply(f"Bot started at {discord.utils.format_dt(self.bot.started_at)}!")
 
 	@commands.command(hidden=True, help="why", aliases=["richardpog"])
-	async def richardpoggers(self, ctx: commands.Context):
+	async def richardpoggers(self, ctx: NatsuContext):
 		try:
 			sticker = self.bot.get_sticker(1336790955281485845) or await self.bot.fetch_sticker(1336790955281485845)
 			await ctx.reply(None, stickers=[sticker])
@@ -87,5 +88,5 @@ class OtherExt(NatsuminCog, name="Other"):
 			await ctx.reply("poggers")
 
 
-def setup(bot: NatsuminBot):
+def setup(bot: NatsuBot):
 	bot.add_cog(OtherExt(bot))

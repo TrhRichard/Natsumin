@@ -3,17 +3,18 @@ from __future__ import annotations
 from internal.constants import FILE_LOGGING_FORMATTER
 from internal.checks import whitelist_channel_only
 from internal.enums import UserStatus, UserKind
-from config import BOT_PREFIX, DEV_BOT_PREFIX
+from internal.base.context import NatsuContext
 from internal.contracts import sync_season
 from discord.ext import commands, tasks
 from typing import TYPE_CHECKING
+from config import BOT_PREFIX
 
 import datetime
 import discord
 import logging
 
 if TYPE_CHECKING:
-	from internal.base.bot import NatsuminBot
+	from internal.base.bot import NatsuBot
 
 from .User import UserCog
 from .Contracts import ContractsCog
@@ -23,7 +24,7 @@ from .Badge import BadgeCog
 class ContractsExt(UserCog, BadgeCog, ContractsCog, name="Contracts"):
 	"""Contracts related commands"""
 
-	def __init__(self, bot: NatsuminBot):
+	def __init__(self, bot: NatsuBot):
 		super().__init__(bot)
 		self.logger = logging.getLogger("bot.contracts")
 		self.is_syncing_enabled = True
@@ -39,7 +40,7 @@ class ContractsExt(UserCog, BadgeCog, ContractsCog, name="Contracts"):
 
 	@commands.command(name="deadline", help="Get the current deadline in ur local time")
 	@whitelist_channel_only()
-	async def deadline(self, ctx: commands.Context):
+	async def deadline(self, ctx: NatsuContext):
 		deadline_datetime = await self.bot.database.get_config("contracts.deadline_datetime")
 		deadline_datetime = datetime.datetime.fromisoformat(deadline_datetime) if deadline_datetime else None
 		if deadline_datetime:
@@ -79,10 +80,7 @@ class ContractsExt(UserCog, BadgeCog, ContractsCog, name="Contracts"):
 				users_passed = row["passed"]
 				users_total = row["total"]
 		await self.bot.change_presence(
-			status=discord.Status.online,
-			activity=discord.CustomActivity(
-				name=f"{users_passed}/{users_total} users passed | {BOT_PREFIX if self.bot.is_production else DEV_BOT_PREFIX}help"
-			),
+			status=discord.Status.online, activity=discord.CustomActivity(name=f"{users_passed}/{users_total} users passed | {BOT_PREFIX}help")
 		)
 
 	@sync_database.before_loop
@@ -100,5 +98,5 @@ class ContractsExt(UserCog, BadgeCog, ContractsCog, name="Contracts"):
 		self.sync_database.cancel()
 
 
-def setup(bot: NatsuminBot):
+def setup(bot: NatsuBot):
 	bot.add_cog(ContractsExt(bot))

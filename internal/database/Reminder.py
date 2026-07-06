@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from config import IS_PRODUCTION
+from pathlib import Path
 
 import aiosqlite
 import aiofiles
@@ -39,14 +41,15 @@ class Reminder:
 
 
 class ReminderDatabase:
-	def __init__(self, production: bool = False):
+	def __init__(self):
 		self.logger = logging.getLogger("bot")
-		self.production = production
 
+		self._db_path = Path("data", f"reminders-{'prod' if IS_PRODUCTION else 'dev'}.sqlite")
+		self._schema_path = Path("assets", "schemas", "Reminder.sql")
 		self._setup_complete = asyncio.Event()
 
 	async def open(self) -> aiosqlite.Connection:
-		conn = await aiosqlite.connect("data/reminders-prod.sqlite" if self.production else "data/reminders-dev.sqlite")
+		conn = await aiosqlite.connect(self._db_path)
 		conn.row_factory = aiosqlite.Row
 		return conn
 
@@ -68,7 +71,7 @@ class ReminderDatabase:
 				await conn.close()
 
 	async def setup(self):
-		async with aiofiles.open("assets/schemas/Reminder.sql") as f:
+		async with aiofiles.open(self._schema_path) as f:
 			schema = await f.read()
 
 		async with self.connect() as conn:

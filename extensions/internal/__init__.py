@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import logging
 
 if TYPE_CHECKING:
-	from internal.base.bot import NatsuminBot
+	from internal.base.bot import NatsuBot
 
 from .Errors import Errors
 
@@ -14,7 +14,7 @@ from .Errors import Errors
 class InternalExt(Errors, name="Internal", command_attrs=dict(hidden=True)):
 	"""Internal related commands and listeners"""
 
-	def __init__(self, bot: NatsuminBot):
+	def __init__(self, bot: NatsuBot):
 		super().__init__(bot)
 		self.logger = logging.getLogger("bot.internal")
 		if not self.logger.handlers:
@@ -25,5 +25,5 @@ class InternalExt(Errors, name="Internal", command_attrs=dict(hidden=True)):
 			self.logger.setLevel(logging.INFO)
 
 
-def setup(bot: NatsuminBot):
+def setup(bot: NatsuBot):
 	bot.add_cog(InternalExt(bot))

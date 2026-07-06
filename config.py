@@ -1,15 +1,12 @@
-from __future__ import annotations
-
 from dotenv import load_dotenv
 
 import os
 
-load_dotenv()
+load_dotenv(".env")
 
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-DEV_DISCORD_TOKEN = os.getenv("DEV_DISCORD_TOKEN")
-BOT_PREFIX = "%"
-DEV_BOT_PREFIX = ";"
+DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
+BOT_PREFIX = os.getenv("DISCORD_PREFIX", "%")
+IS_PRODUCTION = os.getenv("PRODUCTION", "false").lower() == "true"
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
