@@ -16,12 +16,11 @@ import logging
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuBot
 
-from .User import UserCog
-from .Contracts import ContractsCog
-from .Badge import BadgeCog
+from .user import UserCog
+from .contracts import ContractsCog
 
 
-class ContractsExt(UserCog, BadgeCog, ContractsCog, name="Contracts"):
+class ContractsExt(UserCog, ContractsCog, name="Contracts"):
 	"""Contracts related commands"""
 
 	def __init__(self, bot: NatsuBot):

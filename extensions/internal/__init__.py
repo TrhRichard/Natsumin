@@ -8,7 +8,7 @@ import logging
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuBot
 
-from .Errors import Errors
+from .errors import Errors
 
 
 class InternalExt(Errors, name="Internal", command_attrs=dict(hidden=True)):

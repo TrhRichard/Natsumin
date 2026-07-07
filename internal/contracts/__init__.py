@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from internal.contracts.seasons import SeasonX, SeasonXI
 from internal.base.context import NatsuAutoContext
-from internal.contracts.rep import search_reps
 from internal.functions import diff_to_str
 from typing import TYPE_CHECKING
 
@@ -111,9 +110,3 @@ def usernames_autocomplete(seasonal: bool = True):
 		return username_list
 
 	return callback
-
-
-async def rep_autocomplete(ctx: NatsuAutoContext) -> list[discord.OptionChoice]:
-	reps_found = search_reps(ctx.value.strip())
-
-	return [rep.value for rep, _ in reps_found]

@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 	from internal.base.bot import NatsuBot
 
 
-async def reps_autocomplete(ctx: NatsuAutoContext) -> list[discord.OptionChoice | str]:
+async def season_reps_autocomplete(ctx: NatsuAutoContext) -> list[discord.OptionChoice | str]:
 	bot: NatsuBot = ctx.bot
 	async with bot.database.connect() as conn:
 		active_season = await bot.get_config("contracts.active_season", db_conn=conn)
@@ -209,7 +209,7 @@ class ContractsCog(NatsuCog):
 
 	@contracts_group.command(name="stats", description="Fetch the stats of a season, optionally of a rep in that season")
 	@discord.option(
-		"rep", str, description="The rep to get stats of, only autocompletes from active season", default=None, autocomplete=reps_autocomplete
+		"rep", str, description="The rep to get stats of, only autocompletes from active season", default=None, autocomplete=season_reps_autocomplete
 	)
 	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, autocomplete=season_autocomplete)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)

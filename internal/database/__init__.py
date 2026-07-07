@@ -1,17 +1,46 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, date
 from config import IS_PRODUCTION
 from pathlib import Path
+from uuid import UUID
 
 import aiosqlite
 import aiofiles
 import asyncio
 import logging
 import sqlite3
+import json
+
+sqlite3.register_adapter(datetime, lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z")
+sqlite3.register_adapter(date, lambda d: d.isoformat())
+sqlite3.register_adapter(bool, int)
+sqlite3.register_adapter(UUID, lambda u: str(u))
+
+# converters currently unused due to strict mode for the database
+sqlite3.register_converter("DATETIME", lambda b: datetime.fromisoformat(b.decode("utf-8")))
+sqlite3.register_converter("DATE", lambda b: date.fromisoformat(b.decode("utf-8")))
+sqlite3.register_converter("BOOLEAN", lambda b: b == b"1")
+sqlite3.register_converter("UUID", lambda b: UUID(b.decode("utf-8")))
+
+
+# not exactly database related however it causes issues with json encoding
+class NatsuJSONEncoder(json.JSONEncoder):
+	def default(self, obj):
+		if isinstance(obj, datetime):
+			return obj.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+		if isinstance(obj, date):
+			return obj.isoformat()
+		if isinstance(obj, UUID):
+			return str(obj)
+		return super().default(obj)
+
+
+json.JSONEncoder = NatsuJSONEncoder
 
 
 class NatsuDatabase:
 	def __init__(self):
-		self.logger = logging.getLogger("bot")
+		self.logger = logging.getLogger("bot.database")
 
 		self.available_seasons: tuple[str, ...] = tuple()
 

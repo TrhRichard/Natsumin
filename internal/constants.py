@@ -7,6 +7,9 @@ FILE_LOGGING_FORMATTER.converter = time.gmtime
 CONSOLE_LOGGING_FORMATTER = logging.Formatter("[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s", "%H:%M:%S")
 CONSOLE_LOGGING_FORMATTER.converter = time.gmtime
 
+BADGE_TYPES = ["contracts", "aria", "blitz", "event", "misc"]
+BADGE_RARITIES = ["common", "uncommon", "rare", "epic", "legendary", "limited"]
+
 
 class COLORS:
 	DEFAULT = discord.Colour(0x434F5D)

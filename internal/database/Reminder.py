@@ -42,7 +42,7 @@ class Reminder:
 
 class ReminderDatabase:
 	def __init__(self):
-		self.logger = logging.getLogger("bot")
+		self.logger = logging.getLogger("bot.reminder")
 
 		self._db_path = Path("data", f"reminders-{'prod' if IS_PRODUCTION else 'dev'}.sqlite")
 		self._schema_path = Path("assets", "schemas", "Reminder.sql")

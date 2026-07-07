@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from config import BOT_PREFIX, EDITOR_IDS, OWNER_IDS, IS_PRODUCTION, DISABLED_EXTENSIONS
 from internal.constants import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER, COLORS
 from internal.base.context import NatsuAutoContext, NatsuAppContext, NatsuContext
-from config import BOT_PREFIX, OWNER_IDS, IS_PRODUCTION, DISABLED_EXTENSIONS
 from internal.exceptions import BlacklistedUser, NotWhitelistedChannel
 from internal.contracts.rep import get_rep_from_member, RepName
 from internal.functions import get_user_id, get_user_config
@@ -114,6 +114,12 @@ class NatsuBot(commands.Bot):
 
 		return await super().is_owner(user)
 
+	async def is_editor(self, user: discord.abc.User) -> bool:
+		if user.id in EDITOR_IDS or user.id in OWNER_IDS:
+			return True
+
+		return False
+
 	async def get_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> str | None:  # Shortcut
 		return await self.database.get_config(key, db_conn=db_conn)
 
@@ -145,9 +151,7 @@ class NatsuBot(commands.Bot):
 			if isinstance(user, discord.Member):
 				user_rep = get_rep_from_member(user)
 
-			await conn.execute(
-				"INSERT INTO user (id, discord_id, username, rep) VALUES (?, ?, ?, ?)", (str(uuid4()), user.id, user.name, user_rep.value)
-			)
+			await conn.execute("INSERT INTO user (id, discord_id, username, rep) VALUES (?, ?, ?, ?)", (uuid4(), user.id, user.name, user_rep.value))
 			await conn.commit()
 			return True
 

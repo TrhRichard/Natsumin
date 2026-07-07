@@ -18,6 +18,14 @@ class Errors(NatsuCog):
 		if isinstance(error, commands.NotOwner):
 			err_type = "Owner-only command"
 			err_details = f"This command is restricted to {self.bot.user.name}'s owner."
+		elif isinstance(error, UnauthorizedUser):
+			err_details = "You are unauthorized to use this command."
+			if error.message:
+				err_details += f"\n\n{error.message}"
+		elif isinstance(error, BlacklistedUser):
+			err_details = "You have been blacklisted from using the bot."
+			if error.reason:
+				err_details += f"\n\nReason: {error.reason}"
 		elif isinstance(error, commands.MissingPermissions):
 			err_type = "Missing Permissions"
 			err_details = f"You do not have enough permissions to use this command.\nMissing permissions: {frmt_iter(error.missing_permissions)}"
@@ -29,10 +37,6 @@ class Errors(NatsuCog):
 		elif isinstance(error, commands.MissingRequiredArgument):
 			err_type = "Missing Required Argument"
 			err_details = f"You are missing required argument ``{error.param.name}``."
-		elif isinstance(error, discord.HTTPException):
-			err_type = "HTTP Exception"
-			err_details = f'An HTTP error occured: "{error.text}" ({error.status})'
-			should_log = True
 		elif isinstance(error, commands.CommandOnCooldown):
 			err_type = "Cooldown"
 			err_details = f"You may retry again in **{error.retry_after:.2f}** seconds."
@@ -41,16 +45,10 @@ class Errors(NatsuCog):
 			err_details = str(error)
 		elif isinstance(error, NotWhitelistedChannel):
 			err_details = f"This command can only be used in {frmt_iter(f'<#{channel_id}>' for channel_id in error.valid_channel_ids)}"
-		elif isinstance(error, BlacklistedUser):
-			err_details = "You have been blacklisted from using the bot."
-			if error.reason:
-				err_details += f"\n\nReason: {error.reason}"
-
-			should_log = False
-		elif isinstance(error, UnauthorizedUser):
-			err_type = "Unauthorized!"
-			err_details = "You are unauthorized to use this command."
-			should_log = False
+		elif isinstance(error, discord.HTTPException):
+			err_type = "HTTP Exception"
+			err_details = f'An HTTP error occured: "{error.text}" ({error.status})'
+			should_log = True
 		elif isinstance(error, (aiosqlite.Error, sqlite3.Error)):
 			err_type = "SQLite Exception"
 			err_details = "Encountered a SQLite error."

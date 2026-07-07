@@ -1,21 +1,18 @@
 from __future__ import annotations
 
-from internal.contracts import get_deadline_footer, season_autocomplete, usernames_autocomplete, get_season_spreadsheet_ids, rep_autocomplete
 from internal.functions import get_legacy_rank, get_rank_emoteid, get_status_emote, get_status_name, frmt_iter, get_percentage_formatted
+from internal.contracts import get_deadline_footer, season_autocomplete, usernames_autocomplete, get_season_spreadsheet_ids
 from internal.base.context import NatsuAutoContext, NatsuContext, NatsuAppContext
 from internal.contracts.order import OrderContractData, sort_contract_types
-from internal.checks import whitelist_channel_only, can_modify_database
-from internal.contracts.rep import get_rep, get_rep_from_member
 from internal.enums import UserKind, UserStatus, ContractStatus
+from internal.checks import whitelist_channel_only
 from internal.base.view import BadgeDisplay
 from typing import TYPE_CHECKING, Literal
 from internal.base.cog import NatsuCog
 from internal.schemas import BadgeData
 from internal.constants import COLORS
 from discord.ext import commands
-from config import GUILD_IDS
 from discord import ui
-from uuid import uuid4
 
 import discord
 
@@ -1185,32 +1182,3 @@ class UserCog(NatsuCog):
 				return await ctx.reply(f"{username} doesn't have a fantasy team for {season_name}!")
 
 		await ctx.reply(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, user_id, is_user_in_season))
-
-	@commands.slash_command(name="create-user", description="Create a new user", guild_ids=GUILD_IDS)
-	@discord.option("user", discord.Member)
-	@discord.option("rep", str, default=None, autocomplete=rep_autocomplete)
-	@can_modify_database()
-	async def create_user(self, ctx: NatsuAppContext, user: discord.Member, rep: str | None = None, gen: int | None = None):
-		async with self.bot.database.connect() as conn:
-			async with conn.execute("SELECT id FROM user WHERE username = ? or discord_id = ?", (user.name, user.id)) as cursor:
-				row = await cursor.fetchone()
-				if row:
-					return await ctx.respond("User already exists!", ephemeral=True)
-
-			if rep is None:
-				user_rep = get_rep_from_member(user)
-				if user_rep == "UNKNOWN":
-					return await ctx.respond("Could not identify a rep from the user's roles, please specify a rep manually.", ephemeral=True)
-			else:
-				user_rep = get_rep(rep, 90)
-				if not user_rep:
-					return await ctx.respond(f"Could not identify a proper rep for {rep}", ephemeral=True)
-
-			user_id = str(uuid4())
-
-			await conn.execute(
-				"INSERT INTO user (id, username, discord_id, rep, gen) VALUES (?, ?, ?, ?, ?)", (user_id, user.name, user.id, user_rep.value, gen)
-			)
-			await conn.commit()
-
-			await ctx.respond(f"Added {user.name} to the database ({user_id})", ephemeral=True)
