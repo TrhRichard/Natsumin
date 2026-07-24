@@ -175,7 +175,7 @@ class BadgeCog(NatsuCog):
 			valid_users: list[str] = []
 			already_has_users: list[str] = []
 			invalid_users: list[str] = []
-			for user in list_of_users:
+			for user in list_of_users:  # noqa: PLR1704
 				user_id, _ = await self.bot.fetch_user_from_database(user, db_conn=conn)
 
 				if (user_id in valid_users) or (user_id in invalid_users) or (user_id in already_has_users):

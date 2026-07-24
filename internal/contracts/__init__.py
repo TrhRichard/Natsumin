@@ -86,7 +86,7 @@ async def get_deadline_footer(database: NatsuDatabase, season_id: str, *, db_con
 
 
 async def season_autocomplete(ctx: NatsuAutoContext) -> list[discord.OptionChoice]:
-	async with ctx.database.connect() as conn:
+	async with ctx.database.connect() as conn:  # noqa: SIM117
 		async with conn.execute("SELECT id, name FROM season WHERE id LIKE ?1 OR name LIKE ?1", (f"%{ctx.value.strip()}%",)) as cursor:
 			season_list = [discord.OptionChoice(name=row["name"], value=row["id"]) for row in await cursor.fetchall()]
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from internal.base.context import NatsuAppContext, NatsuContext
-from discord.ext import commands, pages as extpages
+from internal.base.context import NatsuContext
+from discord.ext import pages as extpages
 from typing import Literal
 from discord import ui
 
@@ -66,9 +66,8 @@ class CustomPaginator(extpages.Paginator):
 				elif self.current_page >= 0:
 					button["hidden"] = False
 					button["object"].label = button["label"]
-			elif key == "page_indicator":
-				if self.page_count == 0:
-					button["object"].disabled = True
+			elif key == "page_indicator" and self.page_count == 0:
+				button["object"].disabled = True
 		self.clear_items()
 		if self.show_indicator:
 			try:
@@ -103,7 +102,7 @@ class CustomPaginator(extpages.Paginator):
 	async def goto_page(self, page_number=0, *, interaction: discord.Interaction = None):
 		try:
 			await super().goto_page(page_number, interaction=interaction)
-		except discord.DiscordException:
+		except discord.DiscordException:  # noqa: TRY203
 			raise
 		else:
 			if interaction:

@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, date
 from config import IS_PRODUCTION
+from dataclasses import dataclass
 from pathlib import Path
 from uuid import UUID
 
@@ -38,11 +39,17 @@ class NatsuJSONEncoder(json.JSONEncoder):
 json.JSONEncoder = NatsuJSONEncoder
 
 
+@dataclass(slots=True, kw_only=True)
+class SeasonDetails:
+	id: str
+	name: str
+
+
 class NatsuDatabase:
 	def __init__(self):
 		self.logger = logging.getLogger("bot.database")
 
-		self.available_seasons: tuple[str, ...] = tuple()
+		self.available_seasons: dict[str, SeasonDetails] = {}
 
 		self._db_path = Path("data", f"database-{'prod' if IS_PRODUCTION else 'dev'}.sqlite")
 		self._schema_path = Path("assets", "schemas", "Database.sql")
@@ -69,7 +76,7 @@ class NatsuDatabase:
 			yield conn
 		except (aiosqlite.Error, sqlite3.Error) as err:
 			self.logger.error(err, exc_info=err)
-			raise err
+			raise
 		finally:
 			if existing_connection is None:
 				await conn.close()
@@ -82,15 +89,15 @@ class NatsuDatabase:
 			await conn.executescript(schema)
 			await conn.commit()
 
-			async with conn.execute("SELECT DISTINCT(id) FROM season") as cursor:
-				self.available_seasons = tuple(row["id"] for row in await cursor.fetchall())
+			async with conn.execute("SELECT id, name FROM season") as cursor:
+				for row in await cursor.fetchall():
+					self.available_seasons[row["id"]] = SeasonDetails(**row)
 
 		self._setup_complete.set()
 
 	async def get_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> str | None:
-		async with self.connect(db_conn) as conn:
-			async with conn.execute("SELECT value FROM bot_config WHERE key = ?", (key,)) as cursor:
-				row = await cursor.fetchone()
+		async with self.connect(db_conn) as conn, conn.execute("SELECT value FROM bot_config WHERE key = ?", (key,)) as cursor:
+			row = await cursor.fetchone()
 
 		return row["value"] if row is not None else None
 
@@ -100,7 +107,7 @@ class NatsuDatabase:
 				row_count = cursor.rowcount
 			await conn.commit()
 
-		return True if row_count == 1 else False
+		return row_count == 1
 
 	async def remove_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> bool:
 		async with self.connect(db_conn) as conn:
@@ -108,7 +115,7 @@ class NatsuDatabase:
 				row_count = cursor.rowcount
 			await conn.commit()
 
-		return True if row_count == 1 else False
+		return row_count == 1
 
 	async def wait_until_ready(self):
 		await self._setup_complete.wait()

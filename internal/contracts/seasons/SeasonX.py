@@ -865,7 +865,7 @@ async def _sync_fantasy_sheet(fantasy_sheet: SheetBlock, conn: aiosqlite.Connect
 					member_id = await get_user_id(conn, rows[i].get_value(2))
 					if not member_id:
 						print(f"{rows[i].get_value(2)} NO ID")
-						raise
+						raise RuntimeError(f"No ID found for {rows[i].get_value(2)}")
 
 					member_ids.append((member_id, int(rows[i].get_value(4, 0))))
 

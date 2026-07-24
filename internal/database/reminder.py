@@ -13,14 +13,14 @@ import sqlite3
 
 def to_utc_timestamp(dt: datetime.datetime) -> int:
 	if dt.tzinfo is None:
-		dt = dt.replace(tzinfo=datetime.timezone.utc)
+		dt = dt.replace(tzinfo=datetime.UTC)
 	else:
-		dt = dt.astimezone(datetime.timezone.utc)
+		dt = dt.astimezone(datetime.UTC)
 	return int(dt.timestamp())
 
 
 def from_utc_timestamp(ts: int) -> datetime.datetime:
-	return datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc)
+	return datetime.datetime.fromtimestamp(ts, tz=datetime.UTC)
 
 
 @dataclass
@@ -65,7 +65,7 @@ class ReminderDatabase:
 			yield conn
 		except (aiosqlite.Error, sqlite3.Error) as err:
 			self.logger.error(err, exc_info=err)
-			raise err
+			raise
 		finally:
 			if existing_connection is None:
 				await conn.close()
@@ -122,10 +122,9 @@ class ReminderDatabase:
 			await conn.commit()
 
 	async def get_reminder(self, id: int) -> Reminder | None:
-		async with self.connect() as conn:
-			async with await conn.execute("SELECT * FROM reminders WHERE id = ?", (id,)) as cursor:
-				row = await cursor.fetchone()
-				return self._row_to_reminder(row) if row else None
+		async with self.connect() as conn, await conn.execute("SELECT * FROM reminders WHERE id = ?", (id,)) as cursor:
+			row = await cursor.fetchone()
+			return self._row_to_reminder(row) if row else None
 
 	async def get_reminders(self, *, user_id: int | None = None) -> list[Reminder]:
 		async with self.connect() as conn:

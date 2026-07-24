@@ -15,7 +15,7 @@ import logging
 import re
 
 if TYPE_CHECKING:
-	from internal.database.Reminder import ReminderDatabase, Reminder
+	from internal.database.reminder import ReminderDatabase, Reminder
 	from internal.base.bot import NatsuBot
 
 TIMESTAMP_PATTERN = r"<t:(\d+):(\w+)>"
@@ -138,12 +138,12 @@ class ReminderExt(NatsuCog, name="Reminder"):
 				return "Invalid timestamp, it seems that you've attempted to set the reminder to end in the past.", True
 
 		user_reminders = await self.db.get_reminders(user_id=user.id)
-		has_reminder_with_id = any([reminder.id == id for reminder in user_reminders])
+		has_reminder_with_id = any(reminder.id == id for reminder in user_reminders)
 
 		if not has_reminder_with_id:
 			return f"Could not find any reminder with id {id}", True
 
-		found_reminder = [r for r in user_reminders if r.id == id][0]
+		found_reminder = next(r for r in user_reminders if r.id == id)
 		changed_reminder = await self.db.edit_reminder(id, remind_at=remind_at, message=message)
 
 		changed_list = []
@@ -159,12 +159,12 @@ class ReminderExt(NatsuCog, name="Reminder"):
 	async def delete_reminder(self, user: discord.User, id: int, hidden: bool = False) -> tuple[str, bool]:
 		user_reminders = await self.db.get_reminders(user_id=user.id)
 
-		has_reminder_with_id = any([reminder.id == id for reminder in user_reminders])
+		has_reminder_with_id = any(reminder.id == id for reminder in user_reminders)
 
 		if not has_reminder_with_id:
 			return f"Could not find any reminder with id {id}", True
 
-		deleted_reminder = [r for r in user_reminders if r.id == id][0]
+		deleted_reminder = next(r for r in user_reminders if r.id == id)
 		await self.db.delete_reminder(id)
 
 		time_diff_str = diff_to_str(deleted_reminder.remind_at, datetime.datetime.now(datetime.UTC))
@@ -182,9 +182,7 @@ class ReminderExt(NatsuCog, name="Reminder"):
 		channel_reminders = [r for r in user_reminders if not r.hidden]
 		show_hidden = show_hidden if not hidden else hidden
 
-		if show_hidden and (len(channel_reminders) == 0 and len(hidden_reminders) == 0):
-			return "No reminders set!", hidden
-		elif len(channel_reminders) == 0:
+		if show_hidden and (len(channel_reminders) == 0 and len(hidden_reminders) == 0) or len(channel_reminders) == 0:
 			return "No reminders set!", hidden
 
 		return RemindersList(user, user_reminders, show_hidden), hidden

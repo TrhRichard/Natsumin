@@ -519,7 +519,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 		description="If no sub-command is specified then inventory command will run",
 		invoke_without_command=True,
 	)
-	async def badge_textgroup(self, ctx: NatsuContext, user: str | int = None):
+	async def badge_textgroup(self, ctx: NatsuContext, user: str | int | None = None):
 		if await self.text_inventory.can_run(ctx):
 			await self.text_inventory(ctx, user)
 
@@ -534,7 +534,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 
 	@badge_textgroup.command("inventory", aliases=["inv", "i"], help="Get the badges of a user")
 	@whitelist_channel_only()
-	async def text_inventory(self, ctx: NatsuContext, user: str | int = None):
+	async def text_inventory(self, ctx: NatsuContext, user: str | int | None = None):
 		if user is None:
 			user = ctx.author
 

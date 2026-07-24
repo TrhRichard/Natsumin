@@ -5,7 +5,7 @@ from discord.ext import commands
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-	from typing import Callable
+	from collections.abc import Callable
 
 
 def whitelist_channel_only[T]() -> Callable[[T], T]:

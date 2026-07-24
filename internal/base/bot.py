@@ -6,7 +6,7 @@ from internal.base.context import NatsuAutoContext, NatsuAppContext, NatsuContex
 from internal.exceptions import BlacklistedUser, NotWhitelistedChannel
 from internal.contracts.rep import get_rep_from_member, RepName
 from internal.functions import get_user_id, get_user_config
-from internal.database.Reminder import ReminderDatabase
+from internal.database.reminder import ReminderDatabase
 from internal.contracts.order import OrderCategory
 from internal.database import NatsuDatabase
 from typing import TYPE_CHECKING, Literal
@@ -24,7 +24,7 @@ import os
 import re
 
 if TYPE_CHECKING:
-	from typing import Mapping, Optional
+	from collections.abc import Mapping
 
 
 class NatsuBot(commands.Bot):
@@ -69,7 +69,7 @@ class NatsuBot(commands.Bot):
 
 	async def on_ready(self):
 		print("server successfully started")
-		os.system("cls" if os.name == "nt" else "clear")
+		os.system("cls" if os.name == "nt" else "clear")  # noqa: ASYNC221
 		self.logger.info(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 		await self.database.setup()
 		await self.reminders.setup()
@@ -115,10 +115,7 @@ class NatsuBot(commands.Bot):
 		return await super().is_owner(user)
 
 	async def is_editor(self, user: discord.abc.User) -> bool:
-		if user.id in EDITOR_IDS or user.id in OWNER_IDS:
-			return True
-
-		return False
+		return bool(user.id in EDITOR_IDS or user.id in OWNER_IDS)
 
 	async def get_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> str | None:  # Shortcut
 		return await self.database.get_config(key, db_conn=db_conn)
@@ -181,7 +178,7 @@ class NatsuBot(commands.Bot):
 						rows = await cursor.fetchall()
 
 						if rows:
-							valid_channel_ids: list[int] = list(row["channel_id"] for row in rows)
+							valid_channel_ids: list[int] = [row["channel_id"] for row in rows]
 
 							if ctx.channel.id not in valid_channel_ids:
 								if raise_exception:
@@ -414,7 +411,7 @@ class BotHelp(commands.HelpCommand):
 
 		return signature
 
-	async def send_bot_help(self, mapping: Mapping[Optional[commands.Cog], list[commands.Command]]):
+	async def send_bot_help(self, mapping: Mapping[commands.Cog | None, list[commands.Command]]):
 		embed = discord.Embed(
 			color=COLORS.DEFAULT,
 			title=f"{self.context.me.name}'s commands",

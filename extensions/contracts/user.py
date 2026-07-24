@@ -434,13 +434,6 @@ class FantasyUserProfile(ui.DesignerView):
 
 	async def button_callback(self, interaction: discord.Interaction):
 		return await interaction.respond("TODO", ephemeral=True)
-		if interaction.custom_id.startswith("get_member_contracts"):
-			i = int(interaction.custom_id.lstrip("get_member_contracts"))
-			member_id = self.member_ids[i - 1]
-
-			return await interaction.respond(
-				view=await SeasonUserContracts.create(self.bot, interaction.user, self.season_id, member_id), ephemeral=True
-			)
 
 
 class SeasonContractInfo(ui.DesignerView):

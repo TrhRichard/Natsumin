@@ -200,13 +200,15 @@ async def fetch_sheets(spreadsheet_id: str, range: str | list[str]) -> SheetBloc
 	if isinstance(raw_range, str):
 		range = [raw_range]
 
-	async with aiohttp.ClientSession(headers={"Accept-Encoding": "gzip, deflate"}) as session:
-		async with session.get(
+	async with (
+		aiohttp.ClientSession(headers={"Accept-Encoding": "gzip, deflate"}) as session,
+		session.get(
 			f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}",
 			params={"ranges": range, "fields": ",".join(SHEET_DATA_FIELDS), "key": GOOGLE_API_KEY},
-		) as response:
-			response.raise_for_status()
-			spreadsheet_data: dict[str, list[dict[str]]] = await response.json()
+		) as response,
+	):
+		response.raise_for_status()
+		spreadsheet_data: dict[str, list[dict[str]]] = await response.json()
 
 	sheets: dict[str, Sheet] = {}
 
@@ -238,7 +240,7 @@ async def fetch_sheets(spreadsheet_id: str, range: str | list[str]) -> SheetBloc
 		sheets[sheet_name] = Sheet(name=sheet_name, blocks=blocks)
 
 	if isinstance(raw_range, str):
-		sheet: Sheet = tuple(sheets.values())[0]
+		sheet: Sheet = next(iter(sheets.values()))
 		return sheet.blocks[0]
 
 	return Spreadsheet(id=spreadsheet_id, sheets=sheets)

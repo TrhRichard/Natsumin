@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 from .errors import Errors
 
 
-class InternalExt(Errors, name="Internal", command_attrs=dict(hidden=True)):
+class InternalExt(Errors, name="Internal", command_attrs={"hidden": True}):
 	"""Internal related commands and listeners"""
 
 	def __init__(self, bot: NatsuBot):

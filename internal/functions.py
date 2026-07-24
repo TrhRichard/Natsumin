@@ -19,7 +19,7 @@ def get_percentage(num: float, total: float) -> float:
 	return 100 * float(num) / float(total)
 
 
-def get_percentage_formatted(num: int | float, total: int | float) -> str:
+def get_percentage_formatted(num: float, total: float) -> str:
 	return f"{num}/{total} ({get_percentage(num, total):.2f}%)"
 
 
