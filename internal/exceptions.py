@@ -15,4 +15,8 @@ class NotWhitelistedChannel(commands.CommandError):
 		super().__init__(f"Channel not whitelisted, whitelisted channels: {', '.join(str(c) for c in valid_channel_ids)}", *args)
 
 
-class UnauthorizedUser(commands.CommandError): ...
+class UnauthorizedUser(commands.CommandError):
+	def __init__(self, message: str | None = None, *args):
+		self.message = message
+
+		super().__init__(message, *args)

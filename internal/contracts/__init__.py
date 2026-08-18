@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from internal.contracts.seasons import SeasonX, SeasonXI
-from internal.contracts.rep import search_reps
+from internal.base.context import NatsuAutoContext
 from internal.functions import diff_to_str
 from typing import TYPE_CHECKING
 
@@ -11,11 +11,10 @@ import discord
 import time
 
 if TYPE_CHECKING:
-	from internal.database import NatsuminDatabase
-	from internal.base.bot import NatsuminBot
+	from internal.database import NatsuDatabase
 
 
-async def sync_season(database: NatsuminDatabase, season_id: str) -> float:
+async def sync_season(database: NatsuDatabase, season_id: str) -> float:
 	if season_id not in database.available_seasons:
 		raise ValueError(f"Invalid season: {season_id}")
 
@@ -30,7 +29,7 @@ async def sync_season(database: NatsuminDatabase, season_id: str) -> float:
 	return time.perf_counter() - start
 
 
-def get_season_spreadsheet_ids(database: NatsuminDatabase, season_id: str) -> tuple[str, str]:
+def get_season_spreadsheet_ids(database: NatsuDatabase, season_id: str) -> tuple[str, str]:
 	if season_id not in database.available_seasons:
 		raise ValueError(f"Invalid season: {season_id}")
 
@@ -43,7 +42,7 @@ def get_season_spreadsheet_ids(database: NatsuminDatabase, season_id: str) -> tu
 	raise RuntimeError(f"Could not find ids for season {season_id}")
 
 
-async def get_deadline_footer(database: NatsuminDatabase, season_id: str, *, db_conn: aiosqlite.Connection = None) -> str:
+async def get_deadline_footer(database: NatsuDatabase, season_id: str, *, db_conn: aiosqlite.Connection = None) -> str:
 	if season_id not in database.available_seasons:
 		raise ValueError(f"Invalid season: {season_id}")
 
@@ -86,9 +85,8 @@ async def get_deadline_footer(database: NatsuminDatabase, season_id: str, *, db_
 			return archived_season_footer.format(season_name=season_name)
 
 
-async def season_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.OptionChoice]:
-	bot: NatsuminBot = ctx.bot
-	async with bot.database.connect() as conn:
+async def season_autocomplete(ctx: NatsuAutoContext) -> list[discord.OptionChoice]:
+	async with ctx.database.connect() as conn:  # noqa: SIM117
 		async with conn.execute("SELECT id, name FROM season WHERE id LIKE ?1 OR name LIKE ?1", (f"%{ctx.value.strip()}%",)) as cursor:
 			season_list = [discord.OptionChoice(name=row["name"], value=row["id"]) for row in await cursor.fetchall()]
 
@@ -96,14 +94,13 @@ async def season_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.
 
 
 def usernames_autocomplete(seasonal: bool = True):
-	async def callback(ctx: discord.AutocompleteContext) -> list[str]:
-		bot: NatsuminBot = ctx.bot
-		async with bot.database.connect() as conn:
+	async def callback(ctx: NatsuAutoContext) -> list[str]:
+		async with ctx.database.connect() as conn:
 			params = []
 			query = "SELECT username FROM user WHERE username LIKE ?"
 			if seasonal:
 				query = "SELECT u.username FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND u.username LIKE ?"
-				params.append(await bot.get_config("contracts.active_season", db_conn=conn))
+				params.append(await ctx.bot.get_config("contracts.active_season", db_conn=conn))
 			query += " LIMIT 25"
 			params.append(f"%{ctx.value.strip()}%")
 
@@ -113,9 +110,3 @@ def usernames_autocomplete(seasonal: bool = True):
 		return username_list
 
 	return callback
-
-
-async def rep_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.OptionChoice]:
-	reps_found = search_reps(ctx.value.strip())
-
-	return [discord.OptionChoice(rep.value) for rep, _ in reps_found]

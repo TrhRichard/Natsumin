@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+
 from internal.functions import get_percentage_formatted, get_status_emote, frmt_iter
+from internal.base.context import NatsuAutoContext, NatsuContext, NatsuAppContext
 from internal.enums import UserKind, UserStatus, ContractStatus, ContractKind
 from internal.contracts import get_deadline_footer, season_autocomplete
 from internal.contracts.order import sort_contract_types
 from internal.contracts.rep import get_rep, RepName
 from internal.base.paginator import CustomPaginator
 from internal.checks import whitelist_channel_only
-from internal.base.cog import NatsuminCog
+from internal.base.cog import NatsuCog
 from internal.constants import COLORS
 from typing import TYPE_CHECKING
 from discord.ext import commands
@@ -17,11 +19,11 @@ from discord import ui
 import discord
 
 if TYPE_CHECKING:
-	from internal.base.bot import NatsuminBot
+	from internal.base.bot import NatsuBot
 
 
-async def reps_autocomplete(ctx: discord.AutocompleteContext) -> list[discord.OptionChoice | str]:
-	bot: NatsuminBot = ctx.bot
+async def season_reps_autocomplete(ctx: NatsuAutoContext) -> list[discord.OptionChoice | str]:
+	bot: NatsuBot = ctx.bot
 	async with bot.database.connect() as conn:
 		active_season = await bot.get_config("contracts.active_season", db_conn=conn)
 		if active_season is None:
@@ -57,7 +59,7 @@ class UsersFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 
 
 class StatsView(ui.DesignerView):
-	def __init__(self, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, rep: RepName | None = None):
+	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, rep: RepName | None = None):
 		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
@@ -65,7 +67,7 @@ class StatsView(ui.DesignerView):
 		self.rep = rep
 
 	@classmethod
-	async def create(cls, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, rep: RepName | None = None):
+	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, rep: RepName | None = None):
 		self = cls(bot, invoker, season_id, rep)
 
 		async with bot.database.connect() as conn:
@@ -202,16 +204,16 @@ class StatsView(ui.DesignerView):
 			pass
 
 
-class ContractsCog(NatsuminCog):
+class ContractsCog(NatsuCog):
 	contracts_group = discord.commands.SlashCommandGroup("contracts", description="Various contracts related commands", guild_ids=GUILD_IDS)
 
 	@contracts_group.command(name="stats", description="Fetch the stats of a season, optionally of a rep in that season")
 	@discord.option(
-		"rep", str, description="The rep to get stats of, only autocompletes from active season", default=None, autocomplete=reps_autocomplete
+		"rep", str, description="The rep to get stats of, only autocompletes from active season", default=None, autocomplete=season_reps_autocomplete
 	)
 	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, autocomplete=season_autocomplete)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
-	async def stats(self, ctx: discord.ApplicationContext, rep: str | None = None, season: str | None = None, hidden: bool = False):
+	async def stats(self, ctx: NatsuAppContext, rep: str | None = None, season: str | None = None, hidden: bool = False):
 		if (await self.bot.is_blacklisted(ctx))[0]:
 			hidden = True
 
@@ -250,7 +252,7 @@ class ContractsCog(NatsuminCog):
 
 	@commands.command("stats", aliases=["s"], help="Fetch the stats of a season, optionally of a rep in that season")
 	@whitelist_channel_only()
-	async def text_stats(self, ctx: commands.Context, *, flags: StatsFlags):
+	async def text_stats(self, ctx: NatsuContext, *, flags: StatsFlags):
 		rep = flags.rep
 		async with self.bot.database.connect() as conn:
 			if flags.season is None:
@@ -286,7 +288,7 @@ class ContractsCog(NatsuminCog):
 
 	@commands.command("users", aliases=["u"], help="Fetch users from a season")
 	@whitelist_channel_only()
-	async def text_users(self, ctx: commands.Context, *, flags: UsersFlags):
+	async def text_users(self, ctx: NatsuContext, *, flags: UsersFlags):
 		user_statuses: list[UserStatus] = []
 
 		if flags.status.lower() not in VALID_ALL_STATUS:

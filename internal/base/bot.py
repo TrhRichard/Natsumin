@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+from config import BOT_PREFIX, EDITOR_IDS, OWNER_IDS, IS_PRODUCTION, DISABLED_EXTENSIONS
 from internal.constants import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER, COLORS
-from config import BOT_PREFIX, DEV_BOT_PREFIX, OWNER_IDS, DISABLED_EXTENSIONS
+from internal.base.context import NatsuAutoContext, NatsuAppContext, NatsuContext
 from internal.exceptions import BlacklistedUser, NotWhitelistedChannel
+from internal.contracts.rep import get_rep_from_member, RepName
 from internal.functions import get_user_id, get_user_config
-from internal.database.Reminder import ReminderDatabase
+from internal.database.reminder import ReminderDatabase
 from internal.contracts.order import OrderCategory
-from internal.database import NatsuminDatabase
+from internal.database import NatsuDatabase
 from typing import TYPE_CHECKING, Literal
 from discord.ext import commands
 from pathlib import Path
+from uuid import uuid4
 
 import aiosqlite
 import aiofiles
@@ -21,13 +24,13 @@ import os
 import re
 
 if TYPE_CHECKING:
-	from typing import Mapping, Optional
+	from collections.abc import Mapping
 
 
-class NatsuminBot(commands.Bot):
+class NatsuBot(commands.Bot):
 	def __init__(self, production: bool = False):
 		super().__init__(
-			command_prefix=BOT_PREFIX if production else DEV_BOT_PREFIX,
+			command_prefix=BOT_PREFIX,
 			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
 			status=discord.Status.online,
 			intents=discord.Intents.all(),
@@ -35,11 +38,11 @@ class NatsuminBot(commands.Bot):
 			help_command=BotHelp(),
 		)
 
-		self.is_production = production
+		self.is_production = IS_PRODUCTION
 		self.started_at = datetime.datetime.now(datetime.UTC)
 		self.color = COLORS.DEFAULT
-		self.database = NatsuminDatabase(production)
-		self.reminders = ReminderDatabase(production)
+		self.database = NatsuDatabase()
+		self.reminders = ReminderDatabase()
 		self.anicord: discord.Guild | None = None
 		self.season_orders: dict[str, list[OrderCategory]] = {}
 
@@ -66,7 +69,7 @@ class NatsuminBot(commands.Bot):
 
 	async def on_ready(self):
 		print("server successfully started")
-		os.system("cls" if os.name == "nt" else "clear")
+		os.system("cls" if os.name == "nt" else "clear")  # noqa: ASYNC221
 		self.logger.info(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 		await self.database.setup()
 		await self.reminders.setup()
@@ -83,7 +86,7 @@ class NatsuminBot(commands.Bot):
 
 		self.add_check(self.user_blacklist_check)
 
-	async def user_blacklist_check(self, ctx: commands.Context):
+	async def user_blacklist_check(self, ctx: NatsuContext):
 		is_blacklisted, _ = await self.is_blacklisted(ctx, raise_exception=True, ignore_channel=True)
 		return not is_blacklisted
 
@@ -111,6 +114,9 @@ class NatsuminBot(commands.Bot):
 
 		return await super().is_owner(user)
 
+	async def is_editor(self, user: discord.abc.User) -> bool:
+		return bool(user.id in EDITOR_IDS or user.id in OWNER_IDS)
+
 	async def get_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> str | None:  # Shortcut
 		return await self.database.get_config(key, db_conn=db_conn)
 
@@ -120,10 +126,36 @@ class NatsuminBot(commands.Bot):
 	async def remove_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> bool:  # Shortcut
 		return await self.database.remove_config(key, db_conn=db_conn)
 
+	async def ensure_user(self, user: discord.abc.User | int, *, db_conn: aiosqlite.Connection | None = None) -> bool:
+		"""Ensures that a discord user is in the database, returns `True` if just created"""
+
+		if isinstance(user, int):
+			user_id = user
+			if self.anicord:
+				user: discord.Member | None = await self.anicord.get_or_fetch(discord.Member, user_id)
+				if user is None:
+					user: discord.User = await self.get_or_fetch(discord.User, user_id)
+			else:
+				user: discord.User = await self.get_or_fetch(discord.User, user_id)
+
+		async with self.database.connect(db_conn) as conn:
+			async with conn.execute("SELECT 1 FROM user WHERE discord_id = ? OR username = ?", (user.id, user.name)) as cursor:
+				row = await cursor.fetchone()
+				if row is not None:
+					return False
+
+			user_rep = RepName.UNKNOWN
+			if isinstance(user, discord.Member):
+				user_rep = get_rep_from_member(user)
+
+			await conn.execute("INSERT INTO user (id, discord_id, username, rep) VALUES (?, ?, ?, ?)", (uuid4(), user.id, user.name, user_rep.value))
+			await conn.commit()
+			return True
+
 	async def is_blacklisted(
-		self, ctx: commands.Context | discord.ApplicationContext | discord.abc.User, *, raise_exception: bool = False, ignore_channel: bool = False
+		self, ctx: NatsuContext | NatsuAppContext | discord.abc.User, *, raise_exception: bool = False, ignore_channel: bool = False
 	) -> tuple[bool, str | None]:
-		if isinstance(ctx, (commands.Context, discord.ApplicationContext)):
+		if isinstance(ctx, (NatsuContext, NatsuAppContext)):
 			if await self.is_owner(ctx.author):
 				return False, None
 		else:
@@ -131,7 +163,7 @@ class NatsuminBot(commands.Bot):
 				return False, None
 
 		async with self.database.connect() as conn:
-			if isinstance(ctx, (commands.Context, discord.ApplicationContext)):
+			if isinstance(ctx, (NatsuContext, NatsuAppContext)):
 				discord_id = ctx.author.id
 
 				if ctx.guild is not None and not ignore_channel:
@@ -146,7 +178,7 @@ class NatsuminBot(commands.Bot):
 						rows = await cursor.fetchall()
 
 						if rows:
-							valid_channel_ids: list[int] = list(row["channel_id"] for row in rows)
+							valid_channel_ids: list[int] = [row["channel_id"] for row in rows]
 
 							if ctx.channel.id not in valid_channel_ids:
 								if raise_exception:
@@ -254,6 +286,21 @@ class NatsuminBot(commands.Bot):
 					discord_user = await self.get_or_fetch(discord.User, user_discord_id)
 
 		return user_id, discord_user
+
+	async def get_context(self, message, *, cls=NatsuContext):
+		ctx: NatsuContext = await super().get_context(message, cls=cls)
+		ctx.database = self.database
+		return ctx
+
+	async def get_application_context(self, interaction, cls=NatsuAppContext):
+		ctx: NatsuAppContext = await super().get_application_context(interaction, cls=cls)
+		ctx.database = self.database
+		return ctx
+
+	async def get_autocomplete_context(self, interaction, cls=NatsuAutoContext):
+		ctx: NatsuAutoContext = await super().get_autocomplete_context(interaction, cls=cls)
+		ctx.database = self.database
+		return ctx
 
 
 def get_command_signature(cmd: commands.Command):
@@ -364,7 +411,7 @@ class BotHelp(commands.HelpCommand):
 
 		return signature
 
-	async def send_bot_help(self, mapping: Mapping[Optional[commands.Cog], list[commands.Command]]):
+	async def send_bot_help(self, mapping: Mapping[commands.Cog | None, list[commands.Command]]):
 		embed = discord.Embed(
 			color=COLORS.DEFAULT,
 			title=f"{self.context.me.name}'s commands",

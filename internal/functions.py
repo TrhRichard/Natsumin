@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from internal.enums import UserStatus, ContractStatus, LegacyRank
+from internal.base.context import NatsuAutoContext
+from internal.contracts.rep import search_reps
 from internal.schemas import UserConfig
 from typing import TYPE_CHECKING
 from thefuzz import process
 
 import aiosqlite
 import datetime
+import discord
 
 if TYPE_CHECKING:
 	from collections.abc import Iterable
@@ -16,7 +19,7 @@ def get_percentage(num: float, total: float) -> float:
 	return 100 * float(num) / float(total)
 
 
-def get_percentage_formatted(num: int | float, total: int | float) -> str:
+def get_percentage_formatted(num: float, total: float) -> str:
 	return f"{num}/{total} ({get_percentage(num, total):.2f}%)"
 
 
@@ -233,3 +236,25 @@ def get_legacy_rank(exp: int | None) -> LegacyRank | None:
 		return LegacyRank.CITRINE
 	else:
 		return LegacyRank.QUARTZ
+
+
+async def rep_autocomplete(ctx: NatsuAutoContext) -> list[discord.OptionChoice]:
+	reps_found = search_reps(ctx.value.strip())
+
+	return [rep.value for rep, _ in reps_found]
+
+
+async def badge_autocomplete(ctx: NatsuAutoContext) -> list[discord.OptionChoice]:
+	async with ctx.database.connect() as conn:
+		query = """
+			SELECT
+				id, name, type
+			FROM badge
+			WHERE id = ?1 OR name LIKE ?1
+			ORDER BY type, created_at DESC, name
+			LIMIT 25
+		"""
+		async with conn.execute(query, (f"%{ctx.value.strip()}%",)) as cursor:
+			badge_list = [discord.OptionChoice(name=f"{row['name']} ({row['type']})", value=row["id"]) for row in await cursor.fetchall()]
+
+	return badge_list

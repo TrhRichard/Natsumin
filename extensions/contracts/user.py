@@ -1,31 +1,28 @@
 from __future__ import annotations
 
-from internal.contracts import get_deadline_footer, season_autocomplete, usernames_autocomplete, get_season_spreadsheet_ids, rep_autocomplete
 from internal.functions import get_legacy_rank, get_rank_emoteid, get_status_emote, get_status_name, frmt_iter, get_percentage_formatted
+from internal.contracts import get_deadline_footer, season_autocomplete, usernames_autocomplete, get_season_spreadsheet_ids
+from internal.base.context import NatsuAutoContext, NatsuContext, NatsuAppContext
+from internal.enums import UserKind, UserStatus, ContractStatus, ContractKind
 from internal.contracts.order import OrderContractData, sort_contract_types
-from internal.checks import whitelist_channel_only, can_modify_database
-from internal.contracts.rep import get_rep, get_rep_from_member
-from internal.enums import UserKind, UserStatus, ContractStatus
+from internal.checks import whitelist_channel_only
 from internal.base.view import BadgeDisplay
 from typing import TYPE_CHECKING, Literal
-from internal.base.cog import NatsuminCog
+from internal.base.cog import NatsuCog
 from internal.schemas import BadgeData
 from internal.constants import COLORS
 from discord.ext import commands
-from config import GUILD_IDS
 from discord import ui
-from uuid import uuid4
 
 import discord
 
 if TYPE_CHECKING:
-	from internal.base.bot import NatsuminBot
+	from internal.base.bot import NatsuBot
 
 
-async def fantasy_usernames_autocomplete(ctx: discord.AutocompleteContext) -> list[str]:
-	bot: NatsuminBot = ctx.bot
-	async with bot.database.connect() as conn:
-		season_id = await bot.get_config("contracts.active_season", db_conn=conn)
+async def fantasy_usernames_autocomplete(ctx: NatsuAutoContext) -> list[str]:
+	async with ctx.database.connect() as conn:
+		season_id = await ctx.bot.get_config("contracts.active_season", db_conn=conn)
 
 		query = """
 		SELECT u.username
@@ -43,10 +40,9 @@ async def fantasy_usernames_autocomplete(ctx: discord.AutocompleteContext) -> li
 	return username_list
 
 
-async def contract_type_autocomplete(ctx: discord.AutocompleteContext) -> list[str]:
-	bot: NatsuminBot = ctx.bot
-	async with bot.database.connect() as conn:
-		season_id = await bot.get_config("contracts.active_season", db_conn=conn)
+async def contract_type_autocomplete(ctx: NatsuAutoContext) -> list[str]:
+	async with ctx.database.connect() as conn:
+		season_id = await ctx.bot.get_config("contracts.active_season", db_conn=conn)
 
 		query = """
 		SELECT DISTINCT type
@@ -65,14 +61,14 @@ async def contract_type_autocomplete(ctx: discord.AutocompleteContext) -> list[s
 
 
 class MasterUserProfile(ui.DesignerView):
-	def __init__(self, bot: NatsuminBot, invoker: discord.abc.User, user_id: str):
+	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, user_id: str):
 		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
 		self.user_id = user_id
 
 	@classmethod
-	async def create(cls, bot: NatsuminBot, invoker: discord.abc.User, user_id: str):
+	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, user_id: str):
 		self = cls(bot, invoker, user_id)
 
 		async with bot.database.connect() as conn:
@@ -153,7 +149,7 @@ class MasterUserProfile(ui.DesignerView):
 
 
 class SeasonUserProfile(ui.DesignerView):
-	def __init__(self, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str):
+	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str):
 		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
@@ -161,7 +157,7 @@ class SeasonUserProfile(ui.DesignerView):
 		self.user_id = user_id
 
 	@classmethod
-	async def create(cls, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str):
+	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str):
 		self = cls(bot, invoker, season_id, user_id)
 
 		async with bot.database.connect() as conn:
@@ -325,7 +321,7 @@ class SeasonUserProfile(ui.DesignerView):
 
 
 class FantasyUserProfile(ui.DesignerView):
-	def __init__(self, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str, is_user_in_season: bool):
+	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str, is_user_in_season: bool):
 		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
@@ -335,7 +331,7 @@ class FantasyUserProfile(ui.DesignerView):
 		self.member_ids: list[str] = []
 
 	@classmethod
-	async def create(cls, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str, is_user_in_season: bool):
+	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str, is_user_in_season: bool):
 		self = cls(bot, invoker, season_id, user_id, is_user_in_season)
 
 		async with bot.database.connect() as conn:
@@ -438,17 +434,10 @@ class FantasyUserProfile(ui.DesignerView):
 
 	async def button_callback(self, interaction: discord.Interaction):
 		return await interaction.respond("TODO", ephemeral=True)
-		if interaction.custom_id.startswith("get_member_contracts"):
-			i = int(interaction.custom_id.lstrip("get_member_contracts"))
-			member_id = self.member_ids[i - 1]
-
-			return await interaction.respond(
-				view=await SeasonUserContracts.create(self.bot, interaction.user, self.season_id, member_id), ephemeral=True
-			)
 
 
 class SeasonContractInfo(ui.DesignerView):
-	def __init__(self, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str, contract_type: str):
+	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str, contract_type: str):
 		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
@@ -457,7 +446,7 @@ class SeasonContractInfo(ui.DesignerView):
 		self.contract_type = contract_type
 
 	@classmethod
-	async def create(cls, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str, contract_type: str):
+	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str, contract_type: str):
 		self = cls(bot, invoker, season_id, user_id, contract_type)
 
 		async with bot.database.connect() as conn:
@@ -504,16 +493,17 @@ class SeasonContractInfo(ui.DesignerView):
 			pass
 
 
-def _build_contract(contract: OrderContractData, *, is_unselected: bool = False, include_review_url: bool = True) -> str:
+def _build_contract(contract: OrderContractData, *, include_review_url: bool = True) -> str:
 	contract_name = f"[{contract['name']}]({contract['review_url']})" if (contract["review_url"] and include_review_url) else contract["name"]
 	status_emote: str = ""
+	is_unselected = contract["name"].strip().lower() in CONTRACTS_UNSELECTED_STRINGS
 	if is_unselected:
 		status_emote = "⚠️"
 		contract_name = f"**__{contract_name}__**"
 	else:
 		status_emote = get_status_emote(ContractStatus(contract["status"]), contract["optional"])
 
-	return f"> {status_emote} **{contract['type_label'] or contract['type']}**: {contract_name}"
+	return f"{status_emote} **{contract['type_label'] or contract['type']}**: {contract_name}"
 
 
 # TODO: Instead of compressing everything instead only compress biggest groups till it fits
@@ -582,7 +572,7 @@ def _build_contracts_body(
 					is_unselected = contract["name"].strip().lower() in CONTRACTS_UNSELECTED_STRINGS
 					if is_unselected:
 						unselected_types.append(contract["type"])
-					type_texts.append(_build_contract(contract, is_unselected=is_unselected, include_review_url=include_reviews))
+					type_texts.append("> " + _build_contract(contract, include_review_url=include_reviews))
 				index += 1
 
 		if type_texts:
@@ -595,7 +585,7 @@ def _build_contracts_body(
 
 
 class SeasonUserContracts(ui.DesignerView):
-	def __init__(self, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str):
+	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str):
 		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
@@ -603,7 +593,7 @@ class SeasonUserContracts(ui.DesignerView):
 		self.user_id = user_id
 
 	@classmethod
-	async def create(cls, bot: NatsuminBot, invoker: discord.abc.User, season_id: str, user_id: str):
+	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str):
 		self = cls(bot, invoker, season_id, user_id)
 
 		async with bot.database.connect() as conn:
@@ -673,7 +663,7 @@ class SeasonUserContracts(ui.DesignerView):
 			elif not showing_reviews:
 				footer_messages.append(f"{they} {'have' if is_invoker else 'has'} too many contracts to show review links.")
 			if compressed_contracts:
-				footer_messages.append(f"{their} contracts were compressed to display.")
+				footer_messages.append(f"{their} contracts were compressed in order to display.")
 
 			if unselected_types:
 				footer_messages.append(
@@ -706,23 +696,72 @@ class SeasonUserContracts(ui.DesignerView):
 			pass
 
 
+class SeasonUserRandomContract(ui.DesignerView):
+	@classmethod
+	async def create(
+		cls,
+		bot: NatsuBot,
+		season_id: str,
+		user_id: str,
+		amount: int = 1,
+		status: ContractStatus = ContractStatus.PENDING,
+		kind: ContractKind = ContractKind.NORMAL,
+	):
+		self = cls()
+
+		async with bot.database.connect() as conn:
+			async with conn.execute("SELECT username, discord_id FROM user where id = ?", (user_id,)) as cursor:
+				user_row = await cursor.fetchone()
+
+			if user_row is None:
+				self.add_item(ui.TextDisplay("User not found!"))
+				return self
+
+			async with conn.execute(
+				"SELECT * FROM season_contract WHERE season_id = ? AND contractee_id = ? AND status = ? AND kind = ? ORDER BY RANDOM() LIMIT ?",
+				(season_id, user_id, status, kind, amount),
+			) as cursor:
+				rows = await cursor.fetchall()
+
+			contracts_picked_formatted: list[str] = [f"{i}. {_build_contract(row)}" for i, row in enumerate(rows, start=1)]
+
+			if not contracts_picked_formatted:
+				self.add_item(ui.TextDisplay("Could not find any contracts with specified filters."))
+				return self
+
+			self.add_item(
+				ui.TextDisplay(
+					f"Picked **{len(rows)}**{f' (out of {amount} requested)' if len(rows) < amount else ''} {status.name.lower().replace('_', ' ')} contract{'s' if amount > 1 else ''} from {f'<@{user_row["discord_id"]}>' if user_row['discord_id'] else user_row['username']}:\n"
+					+ "\n".join(contracts_picked_formatted)
+				)
+			)
+
+		return self
+
+
 class SeasonUserFlags(commands.FlagConverter, delimiter="=", prefix="--"):
-	user: str | int = commands.flag(aliases=["u"], default=None, positional=True)
-	season: str = commands.flag(aliases=["s"], default=None)
+	user: str | int | None = commands.flag(aliases=["u"], default=None, positional=True)
+	season: str | None = commands.flag(aliases=["s"], default=None)
 
 
 class ContractFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 	contract_type: str = commands.flag(aliases=["c"], name="contract", positional=True)
-	user: str | int = commands.flag(aliases=["u"], default=None)
-	season: str = commands.flag(aliases=["s"], default=None)
+	user: str | int | None = commands.flag(aliases=["u"], default=None)
+	season: str | None = commands.flag(aliases=["s"], default=None)
+
+
+class PickRandomFlags(commands.FlagConverter, delimiter="=", prefix="--"):
+	user: str | int | None = commands.flag(aliases=["u"], default=None, positional=True)
+	season: str | None = commands.flag(aliases=["s"], default=None)
+	amount: int = commands.flag(aliases=["a"], default=1)
 
 
 class FantasyUserFlags(commands.FlagConverter, delimiter="=", prefix="--"):
-	user: str | int = commands.flag(aliases=["u"], default=None, positional=True)
+	user: str | int | None = commands.flag(aliases=["u"], default=None, positional=True)
 	season: Literal["season_x", "season_xi"] = commands.flag(aliases=["s"], default="season_xi")
 
 
-class UserCog(NatsuminCog):
+class UserCog(NatsuCog):
 	user_group = discord.commands.SlashCommandGroup(
 		"user",
 		description="Various user related commands",
@@ -734,7 +773,7 @@ class UserCog(NatsuminCog):
 	@user_group.command(name="profile", description="Fetch the global profile of a user")
 	@discord.option("user", str, description="The user to get profile of", default=None, autocomplete=usernames_autocomplete(False))
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
-	async def globalprofile(self, ctx: discord.ApplicationContext, user: str | None = None, hidden: bool = False):
+	async def globalprofile(self, ctx: NatsuAppContext, user: str | None = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
 
@@ -757,7 +796,7 @@ class UserCog(NatsuminCog):
 	)
 	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, autocomplete=season_autocomplete)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
-	async def profile(self, ctx: discord.ApplicationContext, user: str | None = None, season: str | None = None, hidden: bool = False):
+	async def profile(self, ctx: NatsuAppContext, user: str | None = None, season: str | None = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
 
@@ -805,7 +844,7 @@ class UserCog(NatsuminCog):
 	)
 	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, choices=["season_x", "season_xi"])
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
-	async def fantasy(self, ctx: discord.ApplicationContext, user: str | None = None, season: str | None = None, hidden: bool = False):
+	async def fantasy(self, ctx: NatsuAppContext, user: str | None = None, season: str | None = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
 
@@ -856,7 +895,7 @@ class UserCog(NatsuminCog):
 	)
 	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, autocomplete=season_autocomplete)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
-	async def contracts(self, ctx: discord.ApplicationContext, user: str | None = None, season: str | None = None, hidden: bool = False):
+	async def contracts(self, ctx: NatsuAppContext, user: str | None = None, season: str | None = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
 
@@ -911,9 +950,7 @@ class UserCog(NatsuminCog):
 	)
 	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, autocomplete=season_autocomplete)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
-	async def contractinfo(
-		self, ctx: discord.ApplicationContext, contract_type: str, user: str | None = None, season: str | None = None, hidden: bool = False
-	):
+	async def contractinfo(self, ctx: NatsuAppContext, contract_type: str, user: str | None = None, season: str | None = None, hidden: bool = False):
 		if user is None:
 			user = ctx.author
 
@@ -959,9 +996,61 @@ class UserCog(NatsuminCog):
 
 		await ctx.respond(view=await SeasonContractInfo.create(self.bot, ctx.author, season_id, user_id, contract_type), ephemeral=hidden)
 
+	@contracts_subgroup.command(name="pick-random-contract", description="Pick a random contract from a user")
+	@discord.option(
+		"user",
+		str,
+		description="The user to pick contracts from, only autocompletes from active season",
+		default=None,
+		autocomplete=usernames_autocomplete(True),
+	)
+	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, autocomplete=season_autocomplete)
+	@discord.option("amount", int, description="Amount of contracts to get, defaults to 1", min_value=1, default=1)
+	@discord.option("status", ContractStatus, description="Status of the accepted contracts, defaults to PENDING", default=ContractStatus.PENDING)
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
+	async def pick_random_contract(
+		self, ctx: NatsuAppContext, user: str | None, season: str | None, amount: int, status: ContractStatus, hidden: bool
+	):
+		if user is None:
+			user = ctx.author
+
+		if (await self.bot.is_blacklisted(ctx))[0]:
+			hidden = True
+
+		async with self.bot.database.connect() as conn:
+			if season is None:
+				season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
+			else:
+				season_id = season
+
+			if season_id not in self.bot.database.available_seasons:
+				return await ctx.respond(
+					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it.",
+					ephemeral=True,
+				)
+
+			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			if not user_id:
+				return await ctx.respond("User not found!", ephemeral=True)
+
+			async with conn.execute(
+				"SELECT (SELECT name FROM season WHERE id = ?) as name, (SELECT username FROM user WHERE id = ?) as username", (season_id, user_id)
+			) as cursor:
+				row = await cursor.fetchone()
+				season_name = row["name"]
+				username = row["username"]
+
+			async with conn.execute("SELECT 1 FROM season_user WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
+				is_user_in_season = await cursor.fetchone()
+
+			if not is_user_in_season:
+				return await ctx.respond(f"{username} has not participated in {season_name}!", ephemeral=True)
+
+		await ctx.respond(view=await SeasonUserRandomContract.create(self.bot, season_id, user_id, amount, status), ephemeral=hidden)
+
 	@commands.command("globalprofile", aliases=["gp"], help="Fetch the global profile of a user")
 	@whitelist_channel_only()
-	async def text_globalprofile(self, ctx: commands.Context, user: str | int | discord.abc.User = None):
+	async def text_globalprofile(self, ctx: NatsuContext, user: str | int | discord.abc.User = None):
 		if user is None:
 			user = ctx.author
 
@@ -973,7 +1062,7 @@ class UserCog(NatsuminCog):
 
 	@commands.command("seasonprofile", aliases=["sp", "p", "profile"], help="Fetch the seasonal profile of a user")
 	@whitelist_channel_only()
-	async def text_profile(self, ctx: commands.Context, *, flags: SeasonUserFlags):
+	async def text_profile(self, ctx: NatsuContext, *, flags: SeasonUserFlags):
 		user = flags.user
 		if user is None:
 			user = ctx.author
@@ -1010,7 +1099,7 @@ class UserCog(NatsuminCog):
 
 	@commands.command("contracts", aliases=["c"], help="Fetch the status of your contracts")
 	@whitelist_channel_only()
-	async def text_contracts(self, ctx: commands.Context, *, flags: SeasonUserFlags):
+	async def text_contracts(self, ctx: NatsuContext, *, flags: SeasonUserFlags):
 		user = flags.user
 		if user is None:
 			user = ctx.author
@@ -1047,7 +1136,7 @@ class UserCog(NatsuminCog):
 
 	@commands.command("contractinfo", aliases=["ci"], help="Fetch info for a specific contract type")
 	@whitelist_channel_only()
-	async def text_contract_info(self, ctx: commands.Context, *, flags: ContractFlags):
+	async def text_contract_info(self, ctx: NatsuContext, *, flags: ContractFlags):
 		user = flags.user
 		if user is None:
 			user = ctx.author
@@ -1090,6 +1179,43 @@ class UserCog(NatsuminCog):
 
 		await ctx.reply(view=await SeasonContractInfo.create(self.bot, ctx.author, season_id, user_id, flags.contract_type))
 
+	@commands.command("pickrandomcontract", aliases=["prc"], help="Pick a random contract from a user")
+	@whitelist_channel_only()
+	async def text_pick_random_contract(self, ctx: NatsuContext, *, flags: PickRandomFlags):
+		user = flags.user
+		if user is None:
+			user = ctx.author
+
+		async with self.bot.database.connect() as conn:
+			if flags.season is None:
+				season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
+			else:
+				season_id = flags.season
+
+			if season_id not in self.bot.database.available_seasons:
+				return await ctx.reply(
+					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it."
+				)
+
+			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			if not user_id:
+				return await ctx.reply("User not found!")
+
+			async with conn.execute(
+				"SELECT (SELECT name FROM season WHERE id = ?) as name, (SELECT username FROM user WHERE id = ?) as username", (season_id, user_id)
+			) as cursor:
+				row = await cursor.fetchone()
+				season_name = row["name"]
+				username = row["username"]
+
+			async with conn.execute("SELECT 1 FROM season_user WHERE season_id = ? AND user_id = ?", (season_id, user_id)) as cursor:
+				is_user_in_season = await cursor.fetchone()
+
+			if not is_user_in_season:
+				return await ctx.reply(f"{username} has not participated in {season_name}!")
+
+		await ctx.reply(view=await SeasonUserRandomContract.create(self.bot, season_id, user_id, flags.amount))
+
 	@commands.group(
 		"fantasy",
 		help="Fantasy Contracts related commands",
@@ -1097,13 +1223,13 @@ class UserCog(NatsuminCog):
 		description="If no sub-command is specified then leader command will run",
 		invoke_without_command=True,
 	)
-	async def fantasy_textgroup(self, ctx: commands.Context, *, flags: FantasyUserFlags):
+	async def fantasy_textgroup(self, ctx: NatsuContext, *, flags: FantasyUserFlags):
 		if await self.text_fantasy_leader.can_run(ctx):
 			await self.text_fantasy_leader(ctx, flags=flags)
 
 	@fantasy_textgroup.command("member", aliases=["m"], help="Fetch the fantasy team the user is in")
 	@whitelist_channel_only()
-	async def text_fantasy_member(self, ctx: commands.Context, *, flags: FantasyUserFlags):
+	async def text_fantasy_member(self, ctx: NatsuContext, *, flags: FantasyUserFlags):
 		user = flags.user
 		if user is None:
 			user = ctx.author
@@ -1151,7 +1277,7 @@ class UserCog(NatsuminCog):
 
 	@fantasy_textgroup.command("leader", aliases=["l"], help="Fetch the fantasy team the user is leader of")
 	@whitelist_channel_only()
-	async def text_fantasy_leader(self, ctx: commands.Context, *, flags: FantasyUserFlags):
+	async def text_fantasy_leader(self, ctx: NatsuContext, *, flags: FantasyUserFlags):
 		user = flags.user
 		if user is None:
 			user = ctx.author
@@ -1188,32 +1314,3 @@ class UserCog(NatsuminCog):
 				return await ctx.reply(f"{username} doesn't have a fantasy team for {season_name}!")
 
 		await ctx.reply(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, user_id, is_user_in_season))
-
-	@commands.slash_command(name="create-user", description="Create a new user", guild_ids=GUILD_IDS)
-	@discord.option("user", discord.Member)
-	@discord.option("rep", str, default=None, autocomplete=rep_autocomplete)
-	@can_modify_database()
-	async def create_user(self, ctx: discord.ApplicationContext, user: discord.Member, rep: str | None = None, gen: int | None = None):
-		async with self.bot.database.connect() as conn:
-			async with conn.execute("SELECT id FROM user WHERE username = ? or discord_id = ?", (user.name, user.id)) as cursor:
-				row = await cursor.fetchone()
-				if row:
-					return await ctx.respond("User already exists!", ephemeral=True)
-
-			if rep is None:
-				user_rep = get_rep_from_member(user)
-				if user_rep == "UNKNOWN":
-					return await ctx.respond("Could not identify a rep from the user's roles, please specify a rep manually.", ephemeral=True)
-			else:
-				user_rep = get_rep(rep, 90)
-				if not user_rep:
-					return await ctx.respond(f"Could not identify a proper rep for {rep}", ephemeral=True)
-
-			user_id = str(uuid4())
-
-			await conn.execute(
-				"INSERT INTO user (id, username, discord_id, rep, gen) VALUES (?, ?, ?, ?, ?)", (user_id, user.name, user.id, user_rep.value, gen)
-			)
-			await conn.commit()
-
-			await ctx.respond(f"Added {user.name} to the database ({user_id})", ephemeral=True)

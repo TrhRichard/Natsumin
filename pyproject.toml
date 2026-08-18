@@ -25,3 +25,12 @@ skip-magic-trailing-comma = true
 
 [tool.ruff.analyze]
 detect-string-imports = true
+
+[tool.ruff.lint]
+
+ignore = ["I001", "N999"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.0",
+]

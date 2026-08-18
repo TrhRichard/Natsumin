@@ -1,4 +1,4 @@
-from typing import overload, Literal, Union
+from typing import overload, Literal
 from thefuzz import process
 from enum import StrEnum
 
@@ -196,10 +196,8 @@ def get_rep(
 ) -> tuple[RepName | None, int | None]: ...
 def get_rep(
 	name: str, min_confidence: int = 80, *, only_include_reps: list[RepName] | None = None, include_confidence: bool = False
-) -> Union[RepName | None, tuple[RepName | None, int | None]]:
-	if name is None:
-		return (None, None) if include_confidence else None
-	elif name.strip() == "":
+) -> RepName | None | tuple[RepName | None, int | None]:
+	if name is None or name.strip() == "":
 		return (None, None) if include_confidence else None
 
 	if only_include_reps is not None:  # incase you only want to match the name from a specific list of reps instead of all
@@ -215,7 +213,7 @@ def get_rep(
 	else:
 		choices = rep_fuzzy_choices
 
-	fuzzy_results: list[tuple[str, int]] = process.extract(name.lower(), [k for k in choices.keys()], limit=1)
+	fuzzy_results: list[tuple[str, int]] = process.extract(name.lower(), [k for k in choices], limit=1)
 	if fuzzy_results:
 		rep_name, confidence = fuzzy_results[0]
 		if confidence >= min_confidence:
@@ -230,7 +228,7 @@ def search_reps(query: str, min_confidence: int = 80, *, limit: int = 25) -> lis
 		return [(rep, None) for rep in RepName.__members__.values()]
 
 	reps_found: dict[RepName, int] = {}
-	fuzzy_results: list[tuple[str, int]] = process.extract(query.lower(), [k for k in rep_fuzzy_choices.keys()], limit=limit)
+	fuzzy_results: list[tuple[str, int]] = process.extract(query.lower(), [k for k in rep_fuzzy_choices], limit=limit)
 	for rep_name, confidence in fuzzy_results:
 		if confidence >= min_confidence:
 			found_rep = rep_fuzzy_choices[rep_name]

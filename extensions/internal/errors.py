@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from internal.exceptions import NotWhitelistedChannel, BlacklistedUser, UnauthorizedUser
-from internal.base.cog import NatsuminCog
+from internal.base.context import NatsuAppContext, NatsuContext
 from internal.functions import frmt_iter
+from internal.base.cog import NatsuCog
 from internal.constants import COLORS
 from discord.ext import commands
 
@@ -11,12 +12,20 @@ import sqlite3
 import discord
 
 
-class Errors(NatsuminCog):
+class Errors(NatsuCog):
 	def get_error_info(self, error: Exception) -> tuple[str, str, bool]:
 		err_type, err_details, should_log = "", "", False
 		if isinstance(error, commands.NotOwner):
 			err_type = "Owner-only command"
 			err_details = f"This command is restricted to {self.bot.user.name}'s owner."
+		elif isinstance(error, UnauthorizedUser):
+			err_details = "You are unauthorized to use this command."
+			if error.message:
+				err_details += f"\n\n{error.message}"
+		elif isinstance(error, BlacklistedUser):
+			err_details = "You have been blacklisted from using the bot."
+			if error.reason:
+				err_details += f"\n\nReason: {error.reason}"
 		elif isinstance(error, commands.MissingPermissions):
 			err_type = "Missing Permissions"
 			err_details = f"You do not have enough permissions to use this command.\nMissing permissions: {frmt_iter(error.missing_permissions)}"
@@ -28,10 +37,6 @@ class Errors(NatsuminCog):
 		elif isinstance(error, commands.MissingRequiredArgument):
 			err_type = "Missing Required Argument"
 			err_details = f"You are missing required argument ``{error.param.name}``."
-		elif isinstance(error, discord.HTTPException):
-			err_type = "HTTP Exception"
-			err_details = f'An HTTP error occured: "{error.text}" ({error.status})'
-			should_log = True
 		elif isinstance(error, commands.CommandOnCooldown):
 			err_type = "Cooldown"
 			err_details = f"You may retry again in **{error.retry_after:.2f}** seconds."
@@ -40,16 +45,10 @@ class Errors(NatsuminCog):
 			err_details = str(error)
 		elif isinstance(error, NotWhitelistedChannel):
 			err_details = f"This command can only be used in {frmt_iter(f'<#{channel_id}>' for channel_id in error.valid_channel_ids)}"
-		elif isinstance(error, BlacklistedUser):
-			err_details = "You have been blacklisted from using the bot."
-			if error.reason:
-				err_details += f"\n\nReason: {error.reason}"
-
-			should_log = False
-		elif isinstance(error, UnauthorizedUser):
-			err_type = "Unauthorized!"
-			err_details = "You are unauthorized to use this command."
-			should_log = False
+		elif isinstance(error, discord.HTTPException):
+			err_type = "HTTP Exception"
+			err_details = f'An HTTP error occured: "{error.text}" ({error.status})'
+			should_log = True
 		elif isinstance(error, (aiosqlite.Error, sqlite3.Error)):
 			err_type = "SQLite Exception"
 			err_details = "Encountered a SQLite error."
@@ -62,7 +61,7 @@ class Errors(NatsuminCog):
 		return err_type, err_details, should_log
 
 	@commands.Cog.listener()
-	async def on_command_error(self, ctx: commands.Context, error: Exception):
+	async def on_command_error(self, ctx: NatsuContext, error: Exception):
 		error = getattr(error, "original", error)
 
 		if isinstance(error, commands.CommandNotFound):
@@ -111,7 +110,7 @@ class Errors(NatsuminCog):
 			pass
 
 	@commands.Cog.listener()
-	async def on_application_command_error(self, ctx: discord.ApplicationContext, error: Exception):
+	async def on_application_command_error(self, ctx: NatsuAppContext, error: Exception):
 		error = getattr(error, "original", error)
 		err_type, err_details, should_log = self.get_error_info(error)
 		if err_type is None and err_details is None:

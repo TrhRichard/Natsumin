@@ -13,7 +13,7 @@ import aiohttp
 import re
 
 if TYPE_CHECKING:
-	from internal.database import NatsuminDatabase
+	from internal.database import NatsuDatabase
 	from typing import Literal
 
 SEASON_SPREADSHEET_ID = "1ZuhNuejQ3gTKuZPzkGg47-upLUlcgNfdW2Jrpeq8cak"
@@ -865,7 +865,7 @@ async def _sync_fantasy_sheet(fantasy_sheet: SheetBlock, conn: aiosqlite.Connect
 					member_id = await get_user_id(conn, rows[i].get_value(2))
 					if not member_id:
 						print(f"{rows[i].get_value(2)} NO ID")
-						raise
+						raise RuntimeError(f"No ID found for {rows[i].get_value(2)}")
 
 					member_ids.append((member_id, int(rows[i].get_value(4, 0))))
 
@@ -1008,7 +1008,7 @@ async def _sync_aids_sheet(aids_sheet: SheetBlock, conn: aiosqlite.Connection):
 	await conn.commit()
 
 
-async def sync_season(database: NatsuminDatabase):
+async def sync_season(database: NatsuDatabase):
 	spreadsheet = await fetch_sheets(
 		SEASON_SPREADSHEET_ID,
 		[

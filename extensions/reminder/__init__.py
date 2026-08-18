@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from internal.base.context import NatsuAppContext, NatsuContext, NatsuAutoContext
 from internal.constants import FILE_LOGGING_FORMATTER, COLORS
 from internal.functions import shorten, diff_to_str
-from internal.base.cog import NatsuminCog
+from internal.base.cog import NatsuCog
 from discord.ext import commands, tasks
 from typing import TYPE_CHECKING
 from discord import ui
@@ -14,13 +15,13 @@ import logging
 import re
 
 if TYPE_CHECKING:
-	from internal.database.Reminder import ReminderDatabase, Reminder
-	from internal.base.bot import NatsuminBot
+	from internal.database.reminder import ReminderDatabase, Reminder
+	from internal.base.bot import NatsuBot
 
 TIMESTAMP_PATTERN = r"<t:(\d+):(\w+)>"
 
 
-async def get_user_reminders(ctx: discord.AutocompleteContext):
+async def get_user_reminders(ctx: NatsuAutoContext):
 	db: ReminderDatabase = ctx.cog.db
 	if not db:
 		return []
@@ -35,7 +36,7 @@ async def get_user_reminders(ctx: discord.AutocompleteContext):
 
 
 class RemindersList(ui.DesignerView):
-	def __init__(self, bot: NatsuminBot, invoker: discord.User, reminders: list[Reminder], show_hidden: bool):
+	def __init__(self, invoker: discord.User, reminders: list[Reminder], show_hidden: bool):
 		super().__init__(store=False)
 		reminders = sorted(reminders, key=lambda r: r.remind_at)
 
@@ -56,10 +57,10 @@ class RemindersList(ui.DesignerView):
 		)
 
 
-class ReminderExt(NatsuminCog, name="Reminder"):
+class ReminderExt(NatsuCog, name="Reminder"):
 	"""Reminder commands"""
 
-	def __init__(self, bot: NatsuminBot):
+	def __init__(self, bot: NatsuBot):
 		super().__init__(bot)
 		self.logger = logging.getLogger("bot.reminder")
 		self.db = bot.reminders
@@ -137,12 +138,12 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 				return "Invalid timestamp, it seems that you've attempted to set the reminder to end in the past.", True
 
 		user_reminders = await self.db.get_reminders(user_id=user.id)
-		has_reminder_with_id = any([reminder.id == id for reminder in user_reminders])
+		has_reminder_with_id = any(reminder.id == id for reminder in user_reminders)
 
 		if not has_reminder_with_id:
 			return f"Could not find any reminder with id {id}", True
 
-		found_reminder = [r for r in user_reminders if r.id == id][0]
+		found_reminder = next(r for r in user_reminders if r.id == id)
 		changed_reminder = await self.db.edit_reminder(id, remind_at=remind_at, message=message)
 
 		changed_list = []
@@ -158,12 +159,12 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 	async def delete_reminder(self, user: discord.User, id: int, hidden: bool = False) -> tuple[str, bool]:
 		user_reminders = await self.db.get_reminders(user_id=user.id)
 
-		has_reminder_with_id = any([reminder.id == id for reminder in user_reminders])
+		has_reminder_with_id = any(reminder.id == id for reminder in user_reminders)
 
 		if not has_reminder_with_id:
 			return f"Could not find any reminder with id {id}", True
 
-		deleted_reminder = [r for r in user_reminders if r.id == id][0]
+		deleted_reminder = next(r for r in user_reminders if r.id == id)
 		await self.db.delete_reminder(id)
 
 		time_diff_str = diff_to_str(deleted_reminder.remind_at, datetime.datetime.now(datetime.UTC))
@@ -181,12 +182,10 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 		channel_reminders = [r for r in user_reminders if not r.hidden]
 		show_hidden = show_hidden if not hidden else hidden
 
-		if show_hidden and (len(channel_reminders) == 0 and len(hidden_reminders) == 0):
-			return "No reminders set!", hidden
-		elif len(channel_reminders) == 0:
+		if show_hidden and (len(channel_reminders) == 0 and len(hidden_reminders) == 0) or len(channel_reminders) == 0:
 			return "No reminders set!", hidden
 
-		return RemindersList(self.bot, user, user_reminders, show_hidden), hidden
+		return RemindersList(user, user_reminders, show_hidden), hidden
 
 	@commands.Cog.listener()
 	async def on_ready(self):
@@ -198,7 +197,7 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 	@discord.option("when", str, required=True, parameter_name="remind_in", description="Example: 1d24h60m or 1 day 24 hours 60 minutes")
 	@discord.option("message", str, default="", description="Optionally include a message to display when the reminder is due")
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
-	async def create(self, ctx: discord.ApplicationContext, remind_in: str, message: str, hidden: bool):
+	async def create(self, ctx: NatsuAppContext, remind_in: str, message: str, hidden: bool):
 		response, ephemeral = await self.create_reminder(ctx.user, ctx.channel, remind_in, message, hidden)
 		await ctx.respond(response, ephemeral=ephemeral)
 
@@ -207,21 +206,21 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 	@discord.option("when", str, default=None, parameter_name="remind_in", description="Example: 1d24h60m or 1 day 24 hours 60 minutes")
 	@discord.option("message", str, default=None, description="Message to display when the reminder is due")
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
-	async def edit(self, ctx: discord.ApplicationContext, id: int, remind_in: str, message: str, hidden: bool):
+	async def edit(self, ctx: NatsuAppContext, id: int, remind_in: str, message: str, hidden: bool):
 		response, ephemeral = await self.edit_reminder(ctx.user, id, remind_in, message, hidden)
 		await ctx.respond(response, ephemeral=ephemeral)
 
 	@reminder_group.command(description="Delete a reminder")
 	@discord.option("id", int, required=True, autocomplete=get_user_reminders, description="ID of the reminder")
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
-	async def delete(self, ctx: discord.ApplicationContext, id: int, hidden: bool):
+	async def delete(self, ctx: NatsuAppContext, id: int, hidden: bool):
 		response, ephemeral = await self.delete_reminder(ctx.user, id, hidden)
 		await ctx.respond(response, ephemeral=ephemeral)
 
 	@reminder_group.command(description="See all the currently set reminders and their reminding date")
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
 	@discord.option("show_hidden", bool, description="Show hidden (DM) reminders, hidden argument takes priority over this.", default=False)
-	async def list(self, ctx: discord.ApplicationContext, hidden: bool = False, show_hidden: bool = False):
+	async def list(self, ctx: NatsuAppContext, hidden: bool = False, show_hidden: bool = False):
 		response, ephemeral = await self.list_reminders(ctx.user, hidden, show_hidden)
 		if isinstance(response, RemindersList):
 			await ctx.respond(view=response, ephemeral=ephemeral)
@@ -229,7 +228,7 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 			await ctx.respond(response, ephemeral=ephemeral)
 
 	@commands.group(name="reminder", aliases=["remind", "reminders"], invoke_without_command=True, help="Reminder related commands")
-	async def reminder_textgroup(self, ctx: commands.Context):
+	async def reminder_textgroup(self, ctx: NatsuContext):
 		await ctx.reply(f"Please specify a valid subcommand. Use `{ctx.clean_prefix}help {ctx.invoked_with}` for a full list.")
 
 	@reminder_textgroup.command(
@@ -238,7 +237,7 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 		help="Create a new reminder",
 		description="Create a new reminder. In order to specify a time like `1 hour 15 minutes` you must put it in quotation marks.\nAdditionally you can use a discord timestamp as the time, for example `<t:1894658400:f>` (which would turn into <t:1894658400:f>)",
 	)
-	async def text_create(self, ctx: commands.Context, remind_in: str, *, message: str = ""):
+	async def text_create(self, ctx: NatsuContext, remind_in: str, *, message: str = ""):
 		response, _ = await self.create_reminder(ctx.author, ctx.channel, remind_in, message, False)
 		await ctx.reply(response)
 
@@ -248,7 +247,7 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 		help="Delete a reminder",
 		description="Delete a reminder, grab the id from the list subcommand otherwise guess it if u can lol",
 	)
-	async def text_delete(self, ctx: commands.Context, id: int):
+	async def text_delete(self, ctx: NatsuContext, id: int):
 		response, _ = await self.delete_reminder(ctx.author, id)
 		await ctx.reply(response)
 
@@ -258,7 +257,7 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 		help="List all of your reminders",
 		description="List all of your reminders, by default ones made hidden will not be listed",
 	)
-	async def text_list(self, ctx: commands.Context, show_hidden: bool = False):
+	async def text_list(self, ctx: NatsuContext, show_hidden: bool = False):
 		response, _ = await self.list_reminders(ctx.author, False, show_hidden)
 		if isinstance(response, RemindersList):
 			await ctx.reply(view=response)
@@ -313,5 +312,5 @@ class ReminderExt(NatsuminCog, name="Reminder"):
 		await self.bot.reminders.wait_until_ready()
 
 
-def setup(bot: NatsuminBot):
+def setup(bot: NatsuBot):
 	bot.add_cog(ReminderExt(bot))

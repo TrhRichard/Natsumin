@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 
+from internal.base.context import NatsuAppContext, NatsuContext
 from internal.constants import FILE_LOGGING_FORMATTER, COLORS
 from internal.functions import frmt_iter, get_legacy_rank
 from internal.contracts.rep import get_rep_from_member
 from internal.contracts import sync_season
-from internal.base.cog import NatsuminCog
+from internal.base.cog import NatsuCog
 from discord.ext import commands
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -14,7 +15,6 @@ import contextlib
 import traceback
 import aiosqlite
 import textwrap
-import asyncio
 import sqlite3
 import discord
 import logging
@@ -24,16 +24,16 @@ import io
 import re
 
 if TYPE_CHECKING:
-	from internal.base.bot import NatsuminBot
+	from internal.base.bot import NatsuBot
 
 CODEBLOCK_PATTERN = r"(?<!\\)(?P<start>```)(?<=```)(?:(?P<lang>[a-z][a-z0-9]*)\s)?(?P<content>.*?)(?<!\\)(?=```)(?P<end>(?:\\\\)*```)"
 INLINE_CODE_PATTERN = r"(?<!\\)(?P<start>``?)(?P<content>(?:(?!(?<!`)(?P=start)(?!`))[^\\]|\\.)*)(?P<end>(?P=start))(?!`)"
 
 
-class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
+class OwnerExt(NatsuCog, name="Owner", command_attrs={"hidden": True}):
 	"""Owner-only commands"""
 
-	def __init__(self, bot: NatsuminBot):
+	def __init__(self, bot: NatsuBot):
 		super().__init__(bot)
 		self.logger = logging.getLogger("bot.owner")
 		if not self.logger.handlers:
@@ -43,7 +43,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 
 			self.logger.setLevel(logging.INFO)
 
-	async def cog_check(self, ctx: commands.Context | discord.ApplicationContext):
+	async def cog_check(self, ctx: NatsuContext | NatsuAppContext):
 		if await self.bot.is_owner(ctx.author):
 			return True
 
@@ -57,7 +57,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 		await self.bot.process_commands(after)
 
 	@commands.command(aliases=["r"])
-	async def reload(self, ctx: commands.Context, extension: str | None = None):
+	async def reload(self, ctx: NatsuContext, extension: str | None = None):
 		if extension is not None:
 			try:
 				self.bot.reload_extension(extension)
@@ -71,12 +71,12 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 		else:
 			failed_reloads = []
 
-			for extension in list(self.bot.extensions.keys()):
+			for extension_name in list(self.bot.extensions.keys()):
 				try:
-					self.bot.reload_extension(extension)
+					self.bot.reload_extension(extension_name)
 				except discord.ExtensionFailed as err:
-					failed_reloads.append(extension)
-					self.logger.error(f"Failed to reload {extension}", exc_info=err)
+					failed_reloads.append(extension_name)
+					self.logger.error(f"Failed to reload {extension_name}", exc_info=err)
 
 			if failed_reloads:
 				await ctx.reply(
@@ -86,15 +86,14 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 				await ctx.reply("Succesfully reloaded all extensions!", mention_author=False)
 
 	@commands.command(aliases=["rsc"])
-	async def resync_slash_commands(self, ctx: commands.Context):
+	async def resync_slash_commands(self, ctx: NatsuContext):
 		await self.bot.sync_commands()
 		await ctx.reply("Successfully synced bot application commands.", mention_author=False)
 
 	@commands.group(name="config", invoke_without_command=True)
-	async def config(self, ctx: commands.Context):
-		async with self.bot.database.connect() as conn:
-			async with conn.execute("SELECT key, value FROM bot_config LIMIT 25") as cursor:
-				rows = await cursor.fetchall()
+	async def config(self, ctx: NatsuContext):
+		async with self.bot.database.connect() as conn, conn.execute("SELECT key, value FROM bot_config LIMIT 25") as cursor:
+			rows = await cursor.fetchall()
 
 		embed = discord.Embed(description="", color=COLORS.DEFAULT)
 		embed.set_author(name=f"{self.bot.user.name}'s configuration", icon_url=self.bot.user.display_avatar.url)
@@ -104,7 +103,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 		await ctx.reply(embed=embed)
 
 	@config.command(name="set")
-	async def config_set(self, ctx: commands.Context, key: str, *, value: str):
+	async def config_set(self, ctx: NatsuContext, key: str, *, value: str):
 		async with self.bot.database.connect() as conn:
 			previous_value = await self.bot.get_config(key, db_conn=conn)
 			await self.bot.set_config(key, value, db_conn=conn)
@@ -115,7 +114,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await ctx.reply(f"Updated **`{key}`** from `{previous_value}` to `{value}`")
 
 	@config.command(name="get")
-	async def config_get(self, ctx: commands.Context, key: str):
+	async def config_get(self, ctx: NatsuContext, key: str):
 		current_value = await self.bot.get_config(key)
 
 		if current_value:
@@ -124,7 +123,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await ctx.reply(f"Key **`{key}`** not found in config!")
 
 	@config.command(name="delete", aliases=["del", "remove"])
-	async def config_delete(self, ctx: commands.Context, key: str):
+	async def config_delete(self, ctx: NatsuContext, key: str):
 		removed_succesfully = await self.bot.remove_config(key)
 
 		if removed_succesfully:
@@ -133,10 +132,9 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await ctx.reply(f"Key **`{key}`** not found in config!")
 
 	@commands.group(name="whitelist", invoke_without_command=True)
-	async def whitelist(self, ctx: commands.Context):
-		async with self.bot.database.connect() as conn:
-			async with conn.execute("SELECT guild_id, channel_id FROM whitelist_channel LIMIT 25") as cursor:
-				rows = await cursor.fetchall()
+	async def whitelist(self, ctx: NatsuContext):
+		async with self.bot.database.connect() as conn, conn.execute("SELECT guild_id, channel_id FROM whitelist_channel LIMIT 25") as cursor:
+			rows = await cursor.fetchall()
 
 		per_guild_channels: dict[int, list[int]] = {}
 		for row in rows:
@@ -153,7 +151,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 		await ctx.reply(embed=embed)
 
 	@whitelist.command(name="add")
-	async def whitelist_add(self, ctx: commands.Context, channel: discord.abc.GuildChannel):
+	async def whitelist_add(self, ctx: NatsuContext, channel: discord.abc.GuildChannel):
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT COUNT(*) as count FROM whitelist_channel WHERE guild_id = ?", (channel.guild.id,)) as cursor:
 				server_had_whitelist = (await cursor.fetchone())["count"] == 0
@@ -167,7 +165,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await ctx.reply(f"Added {channel.mention} as a whitelisted channel in **{channel.guild.name}**, the server is now in whitelist mode!")
 
 	@whitelist.command(name="remove")
-	async def whitelist_remove(self, ctx: commands.Context, channel: discord.abc.GuildChannel):
+	async def whitelist_remove(self, ctx: NatsuContext, channel: discord.abc.GuildChannel):
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT COUNT(*) as count FROM whitelist_channel WHERE guild_id = ?", (channel.guild.id,)) as cursor:
 				server_had_whitelist = (await cursor.fetchone())["count"] - 1 == 0
@@ -183,10 +181,9 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			)
 
 	@commands.group(name="blacklist", invoke_without_command=True)
-	async def blacklist(self, ctx: commands.Context):
-		async with self.bot.database.connect() as conn:
-			async with conn.execute("SELECT discord_id, reason FROM blacklist_user LIMIT 25") as cursor:
-				rows: dict[int, str | None] = {row["discord_id"]: row["reason"] for row in await cursor.fetchall()}
+	async def blacklist(self, ctx: NatsuContext):
+		async with self.bot.database.connect() as conn, conn.execute("SELECT discord_id, reason FROM blacklist_user LIMIT 25") as cursor:
+			rows: dict[int, str | None] = {row["discord_id"]: row["reason"] for row in await cursor.fetchall()}
 
 		embed = discord.Embed(description="", color=COLORS.DEFAULT)
 		embed.set_author(name=f"{self.bot.user.name}'s blacklisted users", icon_url=self.bot.user.display_avatar.url)
@@ -197,7 +194,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 		await ctx.reply(embed=embed)
 
 	@blacklist.command(name="add")
-	async def blacklist_add(self, ctx: commands.Context, user: discord.User, *, reason: str = None):
+	async def blacklist_add(self, ctx: NatsuContext, user: discord.User, *, reason: str | None = None):
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT 1 FROM blacklist_user WHERE discord_id = ?", (user.id,)) as cursor:
 				is_user_already_blacklisted = (await cursor.fetchone()) is not None
@@ -212,7 +209,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await ctx.reply(f"{user.mention} is already blacklisted{f' for `{reason}`' if reason else ''}!")
 
 	@blacklist.command(name="remove")
-	async def blacklist_remove(self, ctx: commands.Context, user: discord.User):
+	async def blacklist_remove(self, ctx: NatsuContext, user: discord.User):
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT 1 FROM blacklist_user WHERE discord_id = ?", (user.id,)) as cursor:
 				is_user_already_blacklisted = (await cursor.fetchone()) is not None
@@ -226,7 +223,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await ctx.reply(f"{user.mention} was not blacklisted!")
 
 	@commands.command(aliases=["sui", "seasonuserinfo"])
-	async def season_user_info(self, ctx: commands.Context, id_or_username: str | discord.abc.User = None, season_id: str = None):
+	async def season_user_info(self, ctx: NatsuContext, id_or_username: str | discord.abc.User = None, season_id: str | None = None):
 		id_or_username = id_or_username or ctx.author.name
 
 		async with self.bot.database.connect() as conn:
@@ -252,7 +249,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			async with conn.execute("SELECT * FROM season_contract WHERE season_id = ? AND contractee_id = ?", (season_id, user_id)) as cursor:
 				rows = await cursor.fetchall()
 
-			json_data = json.dumps(dict(user_row) | {"contracts": list(dict(row) for row in rows)}, indent=4)
+			json_data = json.dumps(dict(user_row) | {"contracts": [dict(row) for row in rows]}, indent=4)
 
 			if len(json_data) < 1900:
 				await ctx.reply(f"```json\n{json_data}\n```")
@@ -261,7 +258,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 				await ctx.reply(file=json_file)
 
 	@commands.command(aliases=["ui", "userinfo", "mui", "masteruserinfo"])
-	async def user_info(self, ctx: commands.Context, id_or_username: str | discord.abc.User = None):
+	async def user_info(self, ctx: NatsuContext, id_or_username: str | discord.abc.User = None):
 		id_or_username = id_or_username or ctx.author.name
 
 		async with self.bot.database.connect() as conn:
@@ -284,7 +281,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 				"new": None,
 			}
 
-			json_data = json.dumps(dict(user_row) | {"leaderboards": leaderboards, "badges": list(dict(row) for row in badge_rows)}, indent=4)
+			json_data = json.dumps(dict(user_row) | {"leaderboards": leaderboards, "badges": [dict(row) for row in badge_rows]}, indent=4)
 
 			if len(json_data) < 1900:
 				await ctx.reply(f"```json\n{json_data}\n```")
@@ -293,7 +290,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 				await ctx.reply(file=json_file)
 
 	@commands.command(hidden=True, aliases=["bi", "badgeinfo"])
-	async def badge_info(self, ctx: commands.Context, id_or_name: str):
+	async def badge_info(self, ctx: NatsuContext, id_or_name: str):
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT * FROM badge WHERE id = ? OR LOWER(name) = ?", (id_or_name, id_or_name.lower())) as cursor:
 				badge_row = await cursor.fetchone()
@@ -310,7 +307,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 				await ctx.reply(file=json_file)
 
 	@commands.command(aliases=["addalias"])
-	async def setalias(self, ctx: commands.Context, id_or_username: str, alias: str):
+	async def setalias(self, ctx: NatsuContext, id_or_username: str, alias: str):
 		async with self.bot.database.connect() as conn:
 			user_id, _ = await self.bot.fetch_user_from_database(id_or_username, invoker=ctx.author, db_conn=conn)
 
@@ -326,7 +323,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 		await ctx.reply(f"Succesfully added alias `{alias}` to {user_row['username']} ({user_row['id']})")
 
 	@commands.command(aliases=["deletealias"])
-	async def removealias(self, ctx: commands.Context, alias: str):
+	async def removealias(self, ctx: NatsuContext, alias: str):
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT 1 FROM user_alias WHERE username = ?", (alias,)) as cursor:
 				row = await cursor.fetchone()
@@ -340,7 +337,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 		await ctx.reply(f"Removed alias `{alias}`")
 
 	@commands.command()
-	async def getaliases(self, ctx: commands.Context, id_or_username: str = None):
+	async def getaliases(self, ctx: NatsuContext, id_or_username: str | None = None):
 		async with self.bot.database.connect() as conn:
 			if id_or_username is None:
 				async with conn.execute("""
@@ -378,7 +375,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await ctx.reply(f"```\n{content}\n```")
 
 	@commands.command()
-	async def sync_season(self, ctx: commands.Context, *, season: str | None = None):
+	async def sync_season(self, ctx: NatsuContext, *, season: str | None = None):
 		async with self.bot.database.connect() as conn:
 			if season is None:
 				season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
@@ -404,13 +401,11 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 				await ctx.reply(embed=discord.Embed(description=f"❌ Failed to sync **{season_name}**:\n```{e}```", color=COLORS.ERROR))
 
 	@commands.command()
-	async def sql(self, ctx: commands.Context, *, query: str = ""):
+	async def sql(self, ctx: NatsuContext, *, query: str = ""):
 		if ctx.message.attachments:
 			first_file = ctx.message.attachments[0]
 			query = (await first_file.read()).decode("utf-8").strip()
-		elif match := re.match(CODEBLOCK_PATTERN, query, re.DOTALL):
-			query = match.group("content").strip()
-		elif match := re.match(INLINE_CODE_PATTERN, query):
+		elif (match := re.match(CODEBLOCK_PATTERN, query, re.DOTALL)) or (match := re.match(INLINE_CODE_PATTERN, query)):
 			query = match.group("content").strip()
 		elif query:
 			return await ctx.reply("Query must be wrapped in either a code block or inline code.")
@@ -430,7 +425,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 				await conn.commit()
 			except (aiosqlite.Error, sqlite3.Error) as err:
 				await conn.rollback()
-				return await ctx.reply(f"### {err.__class__.__name__}\n```\n{str(err)}\n```")
+				return await ctx.reply(f"### {err.__class__.__name__}\n```\n{err!s}\n```")
 
 		final_output = json.dumps([dict(row) for row in rows], indent=4)
 
@@ -441,13 +436,11 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await ctx.reply(file=file)
 
 	@commands.command()
-	async def eval(self, ctx: commands.Context, *, body: str = ""):
+	async def eval(self, ctx: NatsuContext, *, body: str = ""):
 		if ctx.message.attachments:
 			first_file = ctx.message.attachments[0]
 			body = (await first_file.read()).decode("utf-8").strip()
-		elif match := re.match(CODEBLOCK_PATTERN, body, re.DOTALL):
-			body = match.group("content").strip()
-		elif match := re.match(INLINE_CODE_PATTERN, body):
+		elif (match := re.match(CODEBLOCK_PATTERN, body, re.DOTALL)) or (match := re.match(INLINE_CODE_PATTERN, body)):
 			body = match.group("content").strip()
 		elif body:
 			return await ctx.reply("Body must be wrapped in either a code block or inline code.")
@@ -483,7 +476,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 		body = f"async def __eval_func__():\n{inject_env}\n{textwrap.indent(body, '	')}"
 		stdout = io.StringIO()
 		try:
-			exec(body, env)
+			exec(body, env)  # noqa: S102
 		except SyntaxError as err:
 			return await ctx.reply(f"```py\n{err}\n```")
 
@@ -491,7 +484,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 		try:
 			with contextlib.redirect_stdout(stdout):
 				await eval_func()
-		except Exception:
+		except Exception:  # noqa: BLE001
 			final_output = f"{stdout.getvalue()}{traceback.format_exc()}"
 		else:
 			final_output = stdout.getvalue()
@@ -507,7 +500,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await ctx.reply(file=file)
 
 	@commands.command()
-	async def sync_discord_ids(self, ctx: commands.Context):
+	async def sync_discord_ids(self, ctx: NatsuContext):
 		if not self.bot.anicord:
 			return await ctx.reply("Bot is not in Anicord!")
 
@@ -536,7 +529,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 		await ctx.reply(f"Set discord id to {users_changed}/{len(users)} users")
 
 	@commands.command()
-	async def massadd_anicord_users(self, ctx: commands.Context):
+	async def massadd_anicord_users(self, ctx: NatsuContext):
 		if not self.bot.anicord:
 			return await ctx.reply("Bot is not in Anicord!")
 
@@ -550,7 +543,7 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 
 		try:
 			msg: discord.Message = await self.bot.wait_for("message", check=confirm_check, timeout=30)
-		except asyncio.TimeoutError:
+		except TimeoutError:
 			return await ctx.reply("Request timed out, please run the command again.")
 
 		if msg.content.strip().lower() == "cancel":
@@ -605,5 +598,5 @@ class OwnerExt(NatsuminCog, name="Owner", command_attrs=dict(hidden=True)):
 			await ctx.reply(msg_content)
 
 
-def setup(bot: NatsuminBot):
+def setup(bot: NatsuBot):
 	bot.add_cog(OwnerExt(bot))
