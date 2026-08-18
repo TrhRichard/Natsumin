@@ -213,29 +213,54 @@ async def _sync_base_sheet(base_sheet: SheetBlock, conn: aiosqlite.Connection):
 			wheels_count = user_counts[user_id]
 			type_count = wheels_count[type_wheel]
 			type_count += 1
-			query = """
-				INSERT OR REPLACE INTO season_contract 
-					(season_id, id, name, type, kind, status, contractee_id, contractor, progress, rating, review_url) 
-				VALUES 
-					(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			"""
+
+			full_contract_type = f"{type_wheel} {type_count}"
+
+			async with conn.execute(
+				"SELECT 1 FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type = ?", (SEASON_ID, user_id, full_contract_type)
+			) as cursor:
+				contract_exists = await cursor.fetchone() is not None
+
 			wheels_count[type_wheel] = type_count
-			await conn.execute(
-				query,
-				(
-					SEASON_ID,
-					str(uuid4()),
-					contract_name,
-					f"{type_wheel} {type_count}",
-					ContractKind.NORMAL.value,
-					contract_status,
-					user_id,
-					contractor,
-					contract_progress,
-					contract_rating,
-					contract_review_url,
-				),
-			)
+			if not contract_exists:
+				query = """
+					INSERT INTO season_contract 
+						(season_id, id, name, type, kind, status, contractee_id, contractor, progress, rating, review_url) 
+					VALUES 
+						(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				"""
+
+				await conn.execute(
+					query,
+					(
+						SEASON_ID,
+						str(uuid4()),
+						contract_name,
+						full_contract_type,
+						ContractKind.NORMAL.value,
+						contract_status,
+						user_id,
+						contractor,
+						contract_progress,
+						contract_rating,
+						contract_review_url,
+					),
+				)
+			else:
+				async with conn.execute(
+					"SELECT * FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type = ?", (SEASON_ID, user_id, full_contract_type)
+				) as cursor:
+					contract_row = await cursor.fetchone()
+					contract_id: str = contract_row["id"]
+
+				if contract_row["contractor"] != contractor:
+					await conn.execute("UPDATE season_contract SET contractor = ? WHERE id = ?", (contractor, contract_id))
+				if contract_row["review_url"] != contract_review_url:
+					await conn.execute("UPDATE season_contract SET review_url = ? WHERE id = ?", (contract_review_url, contract_id))
+				if contract_row["progress"] != contract_progress:
+					await conn.execute("UPDATE season_contract SET progress = ? WHERE id = ?", (contract_progress, contract_id))
+				if contract_row["rating"] != contract_rating:
+					await conn.execute("UPDATE season_contract SET rating = ? WHERE id = ?", (contract_rating, contract_id))
 		else:
 			token_type = TYPE_TO_TOKEN.get(contract_type)
 			if token_type is None:
@@ -350,6 +375,78 @@ async def _sync_buddies_sheet(buddy_sheet: SheetBlock, conn: aiosqlite.Connectio
 	await conn.commit()
 
 
+async def _sync_midseason_sheet(midseason_sheet: SheetBlock, conn: aiosqlite.Connection):
+	for row in midseason_sheet.rows:
+		username = row.get_value("B", "").strip().lower()
+
+		user_id = await get_user_id(conn, username)
+		if not user_id:
+			continue
+
+		contract_name = row.get_value("E", "").strip().replace("\n", ", ")
+		if not contract_name:
+			continue
+
+		status = row.get_value("A", "").strip().upper()
+		contract_type = row.get_value("C", "").strip()
+		contract_name = row.get_value("D", "").strip()
+
+		match status:
+			case "PASSED":
+				contract_status = ContractStatus.PASSED
+			case "FAILED":
+				contract_status = ContractStatus.FAILED
+			case "UNVERIFIED":
+				contract_status = ContractStatus.UNVERIFIED
+			case "LATE PASS":
+				contract_status = ContractStatus.LATE_PASS
+			case _:
+				contract_status = ContractStatus.PENDING
+
+		contract_rating = row.get_value("E", "").strip()
+		contract_review_url = row.get_value("F", "").strip()
+
+		async with conn.execute(
+			"SELECT 1 FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type = ?", (SEASON_ID, user_id, contract_type)
+		) as cursor:
+			contract_exists = await cursor.fetchone() is not None
+
+		if not contract_exists:
+			query = """
+				INSERT INTO season_contract 
+					(season_id, id, name, type, kind, status, contractee_id, rating, review_url) 
+				VALUES 
+					(?, ?, ?, ?, ?, ?, ?, ?, ?)
+			"""
+			await conn.execute(
+				query,
+				(
+					SEASON_ID,
+					str(uuid4()),
+					contract_name,
+					contract_type,
+					ContractKind.NORMAL.value,
+					contract_status,
+					user_id,
+					contract_rating,
+					contract_review_url,
+				),
+			)
+		else:
+			async with conn.execute(
+				"SELECT * FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type = ?", (SEASON_ID, user_id, contract_type)
+			) as cursor:
+				contract_row = await cursor.fetchone()
+				contract_id: str = contract_row["id"]
+
+				if contract_row["review_url"] != contract_review_url:
+					await conn.execute("UPDATE season_contract SET review_url = ? WHERE id = ?", (contract_review_url, contract_id))
+				if contract_row["rating"] != contract_rating:
+					await conn.execute("UPDATE season_contract SET rating = ? WHERE id = ?", (contract_rating, contract_id))
+
+	await conn.commit()
+
+
 async def _sync_fantasy_sheet(fantasy_sheet: SheetBlock, conn: aiosqlite.Connection):
 	rows = fantasy_sheet.rows
 
@@ -442,13 +539,16 @@ async def _sync_fantasy_sheet(fantasy_sheet: SheetBlock, conn: aiosqlite.Connect
 
 
 async def sync_season(database: NatsuDatabase):
-	spreadsheet = await fetch_sheets(SEASON_SPREADSHEET_ID, ["Dashboard!A2:AA330", "Base!A2:J2857", "Extreme Special!A2:G84", "Buddying!A2:P329"])
+	spreadsheet = await fetch_sheets(
+		SEASON_SPREADSHEET_ID, ["Dashboard!A2:AA330", "Base!A2:J2857", "Extreme Special!A2:G84", "Buddying!A2:P329", "Mid-Season Drops!A2:F350"]
+	)
 
 	async with database.connect() as conn:
 		await _sync_dashboard_sheet(spreadsheet.get_sheet("Dashboard", block=0), conn)
 		await _sync_base_sheet(spreadsheet.get_sheet("Base", block=0), conn)
 		await _sync_specials_sheet(spreadsheet, conn)
 		await _sync_buddies_sheet(spreadsheet.get_sheet("Buddying", block=0), conn)
+		await _sync_midseason_sheet(spreadsheet.get_sheet("Mid-Season Drops", block=0), conn)
 
 		try:
 			fantasy_sheet = await fetch_sheets(FANTASY_SPREADSHEET_ID, "Draft Picks!A1:M500")

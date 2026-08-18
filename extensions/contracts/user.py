@@ -663,7 +663,7 @@ class SeasonUserContracts(ui.DesignerView):
 			elif not showing_reviews:
 				footer_messages.append(f"{they} {'have' if is_invoker else 'has'} too many contracts to show review links.")
 			if compressed_contracts:
-				footer_messages.append(f"{their} contracts were compressed to display.")
+				footer_messages.append(f"{their} contracts were compressed in order to display.")
 
 			if unselected_types:
 				footer_messages.append(
@@ -1000,7 +1000,7 @@ class UserCog(NatsuCog):
 	@discord.option(
 		"user",
 		str,
-		description="The user to see contracts of, only autocompletes from active season",
+		description="The user to pick contracts from, only autocompletes from active season",
 		default=None,
 		autocomplete=usernames_autocomplete(True),
 	)
