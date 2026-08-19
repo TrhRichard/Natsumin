@@ -253,6 +253,10 @@ async def _sync_base_sheet(base_sheet: SheetBlock, conn: aiosqlite.Connection):
 					contract_row = await cursor.fetchone()
 					contract_id: str = contract_row["id"]
 
+				if contract_row["name"] != contract_name:
+					await conn.execute("UPDATE season_contract SET name = ? WHERE id = ?", (contract_name, contract_id))
+				if contract_row["status"] != contract_status:
+					await conn.execute("UPDATE season_contract SET status = ? WHERE id = ?", (contract_status.value, contract_id))
 				if contract_row["contractor"] != contractor:
 					await conn.execute("UPDATE season_contract SET contractor = ? WHERE id = ?", (contractor, contract_id))
 				if contract_row["review_url"] != contract_review_url:
@@ -273,10 +277,16 @@ async def _sync_base_sheet(base_sheet: SheetBlock, conn: aiosqlite.Connection):
 				contract_id: str = contract_row["id"]
 				contract_type_label = f"{token_type} - {type_wheel}"
 
+				if contract_row["name"] != contract_name:
+					await conn.execute("UPDATE season_contract SET name = ? WHERE id = ?", (contract_name, contract_id))
+				if contract_row["status"] != contract_status:
+					await conn.execute("UPDATE season_contract SET status = ? WHERE id = ?", (contract_status.value, contract_id))
 				if contract_row["contractor"] != contractor:
 					await conn.execute("UPDATE season_contract SET contractor = ? WHERE id = ?", (contractor, contract_id))
 				if contract_row["review_url"] != contract_review_url:
 					await conn.execute("UPDATE season_contract SET review_url = ? WHERE id = ?", (contract_review_url, contract_id))
+				if contract_row["progress"] != contract_progress:
+					await conn.execute("UPDATE season_contract SET progress = ? WHERE id = ?", (contract_progress, contract_id))
 				if contract_row["type_label"] != contract_type_label:
 					await conn.execute("UPDATE season_contract SET type_label = ? WHERE id = ?", (contract_type_label, contract_id))
 
@@ -439,6 +449,10 @@ async def _sync_midseason_sheet(midseason_sheet: SheetBlock, conn: aiosqlite.Con
 				contract_row = await cursor.fetchone()
 				contract_id: str = contract_row["id"]
 
+				if contract_row["name"] != contract_name:
+					await conn.execute("UPDATE season_contract SET name = ? WHERE id = ?", (contract_name, contract_id))
+				if contract_row["status"] != contract_status:
+					await conn.execute("UPDATE season_contract SET status = ? WHERE id = ?", (contract_status.value, contract_id))
 				if contract_row["review_url"] != contract_review_url:
 					await conn.execute("UPDATE season_contract SET review_url = ? WHERE id = ?", (contract_review_url, contract_id))
 				if contract_row["rating"] != contract_rating:
