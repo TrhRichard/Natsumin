@@ -441,22 +441,19 @@ class FantasyUserProfile(ui.DesignerView):
 
 
 class SeasonContractInfo(ui.DesignerView):
-	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str, contract_type: str):
+	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, contract_type: str):
 		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
 		self.season_id = season_id
-		self.user_id = user_id
 		self.contract_type = contract_type
 
 	@classmethod
-	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str, contract_type: str):
-		self = cls(bot, invoker, season_id, user_id, contract_type)
+	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, contract_id: str):
+		self = cls(bot, invoker, season_id, contract_id)
 
 		async with bot.database.connect() as conn:
-			async with conn.execute(
-				"SELECT * FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type LIKE ?", (season_id, user_id, contract_type)
-			) as cursor:
+			async with conn.execute("SELECT * FROM season_contract WHERE id = ?", (contract_id,)) as cursor:
 				contract_row = await cursor.fetchone()
 
 			if contract_row is None:
@@ -995,14 +992,16 @@ class UserCog(NatsuCog):
 				return await ctx.respond(f"{username} has not participated in {season_name}!", ephemeral=True)
 
 			async with conn.execute(
-				"SELECT 1 FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type LIKE ?", (season_id, user_id, contract_type)
+				"SELECT id FROM season_contract WHERE season_id = ? AND contractee_id = ? AND (type LIKE ?3 OR type_label LIKE ?3)",
+				(season_id, user_id, f"%{contract_type}%"),
 			) as cursor:
-				does_user_have_contract = await cursor.fetchone()
+				c_id_row = await cursor.fetchone()
+				contract_id: str = c_id_row["id"] if c_id_row is not None else None
 
-			if not does_user_have_contract:
+			if not contract_id:
 				return await ctx.respond(f"{username} does not have a contract of type {contract_type} in {season_name}!", ephemeral=True)
 
-		await ctx.respond(view=await SeasonContractInfo.create(self.bot, ctx.author, season_id, user_id, contract_type), ephemeral=hidden)
+		await ctx.respond(view=await SeasonContractInfo.create(self.bot, ctx.author, season_id, contract_id), ephemeral=hidden)
 
 	@contracts_subgroup.command(name="pick-random-contract", description="Pick a random contract from a user")
 	@discord.option(
@@ -1178,14 +1177,16 @@ class UserCog(NatsuCog):
 				return await ctx.reply(f"{username} has not participated in {season_name}!")
 
 			async with conn.execute(
-				"SELECT 1 FROM season_contract WHERE season_id = ? AND contractee_id = ? AND type LIKE ?", (season_id, user_id, flags.contract_type)
+				"SELECT id FROM season_contract WHERE season_id = ? AND contractee_id = ? AND (type LIKE ?3 OR type_label LIKE ?3)",
+				(season_id, user_id, f"%{flags.contract_type}%"),
 			) as cursor:
-				does_user_have_contract = await cursor.fetchone()
+				c_id_row = await cursor.fetchone()
+				contract_id: str = c_id_row["id"] if c_id_row is not None else None
 
-			if not does_user_have_contract:
+			if not contract_id:
 				return await ctx.reply(f"{username} does not have a contract of type {flags.contract_type} in {season_name}!")
 
-		await ctx.reply(view=await SeasonContractInfo.create(self.bot, ctx.author, season_id, user_id, flags.contract_type))
+		await ctx.reply(view=await SeasonContractInfo.create(self.bot, ctx.author, season_id, contract_id))
 
 	@commands.command("pickrandomcontract", aliases=["prc"], help="Pick a random contract from a user")
 	@whitelist_channel_only()
