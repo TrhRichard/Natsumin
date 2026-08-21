@@ -14,6 +14,7 @@ dependencies = [
 ]
 
 [tool.ruff]
+select = ["E4", "E7", "E9", "F"]
 line-length = 150
 fix = true
 show-fixes = true
@@ -27,7 +28,6 @@ skip-magic-trailing-comma = true
 detect-string-imports = true
 
 [tool.ruff.lint]
-
 ignore = ["I001", "N999"]
 
 [dependency-groups]

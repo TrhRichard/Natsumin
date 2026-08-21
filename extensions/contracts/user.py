@@ -14,6 +14,7 @@ from internal.constants import COLORS
 from discord.ext import commands
 from discord import ui
 
+import datetime
 import discord
 
 if TYPE_CHECKING:
@@ -182,6 +183,9 @@ class SeasonUserProfile(ui.DesignerView):
 
 			username = f"<@{discord_user.id}>" if discord_user else user_row["username"]
 			user_description = f"- **Status**: {get_status_name(UserStatus(user_row['status']))} {get_status_emote(UserStatus(user_row['status']))}\n"
+			if user_row["passed_at"] is not None:
+				passed_date = datetime.date.fromisoformat(user_row["passed_at"])
+				user_description += f"- **Passed on**: {passed_date.strftime('%B %d, %Y')}\n"
 
 			contractees: tuple[str, ...] | None = None
 			if user_row["kind"] == UserKind.NORMAL:
@@ -598,7 +602,7 @@ class SeasonUserContracts(ui.DesignerView):
 
 		async with bot.database.connect() as conn:
 			async with conn.execute(
-				"SELECT u.username, u.discord_id, su.contractor_id, su.status, su.kind FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND su.user_id = ?",
+				"SELECT u.username, u.discord_id, su.contractor_id, su.status, su.kind, su.passed_at FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND su.user_id = ?",
 				(season_id, user_id),
 			) as cursor:
 				user_row = await cursor.fetchone()
@@ -669,6 +673,10 @@ class SeasonUserContracts(ui.DesignerView):
 				footer_messages.append(
 					f"{they} {"haven't" if is_invoker else "hasn't"} picked anything for {frmt_iter(f'**{type}**' for type in unselected_types)}!"
 				)
+
+			if user_row["passed_at"] is not None:
+				passed_date = datetime.date.fromisoformat(user_row["passed_at"])
+				footer_messages.append(f"{they} passed this season on {passed_date.strftime('%B %d, %Y')}")
 
 			container = ui.Container(
 				(

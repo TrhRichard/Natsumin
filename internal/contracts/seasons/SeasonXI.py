@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import aiosqlite
+import datetime
 import aiohttp
 import re
 
@@ -119,6 +120,13 @@ async def _sync_dashboard_sheet(dashboard_sheet: SheetBlock, conn: aiosqlite.Con
 				user_row = await cursor.fetchone()
 		else:
 			if user_row["status"] != user_status:
+				previous_status = UserStatus(user_row["status"])
+				if (previous_status != UserStatus.PASSED and user_status == UserStatus.PASSED) or (
+					previous_status != UserStatus.LATE_PASS and user_status == UserStatus.LATE_PASS
+				):
+					passed_date = datetime.date.today()
+					await conn.execute("UPDATE season_user SET passed_at = ? WHERE season_id = ? AND user_id = ?", (passed_date, SEASON_ID, user_id))
+
 				await conn.execute("UPDATE season_user SET status = ? WHERE season_id = ? AND user_id = ?", (user_status.value, SEASON_ID, user_id))
 			if user_row["rep"] != user_season_rep.value:
 				await conn.execute("UPDATE season_user SET rep = ? WHERE season_id = ? AND user_id = ?", (user_season_rep.value, SEASON_ID, user_id))
