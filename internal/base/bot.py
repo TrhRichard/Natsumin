@@ -429,7 +429,7 @@ class BotHelp(commands.HelpCommand):
 			if signatures:
 				category_signatures.setdefault(cog_name, []).extend(signatures)
 
-		for cat_name, cat_signatures in category_signatures.items():
+		for cat_name, cat_signatures in sorted(category_signatures.items(), key=lambda x: x[0]):
 			if cat_name == "Other":
 				continue
 			embed.description += f"\n### {cat_name}\n{'\n'.join(f'- {s}' for s in cat_signatures)}"
