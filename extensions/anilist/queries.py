@@ -3,17 +3,20 @@ from typing import Literal
 
 import datetime
 import aiohttp
+import re
+
+ANILIST_LINK_PATTERN = re.compile(r"anilist\.co\/\w+\/(\d+)")
 
 MEDIA_SEARCH_QUERY = """
-query MediaSearch($search: String, $type: MediaType) {
-  Media(search: $search, type: $type) {
+query MediaSearch($search: String, $type: MediaType, $media_id: Int, $format: MediaFormat, $format_not: MediaFormat) {
+  Media(search: $search, type: $type, id: $media_id, format: $format, format_not: $format_not) {
     title {
       romaji
       native
       english
     }
     id
-	type
+    type
     description
     startDate {
       day
@@ -49,22 +52,23 @@ query MediaSearch($search: String, $type: MediaType) {
 }
 """
 
+
 CHARACTER_SEARCH_QUERY = """
-query CharacterSearch($search: String)  {
-  Character(search: $search) {
+query CharacterSearch($search: String, $character_id: Int)  {
+  Character(search: $search, id: $character_id) {
     name {
       full
       first
       last
       native
     }
-	id
+    id
     description
     image {
       large
     }
     gender
-	age
+    age
     siteUrl
   }
 }
@@ -260,15 +264,39 @@ class Character:
 
 
 def sanitize_description(description: str) -> str:
-	return description.replace("<br>", "").replace("\\n", "\n").replace("</i>", "*").replace("<i>", "*").replace("</b>", "**").replace("<b>", "**")
+	return (
+		description.replace("<br>", "")
+		.replace("\\n", "\n")
+		.replace("</i>", "*")
+		.replace("<i>", "*")
+		.replace("</b>", "**")
+		.replace("<b>", "**")
+		.replace("&mdash;", "—")
+	)
 
 
 def format_media_thing(thing: MediaType | MediaFormat | MediaSource | MediaStatus) -> str:
 	return thing.replace("_", " ").title()
 
 
-async def search_media(search: str, media_type: Literal["ANIME", "MANGA"] = "ANIME") -> Media:
+async def search_media(search: str | int, media_type: Literal["ANIME", "MANGA", "LIGHT_NOVEL"] = "ANIME") -> Media:
+	link_match: re.Match[str] | None = ANILIST_LINK_PATTERN.search(search)
+	if link_match is not None:
+		print(link_match, search)
+		search = int(link_match.group(1))
+	elif search.lower().startswith("id") and search.lower().removeprefix("id").isnumeric():
+		search = int(search.lower().removeprefix("id"))
+
 	variables = {"search": search, "type": media_type}
+	if media_type == "LIGHT_NOVEL":
+		variables["type"] = "MANGA"
+		variables["format"] = "NOVEL"
+	elif media_type == "MANGA":
+		variables["format_not"] = "NOVEL"
+
+	if isinstance(search, int):
+		variables.pop("search")
+		variables["media_id"] = search
 
 	async with aiohttp.ClientSession() as session:
 		async with session.post("https://graphql.anilist.co", json={"query": MEDIA_SEARCH_QUERY, "variables": variables}) as resp:
@@ -281,8 +309,18 @@ async def search_media(search: str, media_type: Literal["ANIME", "MANGA"] = "ANI
 			return Media.from_dict(json_body["data"]["Media"])
 
 
-async def search_character(search: str) -> Character:
+async def search_character(search: str | int) -> Character:
+	link_match: re.Match[str] | None = ANILIST_LINK_PATTERN.search(search)
+	if link_match is not None:
+		search = int(link_match.group(1))
+	elif search.lower().startswith("id") and search.lower().removeprefix("id").isnumeric():
+		search = int(search.lower().removeprefix("id"))
+
 	variables = {"search": search}
+
+	if isinstance(search, int):
+		variables.pop("search")
+		variables["character_id"] = search
 
 	async with aiohttp.ClientSession() as session:
 		async with session.post("https://graphql.anilist.co", json={"query": CHARACTER_SEARCH_QUERY, "variables": variables}) as resp:

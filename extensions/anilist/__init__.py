@@ -88,7 +88,12 @@ class AnilistExt(NatsuCog, name="AniList"):
 
 		return embed
 
-	anilist_group = discord.commands.SlashCommandGroup("anilist", guild_ids=GUILD_IDS)
+	anilist_group = discord.commands.SlashCommandGroup(
+		"anilist",
+		# guild_ids=GUILD_IDS,
+		contexts={discord.InteractionContextType.guild, discord.InteractionContextType.bot_dm, discord.InteractionContextType.private_channel},
+		integration_types={discord.IntegrationType.user_install, discord.IntegrationType.guild_install},
+	)
 
 	@anilist_group.command(name="anime", description="Get information about a anime from AniList")
 	@discord.option("title", str, min_length=1, description="Name of the anime")
@@ -99,7 +104,7 @@ class AnilistExt(NatsuCog, name="AniList"):
 		if found_media:
 			if found_media.is_adult and not ctx.channel.is_nsfw():
 				return await ctx.respond(
-					"Found anime is marked as NSFW, in order to show information about this anime use it in a nsfw channel.", ephemeral=hidden
+					"Found anime is marked as NSFW, in order to show information about it use it in a nsfw channel.", ephemeral=hidden
 				)
 
 			return await ctx.respond(embed=self.create_embed_from_media(found_media), ephemeral=hidden)
@@ -115,12 +120,28 @@ class AnilistExt(NatsuCog, name="AniList"):
 		if found_media:
 			if found_media.is_adult and not ctx.channel.is_nsfw():
 				return await ctx.respond(
-					"Found manga is marked as NSFW, in order to show information about this manga use it in a nsfw channel.", ephemeral=hidden
+					"Found manga is marked as NSFW, in order to show information about it use it in a nsfw channel.", ephemeral=hidden
 				)
 
 			return await ctx.respond(embed=self.create_embed_from_media(found_media), ephemeral=hidden)
 		else:
 			return await ctx.respond(f"Could not find a manga with the title of `{title}`", ephemeral=hidden)
+
+	@anilist_group.command(name="lightnovel", description="Get information about a light novel from AniList")
+	@discord.option("title", str, min_length=1, description="Name of the light novel")
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you, defaults to False", default=False)
+	async def slash_lightnovel(self, ctx: NatsuAppContext, title: str, hidden: bool):
+		found_media = await search_media(title, "LIGHT_NOVEL")
+
+		if found_media:
+			if found_media.is_adult and not ctx.channel.is_nsfw():
+				return await ctx.respond(
+					"Found light novel is marked as NSFW, in order to show information about it use it in a nsfw channel.", ephemeral=hidden
+				)
+
+			return await ctx.respond(embed=self.create_embed_from_media(found_media), ephemeral=hidden)
+		else:
+			return await ctx.respond(f"Could not find a light novel with the title of `{title}`", ephemeral=hidden)
 
 	@anilist_group.command(name="character", description="Get information about a character from AniList")
 	@discord.option("name", str, min_length=1, description="Name of the character")
@@ -138,7 +159,7 @@ class AnilistExt(NatsuCog, name="AniList"):
 
 		if found_media:
 			if found_media.is_adult and not ctx.channel.is_nsfw():
-				return await ctx.reply("Found anime is marked as NSFW, in order to show information about this anime use it in a nsfw channel.")
+				return await ctx.reply("Found anime is marked as NSFW, in order to show information about it use it in a nsfw channel.")
 
 			return await ctx.reply(embed=self.create_embed_from_media(found_media))
 		else:
@@ -150,11 +171,23 @@ class AnilistExt(NatsuCog, name="AniList"):
 
 		if found_media:
 			if found_media.is_adult and not ctx.channel.is_nsfw():
-				return await ctx.reply("Found manga is marked as NSFW, in order to show information about this manga use it in a nsfw channel.")
+				return await ctx.reply("Found manga is marked as NSFW, in order to show information about it use it in a nsfw channel.")
 
 			return await ctx.reply(embed=self.create_embed_from_media(found_media))
 		else:
 			return await ctx.reply(f"Could not find a manga with the title of `{title}`")
+
+	@commands.command(name="lightnovel", aliases=["ln"], help="Get information about a light novel from AniList")
+	async def text_lightnovel(self, ctx: NatsuContext, *, title: str):
+		found_media = await search_media(title, "LIGHT_NOVEL")
+
+		if found_media:
+			if found_media.is_adult and not ctx.channel.is_nsfw():
+				return await ctx.reply("Found light novel is marked as NSFW, in order to show information about it use it in a nsfw channel.")
+
+			return await ctx.reply(embed=self.create_embed_from_media(found_media))
+		else:
+			return await ctx.reply(f"Could not find a light novel with the title of `{title}`")
 
 	@commands.command(name="character", aliases=["char"], help="Get information about a character from AniList")
 	async def text_character(self, ctx: NatsuContext, *, name: str):
