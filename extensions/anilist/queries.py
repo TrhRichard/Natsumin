@@ -74,6 +74,27 @@ query CharacterSearch($search: String, $character_id: Int)  {
 }
 """
 
+STAFF_SEARCH_QUERY = """
+query StaffSearch($search: String, $staff_id: Int){
+  Staff(search: $search, id: $staff_id) {
+    name {
+      full
+      first
+      last
+      native
+    }
+    id
+    description
+    image {
+      large
+    }
+    gender
+    age
+    siteUrl
+  }
+}
+"""
+
 type MediaType = Literal["ANIME", "MANGA"]
 type MediaFormat = Literal["TV", "TV_SHORT", "MOVIE", "SPECIAL", "OVA", "ONA", "MUSIC", "MANGA", "NOVEL", "ONE_SHOT"]
 type MediaStatus = Literal["FINISHED", "RELEASING", "NOT_YET_RELEASED", "CANCELLED", "HIATUS"]
@@ -263,6 +284,54 @@ class Character:
 		)
 
 
+@dataclass(slots=True, frozen=True, kw_only=True)
+class StaffName:
+	full: str
+	first: str
+	last: str | None
+	native: str
+
+	@staticmethod
+	def from_dict(data: dict):
+		return StaffName(full=data["full"], first=data["first"], last=data["last"], native=data["native"])
+
+	@property
+	def displayed_name(self):
+		return (f"{self.last if self.last else ''} {self.first if self.first else ''}".strip() or self.full) or self.native
+
+
+@dataclass(slots=True, frozen=True, kw_only=True)
+class StaffImage:
+	large: str
+
+	@staticmethod
+	def from_dict(data: dict):
+		return StaffImage(large=data["large"])
+
+
+@dataclass(slots=True, frozen=True, kw_only=True)
+class Staff:
+	name: StaffName
+	id: int
+	description: str
+	image: StaffImage
+	gender: str
+	age: str
+	site_url: str
+
+	@staticmethod
+	def from_dict(data: dict):
+		return Character(
+			name=CharacterName.from_dict(data["name"]),
+			id=data["id"],
+			description=sanitize_description(data["description"]),
+			image=CharacterImage.from_dict(data["image"]),
+			gender=data["gender"],
+			age=data["age"],
+			site_url=data["siteUrl"],
+		)
+
+
 def sanitize_description(description: str) -> str:
 	return (
 		description.replace("<br>", "")
@@ -272,6 +341,9 @@ def sanitize_description(description: str) -> str:
 		.replace("</b>", "**")
 		.replace("<b>", "**")
 		.replace("&mdash;", "—")
+		.replace("~!", "")
+		.replace("!~", "")
+		.replace("__", "**")
 	)
 
 
@@ -279,13 +351,20 @@ def format_media_thing(thing: MediaType | MediaFormat | MediaSource | MediaStatu
 	return thing.replace("_", " ").title()
 
 
-async def search_media(search: str | int, media_type: Literal["ANIME", "MANGA", "LIGHT_NOVEL"] = "ANIME") -> Media:
-	link_match: re.Match[str] | None = ANILIST_LINK_PATTERN.search(search)
+def get_final_search(initial: str) -> str | int:
+	link_match: re.Match[str] | None = ANILIST_LINK_PATTERN.search(initial)
 	if link_match is not None:
-		print(link_match, search)
-		search = int(link_match.group(1))
-	elif search.lower().startswith("id") and search.lower().removeprefix("id").isnumeric():
-		search = int(search.lower().removeprefix("id"))
+		final = int(link_match.group(1))
+	elif initial.lower().startswith("id") and initial.lower().removeprefix("id").isnumeric():
+		final = int(initial.lower().removeprefix("id"))
+	else:
+		final = initial
+
+	return final
+
+
+async def search_media(search: str, media_type: Literal["ANIME", "MANGA", "LIGHT_NOVEL"] = "ANIME") -> Media:
+	search = get_final_search(search)
 
 	variables = {"search": search, "type": media_type}
 	if media_type == "LIGHT_NOVEL":
@@ -309,12 +388,8 @@ async def search_media(search: str | int, media_type: Literal["ANIME", "MANGA", 
 			return Media.from_dict(json_body["data"]["Media"])
 
 
-async def search_character(search: str | int) -> Character:
-	link_match: re.Match[str] | None = ANILIST_LINK_PATTERN.search(search)
-	if link_match is not None:
-		search = int(link_match.group(1))
-	elif search.lower().startswith("id") and search.lower().removeprefix("id").isnumeric():
-		search = int(search.lower().removeprefix("id"))
+async def search_character(search: str) -> Character:
+	search = get_final_search(search)
 
 	variables = {"search": search}
 
@@ -331,3 +406,23 @@ async def search_character(search: str | int) -> Character:
 
 			json_body = await resp.json()
 			return Character.from_dict(json_body["data"]["Character"])
+
+
+async def search_staff(search: str) -> Staff:
+	search = get_final_search(search)
+
+	variables = {"search": search}
+
+	if isinstance(search, int):
+		variables.pop("search")
+		variables["staff_id"] = search
+
+	async with aiohttp.ClientSession() as session:
+		async with session.post("https://graphql.anilist.co", json={"query": STAFF_SEARCH_QUERY, "variables": variables}) as resp:
+			if not resp.ok:
+				return None
+			if resp.status != 200:
+				return None
+
+			json_body = await resp.json()
+			return Character.from_dict(json_body["data"]["Staff"])

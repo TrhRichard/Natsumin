@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from .queries import search_media, search_character, Media, Character
+from .queries import search_media, search_character, search_staff, Media, Character, Staff
 from internal.base.context import NatsuContext, NatsuAppContext
 from internal.constants import FILE_LOGGING_FORMATTER, COLORS
 from internal.functions import frmt_iter
 from internal.base.cog import NatsuCog
 from discord.ext import commands
 from typing import TYPE_CHECKING
-from config import GUILD_IDS
 
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuBot
@@ -33,9 +32,6 @@ class AnilistExt(NatsuCog, name="AniList"):
 			self.logger.addHandler(file_handler)
 
 			self.logger.setLevel(logging.INFO)
-
-	# async def cog_before_invoke(self, ctx: NatsuContext | NatsuAppContext):
-	# await ctx.bot.ensure_user(ctx.author) # might need in the future but for now unnecessary
 
 	def create_embed_from_media(self, media: Media) -> discord.Embed:
 		embed = discord.Embed(
@@ -77,20 +73,41 @@ class AnilistExt(NatsuCog, name="AniList"):
 		return embed
 
 	def create_embed_from_character(self, character: Character) -> discord.Embed:
-		embed = discord.Embed(color=COLORS.DEFAULT, description=character.description)
+		embed = discord.Embed(color=COLORS.DEFAULT)
 		embed.set_author(name=character.name.displayed_name, url=character.site_url)
 		embed.set_thumbnail(url=character.image.large)
 
+		desc_fields = []
+
 		if character.age is not None:
-			embed.add_field(name="Age", value=str(character.age))
+			desc_fields.append(f"**Age:** {character.age}")
 		if character.gender is not None:
-			embed.add_field(name="Gender", value=str(character.gender))
+			desc_fields.append(f"**Gender:** {character.gender}")
+
+		desc_fields.append(character.description)
+		embed.description = "\n".join(desc_fields)
+
+		return embed
+
+	def create_embed_from_staff(self, staff: Staff) -> discord.Embed:
+		embed = discord.Embed(color=COLORS.DEFAULT, description=staff.description)
+		embed.set_author(name=staff.name.displayed_name, url=staff.site_url)
+		embed.set_thumbnail(url=staff.image.large)
+
+		desc_fields = []
+
+		if staff.age is not None:
+			desc_fields.append(f"**Age:** {staff.age}")
+		if staff.gender is not None:
+			desc_fields.append(f"**Gender:** {staff.gender}")
+
+		desc_fields.append(staff.description)
+		embed.description = "\n".join(desc_fields)
 
 		return embed
 
 	anilist_group = discord.commands.SlashCommandGroup(
 		"anilist",
-		# guild_ids=GUILD_IDS,
 		contexts={discord.InteractionContextType.guild, discord.InteractionContextType.bot_dm, discord.InteractionContextType.private_channel},
 		integration_types={discord.IntegrationType.user_install, discord.IntegrationType.guild_install},
 	)
@@ -104,12 +121,18 @@ class AnilistExt(NatsuCog, name="AniList"):
 		if found_media:
 			if found_media.is_adult and not ctx.channel.is_nsfw():
 				return await ctx.respond(
-					"Found anime is marked as NSFW, in order to show information about it use it in a nsfw channel.", ephemeral=hidden
+					embed=discord.Embed(
+						title="Age-Restricted", description="Information for adult media is only allowed in Age-Restricted channels."
+					),
+					ephemeral=hidden,
 				)
 
 			return await ctx.respond(embed=self.create_embed_from_media(found_media), ephemeral=hidden)
 		else:
-			return await ctx.respond(f"Could not find a anime with the title of `{title}`", ephemeral=hidden)
+			return await ctx.respond(
+				embed=discord.Embed(title="Not Found", description=f"Could not find a anime with the title: **{title}**", color=COLORS.ERROR),
+				ephemeral=hidden,
+			)
 
 	@anilist_group.command(name="manga", description="Get information about a manga from AniList")
 	@discord.option("title", str, min_length=1, description="Name of the manga")
@@ -120,12 +143,18 @@ class AnilistExt(NatsuCog, name="AniList"):
 		if found_media:
 			if found_media.is_adult and not ctx.channel.is_nsfw():
 				return await ctx.respond(
-					"Found manga is marked as NSFW, in order to show information about it use it in a nsfw channel.", ephemeral=hidden
+					embed=discord.Embed(
+						title="Age-Restricted", description="Information for adult media is only allowed in Age-Restricted channels."
+					),
+					ephemeral=hidden,
 				)
 
 			return await ctx.respond(embed=self.create_embed_from_media(found_media), ephemeral=hidden)
 		else:
-			return await ctx.respond(f"Could not find a manga with the title of `{title}`", ephemeral=hidden)
+			return await ctx.respond(
+				embed=discord.Embed(title="Not Found", description=f"Could not find a manga with the title: **{title}**", color=COLORS.ERROR),
+				ephemeral=hidden,
+			)
 
 	@anilist_group.command(name="lightnovel", description="Get information about a light novel from AniList")
 	@discord.option("title", str, min_length=1, description="Name of the light novel")
@@ -136,12 +165,18 @@ class AnilistExt(NatsuCog, name="AniList"):
 		if found_media:
 			if found_media.is_adult and not ctx.channel.is_nsfw():
 				return await ctx.respond(
-					"Found light novel is marked as NSFW, in order to show information about it use it in a nsfw channel.", ephemeral=hidden
+					embed=discord.Embed(
+						title="Age-Restricted", description="Information for adult media is only allowed in Age-Restricted channels."
+					),
+					ephemeral=hidden,
 				)
 
 			return await ctx.respond(embed=self.create_embed_from_media(found_media), ephemeral=hidden)
 		else:
-			return await ctx.respond(f"Could not find a light novel with the title of `{title}`", ephemeral=hidden)
+			return await ctx.respond(
+				embed=discord.Embed(title="Not Found", description=f"Could not find a light novel with the title: **{title}**", color=COLORS.ERROR),
+				ephemeral=hidden,
+			)
 
 	@anilist_group.command(name="character", description="Get information about a character from AniList")
 	@discord.option("name", str, min_length=1, description="Name of the character")
@@ -151,7 +186,23 @@ class AnilistExt(NatsuCog, name="AniList"):
 		if found_character:
 			return await ctx.respond(embed=self.create_embed_from_character(found_character), ephemeral=hidden)
 		else:
-			return await ctx.respond(f"Could not find a character with the name of `{name}`", ephemeral=hidden)
+			return await ctx.respond(
+				embed=discord.Embed(title="Not Found", description=f"Could not find a character with the name: **{name}**", color=COLORS.ERROR),
+				ephemeral=hidden,
+			)
+
+	@anilist_group.command(name="staff", description="Get information about a staff from AniList")
+	@discord.option("name", str, min_length=1, description="Name of the staff")
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you, defaults to False", default=False)
+	async def slash_staff(self, ctx: NatsuAppContext, name: str, hidden: bool):
+		found_staff = await search_staff(name)
+		if found_staff:
+			return await ctx.respond(embed=self.create_embed_from_staff(found_staff), ephemeral=hidden)
+		else:
+			return await ctx.respond(
+				embed=discord.Embed(title="Not Found", description=f"Could not find staff with the name: **{name}**", color=COLORS.ERROR),
+				ephemeral=hidden,
+			)
 
 	@commands.command(name="anime", help="Get information about a anime from AniList")
 	async def text_anime(self, ctx: NatsuContext, *, title: str):
@@ -159,11 +210,15 @@ class AnilistExt(NatsuCog, name="AniList"):
 
 		if found_media:
 			if found_media.is_adult and not ctx.channel.is_nsfw():
-				return await ctx.reply("Found anime is marked as NSFW, in order to show information about it use it in a nsfw channel.")
+				return await ctx.reply(
+					embed=discord.Embed(title="Age-Restricted", description="Information for adult media is only allowed in Age-Restricted channels.")
+				)
 
 			return await ctx.reply(embed=self.create_embed_from_media(found_media))
 		else:
-			return await ctx.reply(f"Could not find a anime with the title of `{title}`")
+			return await ctx.reply(
+				embed=discord.Embed(title="Not Found", description=f"Could not find a anime with the title: **{title}**", color=COLORS.ERROR)
+			)
 
 	@commands.command(name="manga", help="Get information about a manga from AniList")
 	async def text_manga(self, ctx: NatsuContext, *, title: str):
@@ -171,11 +226,15 @@ class AnilistExt(NatsuCog, name="AniList"):
 
 		if found_media:
 			if found_media.is_adult and not ctx.channel.is_nsfw():
-				return await ctx.reply("Found manga is marked as NSFW, in order to show information about it use it in a nsfw channel.")
+				return await ctx.reply(
+					embed=discord.Embed(title="Age-Restricted", description="Information for adult media is only allowed in Age-Restricted channels.")
+				)
 
 			return await ctx.reply(embed=self.create_embed_from_media(found_media))
 		else:
-			return await ctx.reply(f"Could not find a manga with the title of `{title}`")
+			return await ctx.reply(
+				embed=discord.Embed(title="Not Found", description=f"Could not find a manga with the title: **{title}**", color=COLORS.ERROR)
+			)
 
 	@commands.command(name="lightnovel", aliases=["ln"], help="Get information about a light novel from AniList")
 	async def text_lightnovel(self, ctx: NatsuContext, *, title: str):
@@ -183,11 +242,15 @@ class AnilistExt(NatsuCog, name="AniList"):
 
 		if found_media:
 			if found_media.is_adult and not ctx.channel.is_nsfw():
-				return await ctx.reply("Found light novel is marked as NSFW, in order to show information about it use it in a nsfw channel.")
+				return await ctx.reply(
+					embed=discord.Embed(title="Age-Restricted", description="Information for adult media is only allowed in Age-Restricted channels.")
+				)
 
 			return await ctx.reply(embed=self.create_embed_from_media(found_media))
 		else:
-			return await ctx.reply(f"Could not find a light novel with the title of `{title}`")
+			return await ctx.reply(
+				embed=discord.Embed(title="Not Found", description=f"Could not find a light novel with the title: **{title}**", color=COLORS.ERROR)
+			)
 
 	@commands.command(name="character", aliases=["char"], help="Get information about a character from AniList")
 	async def text_character(self, ctx: NatsuContext, *, name: str):
@@ -195,7 +258,19 @@ class AnilistExt(NatsuCog, name="AniList"):
 		if found_character:
 			return await ctx.reply(embed=self.create_embed_from_character(found_character))
 		else:
-			return await ctx.reply(f"Could not find a character with the name of `{name}`")
+			return await ctx.reply(
+				embed=discord.Embed(title="Not Found", description=f"Could not find a character with the name: **{name}**", color=COLORS.ERROR)
+			)
+
+	@commands.command(name="staff", help="Get information about a staff from AniList")
+	async def text_staff(self, ctx: NatsuContext, *, name: str):
+		found_staff = await search_staff(name)
+		if found_staff:
+			return await ctx.reply(embed=self.create_embed_from_staff(found_staff))
+		else:
+			return await ctx.reply(
+				embed=discord.Embed(title="Not Found", description=f"Could not find staff with the name: **{name}**", color=COLORS.ERROR)
+			)
 
 
 def setup(bot: NatsuBot):
