@@ -356,6 +356,7 @@ class ContractsCog(NatsuCog):
 						WHEN su.status = 0 THEN 2 -- pending
 						ELSE 99
 					END ASC,
+					su.passed_at ASC,
 					u.username ASC
 			"""
 			params = [season_id]
