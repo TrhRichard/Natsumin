@@ -560,9 +560,113 @@ async def _sync_fantasy_sheet(fantasy_sheet: SheetBlock, conn: aiosqlite.Connect
 	await conn.commit()
 
 
+async def _sync_aids_sheet(aids_sheet: SheetBlock, conn: aiosqlite.Connection):
+	user_id_occurances: defaultdict[str, int] = defaultdict(int)
+	aid_user_passed: defaultdict[str, int] = defaultdict(int)
+	aid_user_total: defaultdict[str, int] = defaultdict(int)
+
+	for row in aids_sheet.rows:
+		username = row.get_value(1, "").strip().lower()
+
+		if not username:
+			continue
+
+		user_id = await get_user_id(conn, username)
+		if not user_id:
+			print(f"User id not found for {username}, currently creation of users is not available!")
+			continue
+
+		async with conn.execute("SELECT kind, status FROM season_user WHERE season_id = ? AND user_id = ?", (SEASON_ID, user_id)) as cursor:
+			user_row = await cursor.fetchone()
+			if not user_row:
+				async with conn.execute(
+					"INSERT INTO season_user (season_id, user_id, status, kind) VALUES (?, ?, ?, ?) RETURNING kind, status",
+					(SEASON_ID, user_id, UserStatus.PENDING.value, UserKind.AID.value),
+				) as cursor:
+					user_row = await cursor.fetchone()
+
+		user_id_occurances[user_id] += 1
+		aid_number = user_id_occurances.get(user_id)
+
+		async with conn.execute(
+			"SELECT id, rating, progress, review_url, name FROM season_contract WHERE season_id = ? AND contractee_id = ? AND kind = ? AND type = ?",
+			(SEASON_ID, user_id, ContractKind.AID.value, f"Aid Contract {aid_number}"),
+		) as cursor:
+			aid_contract_row = await cursor.fetchone()
+
+		match row.get_value(0, "").strip().upper():
+			case "PASSED":
+				contract_status = ContractStatus.PASSED
+			case "FAILED":
+				contract_status = ContractStatus.FAILED
+			case _:
+				contract_status = ContractStatus.PENDING
+
+		if user_row["kind"] == UserKind.AID.value and user_row["status"] != UserStatus.PASSED.value:
+			aid_user_total[user_id] += 1
+			if contract_status == ContractStatus.PASSED:
+				aid_user_passed[user_id] += 1
+
+		contract_name = row.get_value("F", "").strip().replace("\n", ", ")
+		contract_progress = row.get_value("G", "").replace("\n", "")
+		contract_review_url = row.get_url("H")
+		contract_rating = row.get_value("E", "0/10")
+		contract_medium = re.sub(PATTERNS.NAME_MEDIUM, r"\2", row.get_value("F", ""))
+		contract_contractor = row.get_value("D", "").strip().lower()
+
+		if aid_contract_row and (
+			aid_contract_row["rating"] != contract_rating
+			or aid_contract_row["progress"] != contract_progress
+			or aid_contract_row["review_url"] != contract_review_url
+			or aid_contract_row["name"] != contract_name
+		):
+			await conn.execute(
+				"UPDATE season_contract SET contractor = ?, progress = ?, rating = ?, review_url = ?, medium = ?, status = ?, name = ? WHERE season_id = ? AND id = ?",
+				(
+					contract_contractor,
+					contract_progress,
+					contract_rating,
+					contract_review_url,
+					contract_medium,
+					contract_status.value,
+					contract_name,
+					SEASON_ID,
+					aid_contract_row["id"],
+				),
+			)
+		elif not aid_contract_row:
+			contract_id = str(uuid4())
+			await conn.execute(
+				"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, progress, rating, review_url, medium) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				(
+					SEASON_ID,
+					contract_id,
+					contract_name,
+					f"Aid Contract {aid_number}",
+					ContractKind.AID.value,
+					contract_status.value,
+					user_id,
+					contract_contractor,
+					contract_progress,
+					contract_rating,
+					contract_review_url,
+					contract_medium,
+				),
+			)
+
+	for user_id, total in aid_user_total.items():
+		passed = aid_user_passed[user_id]
+
+		if passed >= total:
+			await conn.execute("UPDATE season_user SET status = ? WHERE season_id = ? AND user_id = ?", (UserStatus.PASSED, SEASON_ID, user_id))
+
+	await conn.commit()
+
+
 async def sync_season(database: NatsuDatabase):
 	spreadsheet = await fetch_sheets(
-		SEASON_SPREADSHEET_ID, ["Dashboard!A2:AA330", "Base!A2:J2857", "Extreme Special!A2:G84", "Buddying!A2:P329", "Mid-Season Drops!A2:F350"]
+		SEASON_SPREADSHEET_ID,
+		["Dashboard!A2:AA330", "Base!A2:J2857", "Extreme Special!A2:G84", "Buddying!A2:P329", "Mid-Season Drops!A2:F350", "Aid Parade!A4:H200"],
 	)
 
 	async with database.connect() as conn:
@@ -571,6 +675,7 @@ async def sync_season(database: NatsuDatabase):
 		await _sync_specials_sheet(spreadsheet, conn)
 		await _sync_buddies_sheet(spreadsheet.get_sheet("Buddying", block=0), conn)
 		await _sync_midseason_sheet(spreadsheet.get_sheet("Mid-Season Drops", block=0), conn)
+		await _sync_aids_sheet(spreadsheet.get_sheet("Aid Parade", block=0), conn)
 
 		try:
 			fantasy_sheet = await fetch_sheets(FANTASY_SPREADSHEET_ID, "Draft Picks!A1:M500")
