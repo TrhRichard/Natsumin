@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from internal.constants import FILE_LOGGING_FORMATTER, BADGE_RARITIES, BADGE_TYPES
+from internal.schemas import BadgeData, BadgeRarity, BadgeType, BadgeDisplayType
 from internal.base.paginator import CustomPaginator, V2Paginator, V2Page
 from internal.base.context import NatsuContext, NatsuAppContext
 from internal.contracts import usernames_autocomplete
@@ -8,7 +9,6 @@ from internal.checks import whitelist_channel_only
 from internal.functions import get_user_config
 from typing import TYPE_CHECKING, Literal
 from internal.base.cog import NatsuCog
-from internal.schemas import BadgeData
 from internal.constants import COLORS
 from discord.ext import commands
 from config import GUILD_IDS
@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 
 import logging
 import discord
+
+BADGE_DISPLAY_STYLES = [discord.OptionChoice(name="Classic", value="one"), discord.OptionChoice(name="List", value="list")]
 
 
 async def get_badge_members_callback(badge_data: BadgeData, interaction: discord.Interaction):
@@ -122,8 +124,9 @@ class FindFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 	name: str = commands.flag(aliases=["n"], default=None, positional=True)
 	owned_user: str | int | discord.abc.User = commands.flag(aliases=["u"], default=None)
 	owned: bool = commands.flag(aliases=["o"], default=None)
-	type: Literal["contracts", "aria", "event", "misc"] = commands.flag(aliases=["t"], default=None)
-	rarity: Literal["common", "uncommon", "rare", "epic", "legendary", "limited"] = commands.flag(aliases=["r"], default=None)
+	type: BadgeType = commands.flag(aliases=["t"], default=None)
+	rarity: BadgeRarity = commands.flag(aliases=["r"], default=None)
+	display_style: BadgeDisplayType = commands.flag(aliases=["ds"], default=None)
 
 
 class BadgesExt(NatsuCog, name="Badges"):
@@ -153,6 +156,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 		owned: bool | None = None,
 		badge_type: str | None = None,
 		rarity: str | None = None,
+		badge_display_style: BadgeDisplayType | None = None,
 		hidden: bool = False,
 	) -> tuple[str | V2Paginator, bool]:
 		async with self.bot.database.connect() as conn:
@@ -164,7 +168,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 			params = []
 
 			author_user_id, _ = await self.bot.fetch_user_from_database(invoker, db_conn=conn)
-			author_display_badge_type: Literal["one", "list"] = "one"
+			force_display_badge_type: BadgeDisplayType = "one"
 			if author_user_id is not None:
 				joins_list.append("""
 					LEFT JOIN user_badge aub ON
@@ -175,9 +179,12 @@ class BadgesExt(NatsuCog, name="Badges"):
 				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
 
 				user_config = await get_user_config(conn, author_user_id)
-				author_display_badge_type = user_config.badge_display_type
+				force_display_badge_type = user_config.badge_display_type
 			else:
 				select_list.append("NULL AS author_owns_badge")
+
+			if badge_display_style is not None:
+				force_display_badge_type = badge_display_style
 
 			if name is not None:
 				where_conditions.append("name LIKE ?")
@@ -262,7 +269,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 		if len(badges) == 0:
 			return "No badges found with specified filters.", True
 
-		if author_display_badge_type == "one" or len(badges) == 1:
+		if force_display_badge_type == "one" or len(badges) == 1:
 			pages = [get_badge_page(badge_data) for badge_data in badges]
 		else:
 			pages = get_badge_pages_list(badges)
@@ -270,7 +277,13 @@ class BadgesExt(NatsuCog, name="Badges"):
 		return V2Paginator(pages), hidden
 
 	async def badge_inventory_handler(
-		self, invoker: discord.abc.User, user: str | None, badge_type: str | None = None, rarity: str | None = None, hidden: bool = False
+		self,
+		invoker: discord.abc.User,
+		user: str | None,
+		badge_type: str | None = None,
+		rarity: str | None = None,
+		badge_display_style: BadgeDisplayType | None = None,
+		hidden: bool = False,
 	) -> tuple[str | V2Paginator, bool]:
 		async with self.bot.database.connect() as conn:
 			user_id, discord_user = await self.bot.fetch_user_from_database(user, db_conn=conn)
@@ -285,7 +298,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 			params = []
 
 			author_user_id, _ = await self.bot.fetch_user_from_database(invoker, db_conn=conn)
-			author_display_badge_type: Literal["one", "list"] = "one"
+			force_display_badge_type: BadgeDisplayType = "one"
 			if author_user_id is not None:
 				joins_list.append("""
 					LEFT JOIN user_badge aub ON
@@ -296,9 +309,12 @@ class BadgesExt(NatsuCog, name="Badges"):
 				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
 
 				user_config = await get_user_config(conn, author_user_id)
-				author_display_badge_type = user_config.badge_display_type
+				force_display_badge_type = user_config.badge_display_type
 			else:
 				select_list.append("NULL AS author_owns_badge")
+
+			if badge_display_style is not None:
+				force_display_badge_type = badge_display_style
 
 			if badge_type is not None:
 				where_conditions.append("type = ?")
@@ -361,7 +377,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 		if len(badges) == 0:
 			return f"{"You don't" if discord_user and invoker.id == discord_user.id else "This user doesn't"} have any badges.", True
 
-		if author_display_badge_type == "one" or len(badges) == 1:
+		if force_display_badge_type == "one" or len(badges) == 1:
 			pages = [get_badge_page(badge_data) for badge_data in badges]
 		else:
 			pages = get_badge_pages_list(badges)
@@ -447,6 +463,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 	@discord.option("owned_user", str, description="User to check owned status of", default=None, autocomplete=usernames_autocomplete(False))
 	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default=None)
 	@discord.option("rarity", str, choices=BADGE_RARITIES, default=None)
+	@discord.option("display_style", str, choices=BADGE_DISPLAY_STYLES, default=None)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
 	async def find(
 		self,
@@ -456,12 +473,13 @@ class BadgesExt(NatsuCog, name="Badges"):
 		owned: bool | None = None,
 		badge_type: str | None = None,
 		rarity: str | None = None,
+		display_style: BadgeDisplayType | None = None,
 		hidden: bool = False,
 	):
 		if (await self.bot.is_blacklisted(ctx))[0]:
 			hidden = True
 
-		content, is_hidden = await self.badge_find_handler(ctx.author, name, owned_user, owned, badge_type, rarity, hidden)
+		content, is_hidden = await self.badge_find_handler(ctx.author, name, owned_user, owned, badge_type, rarity, display_style, hidden)
 		if isinstance(content, V2Paginator):
 			return await content.respond(ctx.interaction, ephemeral=is_hidden)
 		else:
@@ -471,15 +489,24 @@ class BadgesExt(NatsuCog, name="Badges"):
 	@discord.option("user", str, description="The user to get badges from", default=None, autocomplete=usernames_autocomplete(False))
 	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default=None)
 	@discord.option("rarity", str, choices=BADGE_RARITIES, default=None)
+	@discord.option("display_style", str, choices=BADGE_DISPLAY_STYLES, default=None)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=True)
-	async def inventory(self, ctx: NatsuAppContext, user: str | None, badge_type: str | None = None, rarity: str | None = None, hidden: bool = False):
+	async def inventory(
+		self,
+		ctx: NatsuAppContext,
+		user: str | None,
+		badge_type: str | None = None,
+		rarity: str | None = None,
+		display_style: BadgeDisplayType | None = None,
+		hidden: bool = False,
+	):
 		if user is None:
 			user = ctx.author
 
 		if (await self.bot.is_blacklisted(ctx))[0]:
 			hidden = True
 
-		content, is_hidden = await self.badge_inventory_handler(ctx.author, user, badge_type, rarity, hidden)
+		content, is_hidden = await self.badge_inventory_handler(ctx.author, user, badge_type, rarity, display_style, hidden)
 		if isinstance(content, V2Paginator):
 			return await content.respond(ctx.interaction, ephemeral=is_hidden)
 		else:
@@ -526,7 +553,9 @@ class BadgesExt(NatsuCog, name="Badges"):
 	@badge_textgroup.command("find", aliases=["list", "search", "query"], help="Get badges")
 	@whitelist_channel_only()
 	async def text_find(self, ctx: NatsuContext, *, flags: FindFlags):
-		content, _ = await self.badge_find_handler(ctx.author, flags.name, flags.owned_user, flags.owned, flags.type, flags.rarity, False)
+		content, _ = await self.badge_find_handler(
+			ctx.author, flags.name, flags.owned_user, flags.owned, flags.type, flags.rarity, flags.display_style, False
+		)
 		if isinstance(content, V2Paginator):
 			return await content.reply(ctx)
 		else:
@@ -538,7 +567,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 		if user is None:
 			user = ctx.author
 
-		content, _ = await self.badge_inventory_handler(ctx.author, user, None, None, False)
+		content, _ = await self.badge_inventory_handler(ctx.author, user, None, None, None, False)
 		if isinstance(content, V2Paginator):
 			return await content.reply(ctx)
 		else:

@@ -2,6 +2,10 @@ from typing import TypedDict, Literal
 from dataclasses import dataclass
 from datetime import datetime
 
+type BadgeDisplayType = Literal["one", "list"]
+type BadgeType = Literal["contracts", "aria", "event", "misc"]
+type BadgeRarity = Literal["common", "uncommon", "rare", "epic", "legendary", "limited"]
+
 
 class BadgeData(TypedDict):
 	id: str
@@ -9,10 +13,10 @@ class BadgeData(TypedDict):
 	description: str
 	artist: str
 	url: str
-	type: Literal["contracts", "aria", "event", "misc"]
+	type: BadgeType
 	created_at: str
 	updated_at: str | None
-	rarity: Literal["common", "uncommon", "rare", "epic", "legendary", "limited"]
+	rarity: BadgeRarity
 
 	author_owns_badge: int | None
 	badge_count: int
@@ -20,7 +24,7 @@ class BadgeData(TypedDict):
 
 @dataclass(slots=True, kw_only=True)
 class UserConfig:
-	badge_display_type: Literal["one", "list"]
+	badge_display_type: BadgeDisplayType
 	track_username_history: bool
 	updated_at: datetime | None = None
 
