@@ -509,7 +509,7 @@ def _build_contract(contract: OrderContractData, *, include_review_url: bool = T
 
 # TODO: Instead of compressing everything instead only compress biggest groups till it fits
 CONTRACTS_UNSELECTED_STRINGS = ("please select", "undecided", "pending")
-CONTRACTS_CHAR_LIMIT = 3700
+CONTRACTS_CHAR_LIMIT = 3500
 CONTRACTS_DISPLAY_OPTIONS: list[tuple[bool, bool]] = [
 	(True, False),  # reviews, no compress
 	(False, False),  # no reviews, no compress
