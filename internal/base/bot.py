@@ -11,9 +11,10 @@ from internal.contracts.order import OrderCategory
 from internal.database import NatsuDatabase
 from typing import TYPE_CHECKING, Literal
 from discord.ext import commands
+from uuid import uuid4, UUID
 from pathlib import Path
-from uuid import uuid4
 
+import subprocess
 import aiosqlite
 import aiofiles
 import datetime
@@ -69,7 +70,7 @@ class NatsuBot(commands.Bot):
 
 	async def on_ready(self):
 		print("server successfully started")
-		os.system("cls" if os.name == "nt" else "clear")  # noqa: ASYNC221
+		subprocess.run("cls" if os.name == "nt" else "clear", shell=True)
 		self.logger.info(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 		await self.database.setup()
 		await self.reminders.setup()
@@ -201,12 +202,12 @@ class NatsuBot(commands.Bot):
 
 	async def fetch_user_from_database(
 		self,
-		user: str | int | discord.abc.User,
+		user: UUID | str | int | discord.abc.User,
 		*,
 		invoker: discord.abc.User | None = None,
 		season_id: str | None = None,
 		db_conn: aiosqlite.Connection = None,
-	) -> tuple[str | None, discord.abc.User | None]:
+	) -> tuple[UUID | None, discord.abc.User | None]:
 		discord_user: discord.Member = None
 
 		special_tag: str | None = None

@@ -44,7 +44,7 @@ async def _sync_dashboard_sheet(dashboard_sheet: SheetBlock, conn: aiosqlite.Con
 
 		user_id = await get_user_id(conn, username)
 		if not user_id:
-			user_id = str(uuid4())
+			user_id = uuid4()
 			await conn.execute("INSERT INTO user (id, username) VALUES (?, ?)", (user_id, username))
 
 		match status:
@@ -95,7 +95,7 @@ async def _sync_dashboard_sheet(dashboard_sheet: SheetBlock, conn: aiosqlite.Con
 				contract_row = await cursor.fetchone()
 
 			if not contract_row:
-				contract_id = str(uuid4())
+				contract_id = uuid4()
 				async with conn.execute(
 					"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *",
 					(SEASON_ID, contract_id, contract_name, contract_type, ContractKind.NORMAL.value, contract_status.value, user_id),
@@ -533,7 +533,7 @@ async def _sync_special_sheets(spreadsheet: Spreadsheet, conn: aiosqlite.Connect
 				"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, optional, rating, review_url, medium) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 				(
 					SEASON_ID,
-					str(uuid4()),
+					uuid4(),
 					"Tokyo Godfathers",  # name
 					"Christmas Challenge",  # type
 					ContractKind.NORMAL.value,  # kind
@@ -716,7 +716,7 @@ async def _sync_arcana_sheet(sheet: SheetBlock, conn: aiosqlite.Connection):
 						"INSERT OR IGNORE INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, rating, review_url, medium) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 						(
 							SEASON_ID,
-							str(uuid4()),
+							uuid4(),
 							min_contract_name,
 							f"Arcana Special {arcana_count}",
 							ContractKind.NORMAL.value,
@@ -784,7 +784,7 @@ async def _sync_arcana_sheet(sheet: SheetBlock, conn: aiosqlite.Connection):
 						"INSERT OR IGNORE INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, rating, review_url, medium) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 						(
 							SEASON_ID,
-							str(uuid4()),
+							uuid4(),
 							contract_name,
 							f"Arcana Special {arcana_count}",
 							ContractKind.NORMAL.value,
@@ -980,7 +980,7 @@ async def _sync_aids_sheet(aids_sheet: SheetBlock, conn: aiosqlite.Connection):
 				),
 			)
 		elif not aid_contract_row:
-			contract_id = str(uuid4())
+			contract_id = uuid4()
 			await conn.execute(
 				"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, progress, rating, review_url, medium) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 				(

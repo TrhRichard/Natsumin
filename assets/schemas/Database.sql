@@ -112,8 +112,8 @@ CREATE TABLE IF NOT EXISTS season_deadline (
 	name		TEXT NOT NULL,
 	ends_at		DATETIME NOT NULL,
 
-	PRIMARY KEY (season_id, ends_at),
-	FOREIGN KEY (season_id) REFERENCES season(id) ON DELETE CASACADE ON UPDATE CASCADE
+	PRIMARY KEY (season_id, name),
+	FOREIGN KEY (season_id) REFERENCES season(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS season_user (
@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS season_contract (
 	created_at		DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 	updated_at		DATETIME,
 
-	PRIMARY KEY (season_id, id),
+	PRIMARY KEY (id),
 	UNIQUE (season_id, type, contractee_id),
 	FOREIGN KEY (season_id) REFERENCES season(id) ON DELETE CASCADE ON UPDATE CASCADE,
 	FOREIGN KEY (contractee_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE

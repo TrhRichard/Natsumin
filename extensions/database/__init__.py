@@ -61,7 +61,7 @@ class DatabaseExt(BadgeCog, name="Database"):
 				if not user_rep:
 					return await ctx.respond(f"Could not identify a proper rep for {rep}", ephemeral=True)
 
-			user_id = str(uuid4())
+			user_id = uuid4()
 
 			await conn.execute(
 				"INSERT INTO user (id, username, discord_id, rep, gen) VALUES (?, ?, ?, ?, ?)", (user_id, user.name, user.id, user_rep.value, gen)

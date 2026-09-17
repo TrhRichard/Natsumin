@@ -7,7 +7,7 @@ from internal.base.context import NatsuAppContext
 from internal.schemas import BadgeData
 from internal.base.cog import NatsuCog
 from internal.constants import COLORS
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 import discord
 
@@ -22,15 +22,17 @@ class BadgeCog(NatsuCog):
 	@discord.option("image_url", str, default=None)
 	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default="contracts")
 	@discord.option("rarity", str, choices=BADGE_RARITIES, default="common")
+	@discord.option("value", int, default=0)
 	async def add(
 		self,
 		ctx: NatsuAppContext,
 		name: str,
-		description: str | None = None,
-		artist: str | None = None,
-		image_url: str | None = None,
-		badge_type: str = "contracts",
-		rarity: str = "common",
+		description: str | None,
+		artist: str | None,
+		image_url: str | None,
+		badge_type: str,
+		rarity: str,
+		value: int,
 	):
 		if rarity not in BADGE_RARITIES:
 			return await ctx.respond(f"Rarity must be set to one of the following: {frmt_iter(rarity, final='or')}")
@@ -40,15 +42,16 @@ class BadgeCog(NatsuCog):
 		async with self.bot.database.connect() as conn:
 			badge_id = uuid4()
 			await conn.execute(
-				"INSERT INTO badge (id, name, description, artist, url, type, rarity) VALUES (?, ?, ?, ?, ?, ?, ?)",
+				"INSERT INTO badge (id, name, description, artist, url, type, rarity, value) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 				(
-					str(badge_id),
+					badge_id,
 					name,
 					description if description is not None else "",
 					artist if artist is not None else "",
 					image_url if image_url is not None else "",
 					badge_type,
 					rarity,
+					value,
 				),
 			)
 			await conn.commit()
@@ -63,16 +66,18 @@ class BadgeCog(NatsuCog):
 	@discord.option("image_url", str, default=None)
 	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default=None)
 	@discord.option("rarity", str, choices=BADGE_RARITIES, default=None)
+	@discord.option("value", int, default=None)
 	async def edit(
 		self,
 		ctx: NatsuAppContext,
 		id: str,
-		name: str | None = None,
-		description: str | None = None,
-		artist: str | None = None,
-		image_url: str | None = None,
-		badge_type: str | None = None,
-		rarity: str | None = None,
+		name: str | None,
+		description: str | None,
+		artist: str | None,
+		image_url: str | None,
+		badge_type: str | None,
+		rarity: str | None,
+		value: int | None,
 	):
 		if (
 			name is None and description is None and artist is None and image_url is None and badge_type is None and rarity is None
@@ -104,8 +109,11 @@ class BadgeCog(NatsuCog):
 				modifications_done.append(f"Changed url to **{image_url}**")
 
 			if badge_type is not None:
-				await conn.execute("UPDATE badge SET type = ? WHERE id = ?", (badge_type, id))
-				modifications_done.append(f"Changed type to **{badge_type}**")
+				if badge_type not in BADGE_TYPES:
+					return await ctx.respond(f"Attempted to set type to a unknown one: **{badge_type}**, no changes were made.")
+				else:
+					await conn.execute("UPDATE badge SET type = ? WHERE id = ?", (badge_type, id))
+					modifications_done.append(f"Changed type to **{badge_type}**")
 
 			if rarity is not None:
 				if rarity not in BADGE_RARITIES:
@@ -113,6 +121,10 @@ class BadgeCog(NatsuCog):
 				else:
 					await conn.execute("UPDATE badge SET rarity = ? WHERE id = ?", (rarity, id))
 					modifications_done.append(f"Changed rarity to **{rarity}**")
+
+			if value is not None:
+				await conn.execute("UPDATE badge SET value = ? WHERE id = ?", (badge_type, id))
+				modifications_done.append(f"Changed value to **{badge_type}**")
 
 			embed = discord.Embed(title="Modifications", color=COLORS.DEFAULT)
 			embed.set_footer(text=f"ID: {badge_row['id']}")
@@ -172,7 +184,7 @@ class BadgeCog(NatsuCog):
 				if not badge_row:
 					return await ctx.respond("Badge not found.", ephemeral=True)
 
-			valid_users: list[str] = []
+			valid_users: list[UUID] = []
 			already_has_users: list[str] = []
 			invalid_users: list[str] = []
 			for user in list_of_users:  # noqa: PLR1704
@@ -219,7 +231,7 @@ class BadgeCog(NatsuCog):
 				if not badge_row:
 					return await ctx.respond("Badge not found.", ephemeral=True)
 
-			valid_users: list[str] = []
+			valid_users: list[UUID] = []
 			already_has_users: list[str] = []
 			invalid_users: list[str] = []
 			for user in role.members:

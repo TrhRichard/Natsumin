@@ -5,6 +5,7 @@ from internal.base.context import NatsuAppContext, NatsuContext
 from internal.functions import frmt_iter
 from internal.base.cog import NatsuCog
 from internal.constants import COLORS
+from config import LOGGING_CHANNEL_ID
 from discord.ext import commands
 
 import aiosqlite
@@ -84,15 +85,11 @@ class Errors(NatsuCog):
 			if not should_log or await self.bot.is_owner(ctx.author):
 				return
 
-			logging_channel_id = await self.bot.get_config("bot.logging_channel")
-			try:
-				if logging_channel_id is None or int(logging_channel_id) == -1:
-					return
-			except ValueError:
+			if LOGGING_CHANNEL_ID == -1:
 				return
 
 			try:
-				logging_channel = await self.bot.get_or_fetch(discord.TextChannel, int(logging_channel_id))
+				logging_channel = await self.bot.get_or_fetch(discord.TextChannel, LOGGING_CHANNEL_ID)
 				if not logging_channel:
 					return
 
