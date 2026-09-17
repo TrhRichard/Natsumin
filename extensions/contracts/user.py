@@ -6,13 +6,13 @@ from internal.base.context import NatsuAutoContext, NatsuContext, NatsuAppContex
 from internal.enums import UserKind, UserStatus, ContractStatus, ContractKind
 from internal.contracts.order import OrderContractData, sort_contract_types
 from internal.checks import whitelist_channel_only
-from internal.base.view import BadgeDisplay
 from typing import TYPE_CHECKING, Literal
 from internal.base.cog import NatsuCog
-from internal.schemas import BadgeData
 from internal.constants import COLORS
+from internal.sql import sanitize
 from discord.ext import commands
 from discord import ui
+from uuid import UUID
 
 import datetime
 import discord
@@ -35,7 +35,7 @@ async def fantasy_usernames_autocomplete(ctx: NatsuAutoContext) -> list[str]:
 		LIMIT 25
 		"""
 
-		async with conn.execute(query, (season_id, f"%{ctx.value.strip()}%")) as cursor:
+		async with conn.execute(query, (season_id, f"%{sanitize(ctx.value.strip())}%")) as cursor:
 			username_list: list[str] = [row["username"] for row in await cursor.fetchall()]
 
 	return username_list
@@ -55,21 +55,21 @@ async def contract_type_autocomplete(ctx: NatsuAutoContext) -> list[str]:
 		LIMIT 25
 		"""
 
-		async with conn.execute(query, (season_id, f"%{ctx.value.strip()}%")) as cursor:
+		async with conn.execute(query, (season_id, f"%{sanitize(ctx.value.strip())}%")) as cursor:
 			type_list: list[str] = [row["type"] for row in await cursor.fetchall()]
 
 	return type_list
 
 
 class MasterUserProfile(ui.DesignerView):
-	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, user_id: str):
+	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, user_id: UUID):
 		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
 		self.user_id = user_id
 
 	@classmethod
-	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, user_id: str):
+	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, user_id: UUID):
 		self = cls(bot, invoker, user_id)
 
 		async with bot.database.connect() as conn:
@@ -104,9 +104,6 @@ class MasterUserProfile(ui.DesignerView):
 
 			header_content = f"# {username}'s Profile\n{profile_data.strip() or 'No information available.'}"
 
-			badges_button = ui.Button(style=discord.ButtonStyle.secondary, label="Check badges", custom_id="check_badges", disabled=True)
-			badges_button.callback = self.button_callback
-
 			self.add_item(
 				ui.Container(
 					(
@@ -114,8 +111,6 @@ class MasterUserProfile(ui.DesignerView):
 						if discord_user and discord_user.display_avatar
 						else ui.TextDisplay(header_content)
 					),
-					ui.Separator(),
-					ui.ActionRow(badges_button),
 					color=COLORS.DEFAULT,
 				)
 			)
@@ -128,29 +123,9 @@ class MasterUserProfile(ui.DesignerView):
 		except (discord.Forbidden, discord.NotFound):
 			pass
 
-	async def button_callback(self, interaction: discord.Interaction):
-		if interaction.custom_id != "check_badges":
-			return
-
-		async with self.bot.database.connect() as conn:
-			async with conn.execute("SELECT discord_id FROM user WHERE id = ?", (self.user_id,)) as cursor:
-				discord_id: int | None = (await cursor.fetchone())["discord_id"]
-
-			async with conn.execute(
-				"SELECT b.* FROM user_badge ub JOIN badge b ON ub.badge_id = b.id WHERE ub.user_id = ?", (self.user_id,)
-			) as cursor:
-				badges: list[BadgeData] = [dict(row) for row in await cursor.fetchall()]
-
-		if len(badges) == 0:
-			return await interaction.respond(
-				f"{"You don't" if interaction.user.id == discord_id else "This user doesn't"} have any badges.", ephemeral=True
-			)
-
-		await interaction.respond(view=BadgeDisplay(interaction.user, badges), ephemeral=True)
-
 
 class SeasonUserProfile(ui.DesignerView):
-	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str):
+	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: UUID):
 		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
@@ -158,7 +133,7 @@ class SeasonUserProfile(ui.DesignerView):
 		self.user_id = user_id
 
 	@classmethod
-	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str):
+	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: UUID):
 		self = cls(bot, invoker, season_id, user_id)
 
 		async with bot.database.connect() as conn:
@@ -184,7 +159,7 @@ class SeasonUserProfile(ui.DesignerView):
 			username = f"<@{discord_user.id}>" if discord_user else user_row["username"]
 			user_description = f"- **Status**: {get_status_name(UserStatus(user_row['status']))} {get_status_emote(UserStatus(user_row['status']))}\n"
 			if user_row["passed_at"] is not None:
-				passed_date = datetime.date.fromisoformat(user_row["passed_at"])
+				passed_date: datetime.date = user_row["passed_at"]
 				user_description += f"- **Passed on**: {passed_date.strftime('%B %d, %Y')}\n"
 
 			contractees: tuple[str, ...] | None = None
@@ -325,7 +300,7 @@ class SeasonUserProfile(ui.DesignerView):
 
 
 class FantasyUserProfile(ui.DesignerView):
-	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str, is_user_in_season: bool):
+	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: UUID, is_user_in_season: bool):
 		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
@@ -335,7 +310,7 @@ class FantasyUserProfile(ui.DesignerView):
 		self.member_ids: list[str] = []
 
 	@classmethod
-	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str, is_user_in_season: bool):
+	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: UUID, is_user_in_season: bool):
 		self = cls(bot, invoker, season_id, user_id, is_user_in_season)
 
 		async with bot.database.connect() as conn:
@@ -350,10 +325,10 @@ class FantasyUserProfile(ui.DesignerView):
 			fantasy_row = dict(fantasy_row)
 
 			_, discord_user = await bot.fetch_user_from_database(user_id, db_conn=conn)
-			USER_DATA_QUERY = "SELECT u.username, u.discord_id, su.status FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND su.user_id = ?"
+			user_data_query = "SELECT u.username, u.discord_id, su.status FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND su.user_id = ?"
 
 			if is_user_in_season:
-				async with conn.execute(USER_DATA_QUERY, (season_id, user_id)) as cursor:
+				async with conn.execute(user_data_query, (season_id, user_id)) as cursor:
 					user_row = await cursor.fetchone()
 
 				if user_row is None:
@@ -390,12 +365,12 @@ class FantasyUserProfile(ui.DesignerView):
 			buttons: list[ui.Button] = [ui.Button(label="Get members contracts", custom_id="get_member_contracts")]
 			body_content: list[str] = []
 			for i in range(1, 6):
-				member_id: str = fantasy_row.get(f"member{i}_id")
+				member_id: UUID = fantasy_row.get(f"member{i}_id")
 				member_score: int = fantasy_row.get(f"member{i}_score")
 
 				self.member_ids.append(member_id)
 
-				async with conn.execute(USER_DATA_QUERY, (season_id, member_id)) as cursor:
+				async with conn.execute(user_data_query, (season_id, member_id)) as cursor:
 					member_row = await cursor.fetchone()
 
 				if member_row is None:
@@ -441,15 +416,15 @@ class FantasyUserProfile(ui.DesignerView):
 
 
 class SeasonContractInfo(ui.DesignerView):
-	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, contract_type: str):
+	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, contract_id: UUID):
 		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
 		self.season_id = season_id
-		self.contract_type = contract_type
+		self.contract_id = contract_id
 
 	@classmethod
-	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, contract_id: str):
+	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, contract_id: UUID):
 		self = cls(bot, invoker, season_id, contract_id)
 
 		async with bot.database.connect() as conn:
@@ -463,7 +438,7 @@ class SeasonContractInfo(ui.DesignerView):
 
 			description_fields: list[str] = []
 			description_fields.append(
-				f"- **Status**: {get_status_name(ContractStatus(contract_row['status']), bool(contract_row['optional']))} {get_status_emote(ContractStatus(contract_row['status']), bool(contract_row['optional']))}"
+				f"- **Status**: {get_status_name(ContractStatus(contract_row['status']), contract_row['optional'])} {get_status_emote(ContractStatus(contract_row['status']), contract_row['optional'])}"
 			)
 			if contract_row["review_url"]:
 				description_fields.append(f"- **Review**: [Review]({contract_row['review_url']})")
@@ -509,7 +484,7 @@ def _build_contract(contract: OrderContractData, *, include_review_url: bool = T
 
 # TODO: Instead of compressing everything instead only compress biggest groups till it fits
 CONTRACTS_UNSELECTED_STRINGS = ("please select", "undecided", "pending")
-CONTRACTS_CHAR_LIMIT = 3700
+CONTRACTS_CHAR_LIMIT = 3500
 CONTRACTS_DISPLAY_OPTIONS: list[tuple[bool, bool]] = [
 	(True, False),  # reviews, no compress
 	(False, False),  # no reviews, no compress
@@ -586,7 +561,7 @@ def _build_contracts_body(
 
 
 class SeasonUserContracts(ui.DesignerView):
-	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str):
+	def __init__(self, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: UUID):
 		super().__init__(disable_on_timeout=True)
 		self.bot = bot
 		self.invoker = invoker
@@ -594,7 +569,7 @@ class SeasonUserContracts(ui.DesignerView):
 		self.user_id = user_id
 
 	@classmethod
-	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: str):
+	async def create(cls, bot: NatsuBot, invoker: discord.abc.User, season_id: str, user_id: UUID):
 		self = cls(bot, invoker, season_id, user_id)
 
 		async with bot.database.connect() as conn:
@@ -672,7 +647,7 @@ class SeasonUserContracts(ui.DesignerView):
 				)
 
 			if user_row["passed_at"] is not None:
-				passed_date = datetime.date.fromisoformat(user_row["passed_at"])
+				passed_date: datetime.date = user_row["passed_at"]
 				footer_messages.append(f"{they} passed this season on {passed_date.strftime('%B %d, %Y')}")
 
 			container = ui.Container(
@@ -707,7 +682,7 @@ class SeasonUserRandomContract(ui.DesignerView):
 		cls,
 		bot: NatsuBot,
 		season_id: str,
-		user_id: str,
+		user_id: UUID,
 		amount: int = 1,
 		status: ContractStatus = ContractStatus.PENDING,
 		kind: ContractKind = ContractKind.NORMAL,
@@ -795,7 +770,7 @@ class UserCog(NatsuCog):
 	@discord.option(
 		"user",
 		str,
-		description="The user to see profile of, only autocompletes from active season",
+		description="The user to see profile of (only autocompletes from active season)",
 		default=None,
 		autocomplete=usernames_autocomplete(True),
 	)
@@ -843,7 +818,7 @@ class UserCog(NatsuCog):
 	@discord.option(
 		"user",
 		str,
-		description="The user to see fantasy team of, only autocompletes from active season",
+		description="The user to see fantasy team of (only autocompletes from active season)",
 		default=None,
 		autocomplete=fantasy_usernames_autocomplete,
 	)
@@ -894,7 +869,7 @@ class UserCog(NatsuCog):
 	@discord.option(
 		"user",
 		str,
-		description="The user to see contracts of, only autocompletes from active season",
+		description="The user to see contracts of (only autocompletes from active season)",
 		default=None,
 		autocomplete=usernames_autocomplete(True),
 	)
@@ -943,13 +918,13 @@ class UserCog(NatsuCog):
 		"type",
 		str,
 		parameter_name="contract_type",
-		description="The type of contract, only autocompletes from active season",
+		description="The type of contract (only autocompletes from active season)",
 		autocomplete=contract_type_autocomplete,
 	)
 	@discord.option(
 		"user",
 		str,
-		description="The user to see contracts of, only autocompletes from active season",
+		description="The user to see contracts of (only autocompletes from active season)",
 		default=None,
 		autocomplete=usernames_autocomplete(True),
 	)
@@ -1007,7 +982,7 @@ class UserCog(NatsuCog):
 	@discord.option(
 		"user",
 		str,
-		description="The user to pick contracts from, only autocompletes from active season",
+		description="The user to pick contracts from (only autocompletes from active season)",
 		default=None,
 		autocomplete=usernames_autocomplete(True),
 	)

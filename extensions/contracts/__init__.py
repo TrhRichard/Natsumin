@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 from internal.constants import FILE_LOGGING_FORMATTER
-from internal.checks import whitelist_channel_only
 from internal.enums import UserStatus, UserKind
-from internal.base.context import NatsuContext
 from internal.contracts import sync_season
-from discord.ext import commands, tasks
+from discord.ext import tasks
 from typing import TYPE_CHECKING
 from config import BOT_PREFIX
 
-import datetime
 import discord
 import logging
 
@@ -36,18 +33,6 @@ class ContractsExt(UserCog, ContractsCog, name="Contracts"):
 
 		self.sync_database.start()
 		self.change_user_status.start()
-
-	@commands.command(name="deadline", help="Get the current deadline in ur local time")
-	@whitelist_channel_only()
-	async def deadline(self, ctx: NatsuContext):
-		deadline_datetime = await self.bot.database.get_config("contracts.deadline_datetime")
-		deadline_datetime = datetime.datetime.fromisoformat(deadline_datetime) if deadline_datetime else None
-		if deadline_datetime:
-			await ctx.reply(
-				f"The current deadline is {discord.utils.format_dt(deadline_datetime, 'f')} ({discord.utils.format_dt(deadline_datetime, 'R')})"
-			)
-		else:
-			await ctx.reply("Deadline unknown.")
 
 	@tasks.loop(minutes=10)
 	async def sync_database(self):

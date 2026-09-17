@@ -83,7 +83,7 @@ async def _sync_dashboard_sheet(dashboard_sheet: SheetBlock, conn: aiosqlite.Con
 
 		user_id = await get_user_id(conn, username)
 		if not user_id:
-			user_id = str(uuid4())
+			user_id = uuid4()
 			await conn.execute("INSERT INTO user (id, username) VALUES (?, ?)", (user_id, username))
 
 		async with conn.execute("SELECT rep FROM user WHERE id = ?", (user_id,)) as cursor:
@@ -154,7 +154,7 @@ async def _sync_dashboard_sheet(dashboard_sheet: SheetBlock, conn: aiosqlite.Con
 				contract_row = await cursor.fetchone()
 
 			if not contract_row:
-				contract_id = str(uuid4())
+				contract_id = uuid4()
 				async with conn.execute(
 					"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id, optional) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *",
 					(
@@ -242,7 +242,7 @@ async def _sync_base_sheet(base_sheet: SheetBlock, conn: aiosqlite.Connection):
 					query,
 					(
 						SEASON_ID,
-						str(uuid4()),
+						uuid4(),
 						contract_name,
 						full_contract_type,
 						ContractKind.NORMAL.value,
@@ -440,7 +440,7 @@ async def _sync_midseason_sheet(midseason_sheet: SheetBlock, conn: aiosqlite.Con
 				query,
 				(
 					SEASON_ID,
-					str(uuid4()),
+					uuid4(),
 					contract_name,
 					contract_type,
 					ContractKind.NORMAL.value,
@@ -635,7 +635,7 @@ async def _sync_aids_sheet(aids_sheet: SheetBlock, conn: aiosqlite.Connection):
 				),
 			)
 		elif not aid_contract_row:
-			contract_id = str(uuid4())
+			contract_id = uuid4()
 			await conn.execute(
 				"INSERT INTO season_contract (season_id, id, name, type, kind, status, contractee_id, contractor, progress, rating, review_url, medium) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 				(

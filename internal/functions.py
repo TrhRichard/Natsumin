@@ -4,8 +4,10 @@ from internal.enums import UserStatus, ContractStatus, LegacyRank
 from internal.base.context import NatsuAutoContext
 from internal.contracts.rep import search_reps
 from internal.schemas import UserConfig
+from internal.sql import sanitize
 from typing import TYPE_CHECKING
 from thefuzz import process
+from uuid import UUID
 
 import aiosqlite
 import datetime
@@ -72,7 +74,7 @@ def diff_to_str(dt1: datetime.datetime, dt2: datetime.datetime, *, include_secon
 	return frmt_iter(parts)
 
 
-async def get_user_id(conn: aiosqlite.Connection, username: str | None, *, score_cutoff: int = 91) -> str | None:
+async def get_user_id(conn: aiosqlite.Connection, username: str | None, *, score_cutoff: int = 91) -> UUID | None:
 	if username == "" or username is None:
 		return None
 
@@ -93,7 +95,7 @@ async def get_user_id(conn: aiosqlite.Connection, username: str | None, *, score
 		UNION ALL
 		SELECT user_id as id, username FROM user_alias
 		""") as cursor:
-		id_username = {row["id"]: row["username"] for row in await cursor.fetchall()}
+		id_username: dict[UUID, str] = {row["id"]: row["username"] for row in await cursor.fetchall()}
 
 		fuzzy_result = process.extractOne(username, id_username, score_cutoff=score_cutoff)
 		if fuzzy_result:
@@ -102,7 +104,7 @@ async def get_user_id(conn: aiosqlite.Connection, username: str | None, *, score
 			return None
 
 
-async def get_user_config(conn: aiosqlite.Connection, user_id: str) -> UserConfig | None:
+async def get_user_config(conn: aiosqlite.Connection, user_id: UUID) -> UserConfig | None:
 	async with conn.execute("SELECT * FROM user_config WHERE user_id = ?", (user_id,)) as cursor:
 		row = await cursor.fetchone()
 		if not row:
@@ -115,23 +117,40 @@ async def get_user_config(conn: aiosqlite.Connection, user_id: str) -> UserConfi
 	return UserConfig(**dict_row)
 
 
+async def get_latest_deadline(conn: aiosqlite.Connection, season_id: str) -> tuple[str, datetime.datetime]:
+	async with conn.execute("SELECT name, ends_at FROM season_deadline WHERE season_id = ? ORDER BY ends_at DESC LIMIT 1", (season_id,)) as cursor:
+		row = await cursor.fetchone()
+		if row is None:
+			raise ValueError(f"No deadline found for {season_id}")
+		return (row["name"], row["ends_at"])
+
+
 def get_status_name(status: UserStatus | ContractStatus, is_optional: bool = False) -> str:
-	status_name: str
-	match status:
-		case UserStatus.PASSED | ContractStatus.PASSED:
-			status_name = "Passed"
-		case UserStatus.LATE_PASS | ContractStatus.LATE_PASS:
-			status_name = "Passed late"
-		case UserStatus.FAILED | ContractStatus.FAILED:
-			status_name = "Failed"
-		case UserStatus.PENDING | ContractStatus.PENDING:
-			status_name = "Pending"
-		case UserStatus.INCOMPLETE:
-			status_name = "Incomplete"
-		case ContractStatus.UNVERIFIED:
-			status_name = "Unverified"
-		case _:
-			status_name = "N/A"
+	status_name: str = "N/A"
+	if isinstance(status, UserStatus):
+		match status:
+			case UserStatus.PASSED:
+				status_name = "Passed"
+			case UserStatus.LATE_PASS:
+				status_name = "Passed late"
+			case UserStatus.FAILED:
+				status_name = "Failed"
+			case UserStatus.PENDING:
+				status_name = "Pending"
+			case UserStatus.INCOMPLETE:
+				status_name = "Incomplete"
+	else:
+		match status:
+			case ContractStatus.PASSED:
+				status_name = "Passed"
+			case ContractStatus.LATE_PASS:
+				status_name = "Passed late"
+			case ContractStatus.FAILED:
+				status_name = "Failed"
+			case ContractStatus.PENDING:
+				status_name = "Pending"
+			case ContractStatus.UNVERIFIED:
+				status_name = "Unverified"
 
 	if is_optional:
 		status_name += " (Optional)"
@@ -254,7 +273,7 @@ async def badge_autocomplete(ctx: NatsuAutoContext) -> list[discord.OptionChoice
 			ORDER BY type, created_at DESC, name
 			LIMIT 25
 		"""
-		async with conn.execute(query, (f"%{ctx.value.strip()}%",)) as cursor:
-			badge_list = [discord.OptionChoice(name=f"{row['name']} ({row['type']})", value=row["id"]) for row in await cursor.fetchall()]
+		async with conn.execute(query, (f"%{sanitize(ctx.value.strip())}%",)) as cursor:
+			badge_list = [discord.OptionChoice(name=f"{row['name']} ({row['type']})", value=str(row["id"])) for row in await cursor.fetchall()]
 
 	return badge_list

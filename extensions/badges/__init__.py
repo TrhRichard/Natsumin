@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 from internal.constants import FILE_LOGGING_FORMATTER, BADGE_RARITIES, BADGE_TYPES
-from internal.schemas import BadgeData, BadgeRarity, BadgeType, BadgeDisplayType
 from internal.base.paginator import CustomPaginator, V2Paginator, V2Page
 from internal.base.context import NatsuContext, NatsuAppContext
+from internal.schemas import BadgeDisplayType, BadgeData
 from internal.contracts import usernames_autocomplete
 from internal.checks import whitelist_channel_only
 from internal.functions import get_user_config
+from internal.sql import sanitize, select
 from typing import TYPE_CHECKING, Literal
 from internal.base.cog import NatsuCog
 from internal.constants import COLORS
+
 from discord.ext import commands
 from config import GUILD_IDS
 from discord import ui
@@ -19,6 +21,7 @@ if TYPE_CHECKING:
 
 import logging
 import discord
+
 
 BADGE_DISPLAY_STYLES = [discord.OptionChoice(name="Classic", value="one"), discord.OptionChoice(name="List", value="list")]
 
@@ -73,6 +76,7 @@ def get_badge_page(badge: BadgeData) -> V2Page:
 		f"Artist: {badge['artist'] if badge['artist'] else 'None'}",
 		f"Rarity: {badge['rarity'].upper()}",
 		f"Type: {badge['type'].upper()}",
+		# f"Value: {badge['value']}",
 		("Owned" if badge.get("author_owns_badge", False) else "Not Owned"),
 	)
 
@@ -124,9 +128,9 @@ class FindFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 	name: str = commands.flag(aliases=["n"], default=None, positional=True)
 	owned_user: str | int | discord.abc.User = commands.flag(aliases=["u"], default=None)
 	owned: bool = commands.flag(aliases=["o"], default=None)
-	type: BadgeType = commands.flag(aliases=["t"], default=None)
-	rarity: BadgeRarity = commands.flag(aliases=["r"], default=None)
-	display_style: BadgeDisplayType = commands.flag(aliases=["ds"], default=None)
+	type: Literal["contracts", "aria", "event", "misc"] = commands.flag(aliases=["t"], default=None)
+	rarity: Literal["common", "uncommon", "rare", "epic", "legendary", "limited"] = commands.flag(aliases=["r"], default=None)
+	display_style: Literal["one", "list"] = commands.flag(aliases=["ds"], default=None)
 
 
 class BadgesExt(NatsuCog, name="Badges"):
@@ -160,43 +164,25 @@ class BadgesExt(NatsuCog, name="Badges"):
 		hidden: bool = False,
 	) -> tuple[str | V2Paginator, bool]:
 		async with self.bot.database.connect() as conn:
-			select_list: list[str] = ["b.*"]
-			where_conditions: list[str] = []
-			where_params = []
-			joins_list: list[str] = []
-			joins_params = []
-			params = []
+			query = select("badge", "b").column("b.*")
 
 			author_user_id, _ = await self.bot.fetch_user_from_database(invoker, db_conn=conn)
 			force_display_badge_type: BadgeDisplayType = "one"
 			if author_user_id is not None:
-				joins_list.append("""
-					LEFT JOIN user_badge aub ON
-						aub.badge_id = b.id
-						AND aub.user_id = ?
-				""")
-				joins_params.append(author_user_id)
-				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
+				query.join("user_badge aub ON aub.badge_id = b.id AND aub.user_id = ?", author_user_id)
+				query.column("(aub.badge_id IS NOT NULL) AS author_owns_badge")
 
 				user_config = await get_user_config(conn, author_user_id)
 				force_display_badge_type = user_config.badge_display_type
 			else:
-				select_list.append("NULL AS author_owns_badge")
+				query.column("NULL as author_owns_badge")
 
 			if badge_display_style is not None:
 				force_display_badge_type = badge_display_style
 
-			if name is not None:
-				where_conditions.append("name LIKE ?")
-				where_params.append(f"%{name}%")
-
-			if badge_type is not None:
-				where_conditions.append("type = ?")
-				where_params.append(badge_type)
-
-			if rarity is not None:
-				where_conditions.append("rarity = ?")
-				where_params.append(rarity)
+			query.where("name LIKE ?", f"%{sanitize(name if name is not None else '')}%", cond=name is not None)
+			query.where("type = ?", badge_type, cond=badge_type is not None)
+			query.where("rarity = ?", rarity, cond=rarity is not None)
 
 			if owned is not None and owned_user is None:
 				owned_user = invoker
@@ -209,61 +195,38 @@ class BadgesExt(NatsuCog, name="Badges"):
 				if owned_user_id is None:
 					return "No badges found due to owned_user not being in the database.", True
 
-				joins_list.append("""
-					LEFT JOIN user_badge ub ON 
-						ub.badge_id = b.id
-						AND ub.user_id = ?
-				""")
-				joins_params.append(owned_user_id)
+				query.join("user_badge ub ON ub.badge_id = b.id AND ub.user_id = ?", owned_user_id)
+				query.where("ub.badge_id IS NOT NULL" if owned else "ub.badge_id IS NULL")
 
-				where_conditions.append("ub.badge_id IS NOT NULL" if owned else "ub.badge_id IS NULL")
+			query.column("(SELECT COUNT(*) FROM user_badge ubc WHERE ubc.badge_id = b.id) AS badge_count")
+			query.order_by(
+				"""
+			CASE
+				WHEN b.type = 'contracts' THEN 0 
+				WHEN b.type = 'aria' THEN 1
+				WHEN b.type = 'blitz' THEN 2
+				WHEN b.type = 'event' THEN 3 
+				WHEN b.type = 'misc' THEN 4
+				ELSE 99
+			END
+			""",
+				"""
+			CASE
+				WHEN b.rarity = 'limited' THEN 0 
+				WHEN b.rarity = 'legendary' THEN 1
+				WHEN b.rarity = 'epic' THEN 2 
+				WHEN b.rarity = 'rare' THEN 3 
+				WHEN b.rarity = 'uncommon' THEN 4 
+				WHEN b.rarity = 'common' THEN 5 
+				ELSE 99
+			END
+			""",
+				"b.created_at",
+				"CASE WHEN b.url = '' THEN 1 ELSE 0 END",
+				"b.name",
+			)
 
-			select_list.append("""
-				(
-					SELECT COUNT(*)
-					FROM user_badge ubc
-					WHERE ubc.badge_id = b.id
-				) AS badge_count
-			""")
-
-			query = f"""
-				SELECT
-					{", ".join(select_list)}
-				FROM badge b
-				{"\n".join(joins_list)}
-				{f" WHERE {' AND '.join(where_conditions)}" if where_conditions else ""}
-				ORDER BY 
-					CASE
-						WHEN b.type = "contracts" THEN 0 
-						WHEN b.type = "aria" THEN 1
-						WHEN b.type = "blitz" THEN 2
-						WHEN b.type = "event" THEN 3 
-						WHEN b.type = "misc" THEN 4
-						ELSE 99
-					END,
-					CASE
-						WHEN b.rarity = "limited" THEN 0 
-						WHEN b.rarity = "legendary" THEN 1
-						WHEN b.rarity = "epic" THEN 2 
-						WHEN b.rarity = "rare" THEN 3 
-						WHEN b.rarity = "uncommon" THEN 4 
-						WHEN b.rarity = "common" THEN 5 
-						ELSE 99
-					END,
-					b.created_at,
-					CASE
-						WHEN b.url == "" THEN 1
-						ELSE 0
-					END,
-					b.name
-			"""
-
-			if joins_list:
-				params.extend(joins_params)
-			if where_conditions:
-				params.extend(where_params)
-
-			async with conn.execute(query, params) as cursor:
+			async with conn.execute(*query.build()) as cursor:
 				badges: list[BadgeData] = [dict(row) for row in await cursor.fetchall()]
 
 		if len(badges) == 0:
@@ -280,6 +243,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 		self,
 		invoker: discord.abc.User,
 		user: str | None,
+		name: str | None = None,
 		badge_type: str | None = None,
 		rarity: str | None = None,
 		badge_display_style: BadgeDisplayType | None = None,
@@ -290,88 +254,55 @@ class BadgesExt(NatsuCog, name="Badges"):
 			if not user_id:
 				return "User not found!", True
 
-			select_list: list[str] = ["b.*"]
-			where_conditions: list[str] = ["ub.user_id = ?"]
-			where_params = [user_id]
-			joins_list: list[str] = []
-			joins_params = []
-			params = []
+			query = select("user_badge", "ub").column("b.*").join("badge b ON ub.badge_id = b.id").where("ub.user_id = ?", user_id)
 
 			author_user_id, _ = await self.bot.fetch_user_from_database(invoker, db_conn=conn)
 			force_display_badge_type: BadgeDisplayType = "one"
 			if author_user_id is not None:
-				joins_list.append("""
-					LEFT JOIN user_badge aub ON
-						aub.badge_id = b.id
-						AND aub.user_id = ?
-				""")
-				joins_params.append(author_user_id)
-				select_list.append("(aub.badge_id IS NOT NULL) AS author_owns_badge")
+				query.join("user_badge aub ON aub.badge_id = b.id AND aub.user_id = ?", author_user_id)
+				query.column("(aub.badge_id IS NOT NULL) AS author_owns_badge")
 
 				user_config = await get_user_config(conn, author_user_id)
 				force_display_badge_type = user_config.badge_display_type
 			else:
-				select_list.append("NULL AS author_owns_badge")
+				query.column("NULL as author_owns_badge")
 
 			if badge_display_style is not None:
 				force_display_badge_type = badge_display_style
 
-			if badge_type is not None:
-				where_conditions.append("type = ?")
-				where_params.append(badge_type)
+			query.where("name LIKE ?", f"%{sanitize(name if name is not None else '')}%", cond=name is not None)
+			query.where("type = ?", badge_type, cond=badge_type is not None)
+			query.where("rarity = ?", rarity, cond=rarity is not None)
 
-			if rarity is not None:
-				where_conditions.append("rarity = ?")
-				where_params.append(rarity)
+			query.column("(SELECT COUNT(*) FROM user_badge ubc WHERE ubc.badge_id = b.id) AS badge_count")
+			query.order_by(
+				"""
+			CASE
+				WHEN b.type = 'contracts' THEN 0 
+				WHEN b.type = 'aria' THEN 1
+				WHEN b.type = 'blitz' THEN 2
+				WHEN b.type = 'event' THEN 3 
+				WHEN b.type = 'misc' THEN 4
+				ELSE 99
+			END
+			""",
+				"""
+			CASE
+				WHEN b.rarity = 'limited' THEN 0 
+				WHEN b.rarity = 'legendary' THEN 1
+				WHEN b.rarity = 'epic' THEN 2 
+				WHEN b.rarity = 'rare' THEN 3 
+				WHEN b.rarity = 'uncommon' THEN 4 
+				WHEN b.rarity = 'common' THEN 5 
+				ELSE 99
+			END
+			""",
+				"b.created_at",
+				"CASE WHEN b.url = '' THEN 1 ELSE 0 END",
+				"b.name",
+			)
 
-			select_list.append("""
-				(
-					SELECT COUNT(*)
-					FROM user_badge ubc
-					WHERE ubc.badge_id = b.id
-				) AS badge_count
-			""")
-
-			query = f"""
-				SELECT
-					{", ".join(select_list)}
-				FROM user_badge ub 
-				JOIN badge b ON 
-					ub.badge_id = b.id 
-				{"\n".join(joins_list)}
-				{f" WHERE {' AND '.join(where_conditions)}" if where_conditions else ""}
-				ORDER BY 
-					CASE
-						WHEN b.type = "contracts" THEN 0 
-						WHEN b.type = "aria" THEN 1
-						WHEN b.type = "blitz" THEN 2
-						WHEN b.type = "event" THEN 3 
-						WHEN b.type = "misc" THEN 4
-						ELSE 99
-					END,
-					CASE
-						WHEN b.rarity = "limited" THEN 0 
-						WHEN b.rarity = "legendary" THEN 1
-						WHEN b.rarity = "epic" THEN 2 
-						WHEN b.rarity = "rare" THEN 3 
-						WHEN b.rarity = "uncommon" THEN 4 
-						WHEN b.rarity = "common" THEN 5 
-						ELSE 99
-					END,
-					b.created_at,
-					CASE
-						WHEN b.url == "" THEN 1
-						ELSE 0
-					END,
-					b.name
-			"""
-
-			if joins_list:
-				params.extend(joins_params)
-			if where_conditions:
-				params.extend(where_params)
-
-			async with conn.execute(query, params) as cursor:
+			async with conn.execute(*query.build()) as cursor:
 				badges: list[BadgeData] = [dict(row) for row in await cursor.fetchall()]
 
 		if len(badges) == 0:
@@ -487,6 +418,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 
 	@badge_group.command(description="Get the badges of a user")
 	@discord.option("user", str, description="The user to get badges from", default=None, autocomplete=usernames_autocomplete(False))
+	@discord.option("name", str, min_length=1, default=None)
 	@discord.option("type", str, choices=BADGE_TYPES, parameter_name="badge_type", default=None)
 	@discord.option("rarity", str, choices=BADGE_RARITIES, default=None)
 	@discord.option("display_style", str, choices=BADGE_DISPLAY_STYLES, default=None)
@@ -495,6 +427,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 		self,
 		ctx: NatsuAppContext,
 		user: str | None,
+		name: str | None = None,
 		badge_type: str | None = None,
 		rarity: str | None = None,
 		display_style: BadgeDisplayType | None = None,
@@ -506,7 +439,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 		if (await self.bot.is_blacklisted(ctx))[0]:
 			hidden = True
 
-		content, is_hidden = await self.badge_inventory_handler(ctx.author, user, badge_type, rarity, display_style, hidden)
+		content, is_hidden = await self.badge_inventory_handler(ctx.author, user, name, badge_type, rarity, display_style, hidden)
 		if isinstance(content, V2Paginator):
 			return await content.respond(ctx.interaction, ephemeral=is_hidden)
 		else:
@@ -567,7 +500,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 		if user is None:
 			user = ctx.author
 
-		content, _ = await self.badge_inventory_handler(ctx.author, user, None, None, None, False)
+		content, _ = await self.badge_inventory_handler(ctx.author, user, None, None, None, None, False)
 		if isinstance(content, V2Paginator):
 			return await content.reply(ctx)
 		else:

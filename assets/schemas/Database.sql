@@ -4,18 +4,18 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS bot_config (
 	key 		TEXT NOT NULL,
 	value 		TEXT NOT NULL,
-	created_at	TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-	updated_at	TEXT,
+	created_at	DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at	DATETIME,
 
 	PRIMARY KEY (key)
-) STRICT;
+);
 
 CREATE TABLE IF NOT EXISTS blacklist_user (
 	discord_id	INTEGER NOT NULL,
 	reason		TEXT,
 
 	PRIMARY KEY (discord_id)
-) STRICT;
+);
 
 CREATE TABLE IF NOT EXISTS whitelist_channel (
 	guild_id 	INTEGER NOT NULL,
@@ -25,124 +25,137 @@ CREATE TABLE IF NOT EXISTS whitelist_channel (
 );
 
 CREATE TABLE IF NOT EXISTS user (
-	id        	TEXT NOT NULL, 
+	id        	UUID NOT NULL, 
 	discord_id	INTEGER UNIQUE,
 	username  	TEXT NOT NULL,
 	rep       	TEXT,
 	gen       	INTEGER,
-	created_at	TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-	updated_at	TEXT,
+	created_at	DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at	DATETIME,
 
 	PRIMARY KEY (id)
-) STRICT;
+);
 
 CREATE TABLE IF NOT EXISTS user_config (
-	user_id					TEXT NOT NULL,
+	user_id					UUID NOT NULL,
 	badge_display_type		TEXT NOT NULL DEFAULT 'one',
-	track_username_history	INTEGER NOT NULL DEFAULT 1,
-	updated_at	TEXT,
+	track_username_history	BOOLEAN NOT NULL DEFAULT 1,
+	updated_at	DATETIME,
 
 	PRIMARY KEY (user_id),
 	FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
-) STRICT;
+);
 
 CREATE TABLE IF NOT EXISTS user_alias (
 	username 	TEXT NOT NULL,
-	user_id  	TEXT NOT NULL,
-	created_at	TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	user_id  	UUID NOT NULL,
+	created_at	DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 
 	PRIMARY KEY (username),
 	FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
-) STRICT;
+);
 
 
 CREATE TABLE IF NOT EXISTS leaderboard_legacy (
-	user_id	TEXT NOT NULL,         
+	user_id	UUID NOT NULL,         
 	exp    	INTEGER NOT NULL,
 
 	PRIMARY KEY (user_id),
 	FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
-) STRICT;
+);
 
 CREATE TABLE IF NOT EXISTS leaderboard_new (
-	user_id			TEXT NOT NULL,
+	user_id			UUID NOT NULL,
 	contract_score	INTEGER NOT NULL,
 
 	PRIMARY KEY (user_id),
 	FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
-) STRICT;
+);
 
 
 CREATE TABLE IF NOT EXISTS badge (
-	id          TEXT NOT NULL,
+	id          UUID NOT NULL,
 	name        TEXT NOT NULL,
 	description TEXT NOT NULL,
 	artist      TEXT NOT NULL,
 	url         TEXT NOT NULL,
 	type        TEXT NOT NULL DEFAULT 'contracts',
 	rarity		TEXT NOT NULL DEFAULT 'common',
-	created_at	TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-	updated_at	TEXT,
+	value		INTEGER NOT NULL DEFAULT 0,
+	created_at	DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at	DATETIME,
 
 	PRIMARY KEY (id)
-) STRICT;
+);
 
 CREATE TABLE IF NOT EXISTS user_badge (
-	user_id		TEXT NOT NULL,                     
-	badge_id	TEXT NOT NULL,
-	added_at	TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	user_id		UUID NOT NULL,                     
+	badge_id	UUID NOT NULL,
+	added_at	DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
 
 	PRIMARY KEY (user_id, badge_id),
 	FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE,
 	FOREIGN KEY (badge_id) REFERENCES badge(id) ON DELETE CASCADE ON UPDATE CASCADE
-) STRICT;
+);
 
 CREATE TABLE IF NOT EXISTS season (
 	id			TEXT NOT NULL,
 	name		TEXT NOT NULL,
+	started_at	DATE,
+	ended_at	DATE,
 
 	PRIMARY KEY (id)
-) STRICT;
+);
+
+CREATE TABLE IF NOT EXISTS season_deadline (
+	season_id	TEXT NOT NULL,
+	name		TEXT NOT NULL,
+	ends_at		DATETIME NOT NULL,
+
+	PRIMARY KEY (season_id, name),
+	FOREIGN KEY (season_id) REFERENCES season(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS season_user (
 	season_id			TEXT NOT NULL,
-	user_id             TEXT NOT NULL,
+	user_id             UUID NOT NULL,
 	status          	INTEGER NOT NULL,
 	kind            	INTEGER NOT NULL,
 	rep             	TEXT,
-	contractor_id		TEXT,
+	contractor_id		UUID,
 	list_url        	TEXT,
-	veto_used       	INTEGER NOT NULL DEFAULT 0,
-	accepting_manhwa	INTEGER NOT NULL DEFAULT 0,
-	accepting_ln    	INTEGER NOT NULL DEFAULT 0,
+	veto_used       	BOOLEAN NOT NULL DEFAULT 0,
+	accepting_manhwa	BOOLEAN NOT NULL DEFAULT 0,
+	accepting_ln    	BOOLEAN NOT NULL DEFAULT 0,
 	preferences     	TEXT,
 	bans            	TEXT,
-	passed_at			TEXT,
-	created_at			TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-	updated_at			TEXT,
+	passed_at			DATE,
+	extra				JSON, -- Season specific data
+	created_at			DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at			DATETIME,
 
 	PRIMARY KEY (season_id, user_id),
 	FOREIGN KEY (season_id) REFERENCES season(id) ON DELETE CASCADE ON UPDATE CASCADE,
 	FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE,
 	FOREIGN KEY (contractor_id) REFERENCES user(id) ON DELETE SET NULL ON UPDATE CASCADE
-) STRICT;
+);
 
 CREATE TABLE IF NOT EXISTS season_user_fantasy (
 	season_id		TEXT NOT NULL,
-	user_id			TEXT NOT NULL,
+	user_id			UUID NOT NULL,
 	total_score		INTEGER NOT NULL DEFAULT 0,
-	member1_id		TEXT NOT NULL,
+	member1_id		UUID NOT NULL,
 	member1_score	INTEGER NOT NULL DEFAULT 0,
-	member2_id		TEXT NOT NULL,
+	member2_id		UUID NOT NULL,
 	member2_score	INTEGER NOT NULL DEFAULT 0,
-	member3_id		TEXT NOT NULL,
+	member3_id		UUID NOT NULL,
 	member3_score	INTEGER NOT NULL DEFAULT 0,
-	member4_id		TEXT NOT NULL,
+	member4_id		UUID NOT NULL,
 	member4_score	INTEGER NOT NULL DEFAULT 0,
-	member5_id		TEXT NOT NULL,
+	member5_id		UUID NOT NULL,
 	member5_score	INTEGER NOT NULL DEFAULT 0,
-	created_at		TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-	updated_at		TEXT,
+	created_at		DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at		DATETIME,
 
 	PRIMARY KEY (season_id, user_id),
 	FOREIGN KEY (season_id) REFERENCES season(id) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -152,31 +165,32 @@ CREATE TABLE IF NOT EXISTS season_user_fantasy (
 	FOREIGN KEY (member3_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE,
 	FOREIGN KEY (member4_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE,
 	FOREIGN KEY (member5_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
-) STRICT;
+);
 
 CREATE TABLE IF NOT EXISTS season_contract (
 	season_id		TEXT NOT NULL,
-	id        		TEXT NOT NULL,
+	id        		UUID NOT NULL,
 	name      		TEXT NOT NULL,
 	type      		TEXT NOT NULL,
 	type_label		TEXT,
 	kind      		INTEGER NOT NULL,
 	status    		INTEGER NOT NULL,
-	contractee_id	TEXT NOT NULL,
+	contractee_id	UUID NOT NULL,
 	contractor		TEXT,
-	optional  		INTEGER NOT NULL DEFAULT 0,
+	optional  		BOOLEAN NOT NULL DEFAULT 0,
 	progress  		TEXT,
 	rating    		TEXT,
 	review_url		TEXT,
 	medium    		TEXT,
-	created_at		TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-	updated_at		TEXT,
+	extra			JSON, -- Season specific data
+	created_at		DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	updated_at		DATETIME,
 
-	PRIMARY KEY (season_id, id),
+	PRIMARY KEY (id),
 	UNIQUE (season_id, type, contractee_id),
 	FOREIGN KEY (season_id) REFERENCES season(id) ON DELETE CASCADE ON UPDATE CASCADE,
 	FOREIGN KEY (contractee_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
-) STRICT;
+);
 
 -- Automated updated_at triggers
 
@@ -223,15 +237,18 @@ BEGIN
 END;
 
 -- Add default config
-INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.active_season", "season_xi");
-INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_datetime", "2030-01-15T00:00:00.000Z");
-INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.syncing_enabled", "1");
+INSERT OR IGNORE INTO bot_config (key, value) VALUES ('contracts.active_season', 'season_xi');
+INSERT OR IGNORE INTO bot_config (key, value) VALUES ('contracts.syncing_enabled', '1');
 
-INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.deadline_footer", "Season deadline in {time_till}.");
-INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.season_ended_footer", "{season_name} has ended.");
-INSERT OR IGNORE INTO bot_config (key, value) VALUES ("contracts.archived_season_footer", "Archived data from {season_name}.");
+INSERT OR IGNORE INTO bot_config (key, value) VALUES ('contracts.deadline_footer', '{deadline_type} deadline in {time_till}.');
+INSERT OR IGNORE INTO bot_config (key, value) VALUES ('contracts.season_ended_footer', '{season_name} has ended.');
+INSERT OR IGNORE INTO bot_config (key, value) VALUES ('contracts.archived_season_footer', 'Archived data from {season_name}.');
 
 -- Add supported seasons 
-INSERT OR IGNORE INTO season (id, name) VALUES ("winter_2025", "Winter 2025");
-INSERT OR IGNORE INTO season (id, name) VALUES ("season_x", "Season X");
-INSERT OR IGNORE INTO season (id, name) VALUES ("season_xi", "Season XI");
+INSERT OR IGNORE INTO season (id, name) VALUES ('winter_2025', 'Winter 2025');
+INSERT OR IGNORE INTO season (id, name) VALUES ('season_x', 'Season X');
+
+INSERT OR IGNORE INTO season (id, name) VALUES ('season_xi', 'Season XI');
+INSERT OR IGNORE INTO season_deadline (season_id, name, ends_at) VALUES ('season_xi', 'Season', '2026-09-04T16:00:00Z');
+INSERT OR IGNORE INTO season_deadline (season_id, name, ends_at) VALUES ('season_xi', 'Late Pass', '2026-09-06T16:00:00Z');
+INSERT OR IGNORE INTO season_deadline (season_id, name, ends_at) VALUES ('season_xi', 'Aids', '2026-10-11T16:00:00Z');

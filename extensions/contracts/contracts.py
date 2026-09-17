@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-from internal.functions import get_percentage_formatted, get_status_emote, frmt_iter
+from internal.functions import get_percentage_formatted, get_latest_deadline, get_status_emote, frmt_iter
 from internal.base.context import NatsuAutoContext, NatsuContext, NatsuAppContext
 from internal.enums import UserKind, UserStatus, ContractStatus, ContractKind
 from internal.contracts import get_deadline_footer, season_autocomplete
@@ -50,6 +50,15 @@ VALID_USER_STATUSES = {
 	"incomplete": UserStatus.INCOMPLETE,
 }
 VALID_ALL_STATUS = ("*", "all")
+
+USER_STATUS_OPTIONS = [
+	discord.OptionChoice(name="All", value="all"),
+	discord.OptionChoice(name="Pending", value="pending"),
+	discord.OptionChoice(name="Passed", value="passed"),
+	discord.OptionChoice(name="Failed", value="failed"),
+	discord.OptionChoice(name="Late Pass", value="late"),
+	discord.OptionChoice(name="Incomplete", value="incomplete"),
+]
 
 
 class UsersFlags(commands.FlagConverter, delimiter="=", prefix="--"):
@@ -209,11 +218,11 @@ class ContractsCog(NatsuCog):
 
 	@contracts_group.command(name="stats", description="Fetch the stats of a season, optionally of a rep in that season")
 	@discord.option(
-		"rep", str, description="The rep to get stats of, only autocompletes from active season", default=None, autocomplete=season_reps_autocomplete
+		"rep", str, description="The rep to get stats of (only autocompletes from active season)", default=None, autocomplete=season_reps_autocomplete
 	)
 	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, autocomplete=season_autocomplete)
 	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
-	async def stats(self, ctx: NatsuAppContext, rep: str | None = None, season: str | None = None, hidden: bool = False):
+	async def stats(self, ctx: NatsuAppContext, rep: str | None, season: str | None, hidden: bool):
 		if (await self.bot.is_blacklisted(ctx))[0]:
 			hidden = True
 
@@ -285,6 +294,129 @@ class ContractsCog(NatsuCog):
 						return await ctx.reply(f"0 members of {global_rep.value} participated in {season_name}.")
 
 			await ctx.reply(view=await StatsView.create(self.bot, ctx.author, season_id, rep))
+
+	@contracts_group.command(name="users", description="Fetch users from a season")
+	@discord.option(
+		"rep",
+		str,
+		description="The rep to get users from, defaults to All (only autocompletes from active season)",
+		default=None,
+		autocomplete=season_reps_autocomplete,
+	)
+	@discord.option("status", str, description="Users of which status to get, defaults to All", default="all", choices=USER_STATUS_OPTIONS)
+	@discord.option("season", str, description="Season to get data from, defaults to active", default=None, autocomplete=season_autocomplete)
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
+	async def users(self, ctx: NatsuAppContext, rep: str | None, status: str | None, season: str | None, hidden: bool):
+		if (await self.bot.is_blacklisted(ctx))[0]:
+			hidden = True
+
+		user_statuses: list[UserStatus] = []
+
+		if status.lower() not in VALID_ALL_STATUS:
+			for status_str in status.lower().split(","):
+				status_str = status_str.strip()
+				if status_str in VALID_ALL_STATUS:
+					user_statuses.clear()
+					break
+
+				if status_str not in VALID_USER_STATUSES:
+					return await ctx.respond(
+						f"{status_str} is not a valid status to filter by, valid statuses: {', '.join(VALID_USER_STATUSES.keys())}", ephemeral=True
+					)
+
+				user_statuses.append(VALID_USER_STATUSES.get(status_str))
+
+		async with self.bot.database.connect() as conn:
+			if season is None:
+				season_id = await self.bot.get_config("contracts.active_season", db_conn=conn)
+			else:
+				season_id = season
+
+			if season_id not in self.bot.database.available_seasons:
+				return await ctx.respond(
+					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it.",
+					ephemeral=True,
+				)
+
+			async with conn.execute("SELECT name FROM season WHERE id = ?", (season_id,)) as cursor:
+				row = await cursor.fetchone()
+				season_name = row["name"]
+
+			if rep is not None:
+				async with conn.execute(
+					"SELECT DISTINCT(rep) as rep FROM season_user WHERE season_id = ? AND rep IS NOT NULL", (season_id,)
+				) as cursor:
+					season_reps = [RepName(row["rep"]) for row in await cursor.fetchall()]
+
+				original_rep_query = rep
+				rep = get_rep(original_rep_query, min_confidence=90, only_include_reps=season_reps)
+				if rep is None:
+					global_rep = get_rep(original_rep_query, min_confidence=90)
+					if global_rep is None:
+						return await ctx.respond(f"{original_rep_query} is not a valid rep.", ephemeral=True)
+					else:
+						return await ctx.respond(f"0 members of {global_rep.value} participated in {season_name}.", ephemeral=True)
+
+			query = f"""
+				SELECT
+					u.username,
+					u.discord_id,
+					su.status
+				FROM season_user su
+				JOIN user u ON 
+					su.user_id = u.id
+				WHERE 
+					su.season_id = ?
+					{"AND su.rep = ?" if rep is not None else ""}
+					{f"AND su.status IN ({','.join('?' for _ in user_statuses)})" if user_statuses else ""}
+				GROUP BY u.id, u.username
+				ORDER BY 
+					CASE
+						WHEN su.status = 1 THEN 0 -- passed
+						WHEN su.status IN (2,3,4) THEN 1 -- failed, late, incomplete
+						WHEN su.status = 0 THEN 2 -- pending
+						ELSE 99
+					END ASC,
+					su.passed_at ASC,
+					u.username ASC
+			"""
+			params = [season_id]
+			if rep is not None:
+				params.append(rep.value)
+			if user_statuses:
+				params.extend(user_statuses)
+
+			async with conn.execute(query, params) as cursor:
+				user_rows: list[tuple[str, int, UserStatus]] = [
+					(row["username"], row["discord_id"], UserStatus(row["status"])) for row in await cursor.fetchall()
+				]
+
+				if not user_rows:
+					all_pages = []
+					embed = discord.Embed(title=f"Contracts {season_name}", description="No users found.", color=COLORS.DEFAULT)
+					if rep is not None:
+						embed.title = f"{rep.value} - {season_name}"
+					embed.set_footer(text=f"Status: {frmt_iter(s.name for s in user_statuses) if user_statuses else 'ALL'}")
+					all_pages.append(embed)
+				else:
+					all_pages = []
+					for start in range(0, len(user_rows), 15):
+						lines = []
+						for i, (username, discord_id, status) in enumerate(user_rows[start : start + 15], start=start):
+							full_name = f"<@{discord_id}> ({username})" if discord_id else username
+							line_to_add = f"{i + 1}. {full_name} {get_status_emote(status)}"
+
+							lines.append(line_to_add)
+
+						embed = discord.Embed(title=f"Contracts {season_name}", description=f"{'\n'.join(lines)}", color=COLORS.DEFAULT)
+						if rep is not None:
+							embed.title = f"{rep.value} - {season_name}"
+						embed.set_footer(text=f"Status: {frmt_iter(s.name for s in user_statuses) if user_statuses else 'ALL'}")
+
+						all_pages.append(embed)
+
+			paginator = CustomPaginator(all_pages)
+			await paginator.respond(ctx.interaction, ephemeral=hidden)
 
 	@commands.command("users", aliases=["u"], help="Fetch users from a season")
 	@whitelist_channel_only()
@@ -396,3 +528,35 @@ class ContractsCog(NatsuCog):
 
 			paginator = CustomPaginator(all_pages)
 			await paginator.send(ctx, reference=ctx.message)
+
+	@contracts_group.command(name="deadline", description="Get the current deadline in your local time")
+	@discord.option("hidden", bool, description="Whether to make the response only visible to you", default=False)
+	async def deadline(self, ctx: NatsuAppContext, hidden: bool):
+		if (await self.bot.is_blacklisted(ctx))[0]:
+			hidden = True
+
+		async with ctx.database.connect() as conn:
+			active_season = await self.bot.database.get_config("contracts.active_season", db_conn=conn)
+			try:
+				latest_deadline = await get_latest_deadline(conn, active_season)
+			except ValueError:
+				return await ctx.respond("Deadline unknown.", ephemeral=hidden)
+
+			await ctx.respond(
+				f"The current deadline is {discord.utils.format_dt(latest_deadline[1], 'f')} ({discord.utils.format_dt(latest_deadline[1], 'R')})",
+				ephemeral=hidden,
+			)
+
+	@commands.command(name="deadline", help="Get the current deadline in your local time")
+	@whitelist_channel_only()
+	async def text_deadline(self, ctx: NatsuContext):
+		async with ctx.database.connect() as conn:
+			active_season = await self.bot.database.get_config("contracts.active_season", db_conn=conn)
+			try:
+				latest_deadline = await get_latest_deadline(conn, active_season)
+			except ValueError:
+				return await ctx.reply("Deadline unknown.")
+
+			await ctx.reply(
+				f"The current deadline is {discord.utils.format_dt(latest_deadline[1], 'f')} ({discord.utils.format_dt(latest_deadline[1], 'R')})"
+			)

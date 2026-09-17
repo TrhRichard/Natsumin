@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from internal.functions import get_latest_deadline, diff_to_str
 from internal.contracts.seasons import SeasonX, SeasonXI
 from internal.base.context import NatsuAutoContext
-from internal.functions import diff_to_str
+from internal.sql import sanitize
 from typing import TYPE_CHECKING
 
 import aiosqlite
@@ -51,26 +52,27 @@ async def get_deadline_footer(database: NatsuDatabase, season_id: str, *, db_con
 		if active_season is None:
 			raise RuntimeError("Active season not found!")
 
-		deadline_datetime = await database.get_config("contracts.deadline_datetime", db_conn=conn)
-		deadline_datetime = datetime.datetime.fromisoformat(deadline_datetime) if deadline_datetime else None
-
 		deadline_footer = await database.get_config("contracts.deadline_footer", db_conn=conn)
 		if deadline_footer is None:
-			deadline_footer = "Season deadline in {time_till}."
+			deadline_footer = "{deadline_type} deadline in {time_till}."
 
 		async with conn.execute("SELECT name FROM season WHERE id = ?", (season_id,)) as cursor:
 			season_name: str = (await cursor.fetchone())["name"]
 
 		if season_id == active_season:
-			if deadline_datetime is None:
+			try:
+				latest_deadline = await get_latest_deadline(conn, active_season)
+			except ValueError:
 				return f"Deadline for {season_name} unknown."
 
 			current_datetime = datetime.datetime.now(datetime.UTC)
-			difference = deadline_datetime - current_datetime
+			difference = latest_deadline[1] - current_datetime
 			difference_seconds = max(difference.total_seconds(), 0)
 
 			if difference_seconds > 0:
-				return deadline_footer.format(time_till=diff_to_str(deadline_datetime, current_datetime, include_seconds=False))
+				return deadline_footer.format(
+					time_till=diff_to_str(latest_deadline[1], current_datetime, include_seconds=False), deadline_type=latest_deadline[0]
+				)
 			else:
 				season_ended_footer = await database.get_config("contracts.season_ended_footer", db_conn=conn)
 				if season_ended_footer is None:
@@ -87,7 +89,7 @@ async def get_deadline_footer(database: NatsuDatabase, season_id: str, *, db_con
 
 async def season_autocomplete(ctx: NatsuAutoContext) -> list[discord.OptionChoice]:
 	async with ctx.database.connect() as conn:  # noqa: SIM117
-		async with conn.execute("SELECT id, name FROM season WHERE id LIKE ?1 OR name LIKE ?1", (f"%{ctx.value.strip()}%",)) as cursor:
+		async with conn.execute("SELECT id, name FROM season WHERE id LIKE ?1 OR name LIKE ?1", (f"%{sanitize(ctx.value.strip())}%",)) as cursor:
 			season_list = [discord.OptionChoice(name=row["name"], value=row["id"]) for row in await cursor.fetchall()]
 
 	return season_list
@@ -102,7 +104,7 @@ def usernames_autocomplete(seasonal: bool = True):
 				query = "SELECT u.username FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND u.username LIKE ?"
 				params.append(await ctx.bot.get_config("contracts.active_season", db_conn=conn))
 			query += " LIMIT 25"
-			params.append(f"%{ctx.value.strip()}%")
+			params.append(f"%{sanitize(ctx.value.strip())}%")
 
 			async with conn.execute(query, params) as cursor:
 				username_list: list[str] = [row["username"] for row in await cursor.fetchall()]

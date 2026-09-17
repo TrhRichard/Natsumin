@@ -9,7 +9,7 @@ from internal.contracts import sync_season
 from internal.base.cog import NatsuCog
 from discord.ext import commands
 from typing import TYPE_CHECKING
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import contextlib
 import traceback
@@ -87,7 +87,9 @@ class OwnerExt(NatsuCog, name="Owner", command_attrs={"hidden": True}):
 
 	@commands.command(aliases=["rsc"])
 	async def resync_slash_commands(self, ctx: NatsuContext):
-		await self.bot.sync_commands()
+		async with ctx.typing():
+			await self.bot.sync_commands()
+
 		await ctx.reply("Successfully synced bot application commands.", mention_author=False)
 
 	@commands.group(name="config", invoke_without_command=True)
@@ -506,9 +508,9 @@ class OwnerExt(NatsuCog, name="Owner", command_attrs={"hidden": True}):
 
 		async with self.bot.database.connect() as conn:
 			async with conn.execute("SELECT id, username FROM user WHERE discord_id IS NULL") as cursor:
-				users: list[tuple[str, str]] = [(row["id"], row["username"]) for row in await cursor.fetchall()]
+				users: list[tuple[UUID, str]] = [(row["id"], row["username"]) for row in await cursor.fetchall()]
 
-			username_to_id: dict[str, str] = {user[1].lower(): user[0] for user in users}
+			username_to_id: dict[str, UUID] = {user[1].lower(): user[0] for user in users}
 			users_changed: int = 0
 
 			async with ctx.typing():
@@ -550,8 +552,8 @@ class OwnerExt(NatsuCog, name="Owner", command_attrs={"hidden": True}):
 			return await msg.reply("Request canceled!")
 
 		async with self.bot.database.connect() as conn:
-			username_to_id: dict[str, str] = {}
-			discord_to_id: dict[int, str] = {}
+			username_to_id: dict[str, UUID] = {}
+			discord_to_id: dict[int, UUID] = {}
 
 			async with conn.execute("SELECT id, discord_id, username FROM user") as cursor:
 				for row in await cursor.fetchall():
@@ -578,7 +580,7 @@ class OwnerExt(NatsuCog, name="Owner", command_attrs={"hidden": True}):
 
 					try:
 						await conn.execute(
-							"INSERT INTO user (id, username, discord_id, rep) VALUES (?, ?, ?, ?)", (str(uuid4()), member.name, member.id, member_rep)
+							"INSERT INTO user (id, username, discord_id, rep) VALUES (?, ?, ?, ?)", (uuid4(), member.name, member.id, member_rep)
 						)
 					except sqlite3.IntegrityError:
 						pass
