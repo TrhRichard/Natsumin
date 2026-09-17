@@ -16,12 +16,15 @@ sqlite3.register_adapter(datetime, lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.%f"
 sqlite3.register_adapter(date, lambda d: d.isoformat())
 sqlite3.register_adapter(bool, int)
 sqlite3.register_adapter(UUID, lambda u: str(u))
+sqlite3.register_adapter(dict, lambda d: json.dumps(d, indent=None))
+sqlite3.register_adapter(list, lambda ls: json.dumps(ls, indent=None))
 
 # converters currently unused due to strict mode for the database
 sqlite3.register_converter("DATETIME", lambda b: datetime.fromisoformat(b.decode("utf-8")))
 sqlite3.register_converter("DATE", lambda b: date.fromisoformat(b.decode("utf-8")))
 sqlite3.register_converter("BOOLEAN", lambda b: b == b"1")
 sqlite3.register_converter("UUID", lambda b: UUID(b.decode("utf-8")))
+sqlite3.register_converter("JSON", lambda b: json.loads(b.decode("utf-8")))
 
 
 # not exactly database related however it causes issues with json encoding
@@ -55,13 +58,14 @@ class NatsuDatabase:
 		self._schema_path = Path("assets", "schemas", "Database.sql")
 		self._setup_complete = asyncio.Event()
 
-	async def open(self) -> aiosqlite.Connection:
-		conn = await aiosqlite.connect(self._db_path)
+	async def open(self, *, enable_foreign: bool = True) -> aiosqlite.Connection:
+		conn = await aiosqlite.connect(self._db_path, detect_types=sqlite3.PARSE_DECLTYPES)
 		conn.row_factory = aiosqlite.Row
-		await conn.executescript("""
-			PRAGMA journal_mode = WAL;
-			PRAGMA foreign_keys = ON;
-		""")
+		if enable_foreign:
+			await conn.executescript("""
+				PRAGMA journal_mode = WAL;
+				PRAGMA foreign_keys = ON;
+			""")
 		return conn
 
 	@asynccontextmanager
