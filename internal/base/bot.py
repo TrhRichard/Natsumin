@@ -58,7 +58,7 @@ class NatsuBot(commands.Bot):
 				self.logger.error(f"An exception occured while loading extension: {extension_path}", exc_info=err)
 
 	async def on_ready(self):
-		print("server successfully started")
+		# print("server successfully started")
 		# subprocess.run("cls" if os.name == "nt" else "clear", shell=True)
 		self.logger.info(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 		await self.database.setup()

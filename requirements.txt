@@ -4,6 +4,8 @@ aiofiles==25.1.0
     # via natsumin (pyproject.toml)
 aiosqlite==0.21.0
     # via natsumin (pyproject.toml)
+fastapi==0.141.1
+    # via natsumin (pyproject.toml)
 parsedatetime==2.6
     # via natsumin (pyproject.toml)
 py-cord==2.8.0

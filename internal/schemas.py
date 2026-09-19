@@ -4,7 +4,7 @@ from datetime import datetime
 
 
 type BadgeDisplayType = Literal["one", "list"]
-type BadgeType = Literal["contracts", "aria", "event", "misc"]
+type BadgeType = Literal["contracts", "aria", "blitz", "event", "misc"]
 type BadgeRarity = Literal["common", "uncommon", "rare", "epic", "legendary", "limited"]
 
 
