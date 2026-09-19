@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from internal.constants import FILE_LOGGING_FORMATTER
+
 from internal.enums import UserStatus, UserKind
 from internal.contracts import sync_season
-from discord.ext import tasks
+from internal.logging import setup_logger
 from typing import TYPE_CHECKING
+from discord.ext import tasks
 from config import BOT_PREFIX
 
 import discord
-import logging
 
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuBot
@@ -22,14 +22,8 @@ class ContractsExt(UserCog, ContractsCog, name="Contracts"):
 
 	def __init__(self, bot: NatsuBot):
 		super().__init__(bot)
-		self.logger = logging.getLogger("bot.contracts")
+		self.logger = setup_logger("bot.contracts", file="logs/contracts.log")
 		self.is_syncing_enabled = True
-		if not self.logger.handlers:
-			file_handler = logging.FileHandler("logs/contracts.log", encoding="utf-8")
-			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
-			self.logger.addHandler(file_handler)
-
-			self.logger.setLevel(logging.INFO)
 
 		self.sync_database.start()
 		self.change_user_status.start()

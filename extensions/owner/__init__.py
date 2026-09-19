@@ -2,11 +2,12 @@ from __future__ import annotations
 
 
 from internal.base.context import NatsuAppContext, NatsuContext
-from internal.constants import FILE_LOGGING_FORMATTER, COLORS
 from internal.functions import frmt_iter, get_legacy_rank
 from internal.contracts.rep import get_rep_from_member
 from internal.contracts import sync_season
+from internal.logging import setup_logger
 from internal.base.cog import NatsuCog
+from internal.constants import COLORS
 from discord.ext import commands
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
@@ -17,7 +18,6 @@ import aiosqlite
 import textwrap
 import sqlite3
 import discord
-import logging
 import json
 import ast
 import io
@@ -35,13 +35,7 @@ class OwnerExt(NatsuCog, name="Owner", command_attrs={"hidden": True}):
 
 	def __init__(self, bot: NatsuBot):
 		super().__init__(bot)
-		self.logger = logging.getLogger("bot.owner")
-		if not self.logger.handlers:
-			file_handler = logging.FileHandler("logs/owner.log", encoding="utf-8")
-			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
-			self.logger.addHandler(file_handler)
-
-			self.logger.setLevel(logging.INFO)
+		self.logger = setup_logger("bot.owner", file="logs/owner.log")
 
 	async def cog_check(self, ctx: NatsuContext | NatsuAppContext):
 		if await self.bot.is_owner(ctx.author):

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from config import OWNER_IDS, CONTRIBUTOR_IDS, BOT_PREFIX, REPOSITORY_URL
 from internal.base.context import NatsuAppContext, NatsuContext
-from internal.constants import FILE_LOGGING_FORMATTER, COLORS
+from internal.logging import setup_logger
 from internal.base.cog import NatsuCog
+from internal.constants import COLORS
 from discord.ext import commands
 from typing import TYPE_CHECKING
 
 import discord
-import logging
 
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuBot
@@ -19,13 +19,7 @@ class OtherExt(NatsuCog, name="Other"):
 
 	def __init__(self, bot: NatsuBot):
 		super().__init__(bot)
-		self.logger = logging.getLogger("bot.other")
-		if not self.logger.handlers:
-			file_handler = logging.FileHandler("logs/other.log", encoding="utf-8")
-			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
-			self.logger.addHandler(file_handler)
-
-			self.logger.setLevel(logging.INFO)
+		self.logger = setup_logger("bot.other", file="logs/other.log")
 
 	def get_bot_info_container(self) -> discord.ui.Container:
 		ping_ms = round(self.bot.latency * 1000)

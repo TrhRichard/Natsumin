@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 from internal.base.context import NatsuAppContext, NatsuContext, NatsuAutoContext
-from internal.constants import FILE_LOGGING_FORMATTER, COLORS
 from internal.functions import shorten, diff_to_str
-from internal.base.cog import NatsuCog
+from internal.logging import setup_logger
 from discord.ext import commands, tasks
+from internal.base.cog import NatsuCog
+from internal.constants import COLORS
 from typing import TYPE_CHECKING
 from discord import ui
 
 import parsedatetime
 import datetime
 import discord
-import logging
 import re
 
 if TYPE_CHECKING:
@@ -62,14 +62,8 @@ class ReminderExt(NatsuCog, name="Reminder"):
 
 	def __init__(self, bot: NatsuBot):
 		super().__init__(bot)
-		self.logger = logging.getLogger("bot.reminder")
+		self.logger = setup_logger("bot.reminder", file="logs/reminder.log")
 		self.db = bot.reminders
-		if not self.logger.handlers:
-			file_handler = logging.FileHandler("logs/reminder.log", encoding="utf-8")
-			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
-			self.logger.addHandler(file_handler)
-
-			self.logger.setLevel(logging.INFO)
 
 		self.reminder_loop.start()
 
