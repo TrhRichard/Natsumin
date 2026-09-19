@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from config import BOT_PREFIX, EDITOR_IDS, OWNER_IDS, IS_PRODUCTION, DISABLED_EXTENSIONS
-from internal.constants import FILE_LOGGING_FORMATTER, CONSOLE_LOGGING_FORMATTER, COLORS
 from internal.base.context import NatsuAutoContext, NatsuAppContext, NatsuContext
 from internal.exceptions import BlacklistedUser, NotWhitelistedChannel
 from internal.contracts.rep import get_rep_from_member, RepName
@@ -10,18 +9,17 @@ from internal.database.reminder import ReminderDatabase
 from internal.contracts.order import OrderCategory
 from internal.database import NatsuDatabase
 from typing import TYPE_CHECKING, Literal
+from internal.logging import setup_logger
+from internal.constants import COLORS
 from discord.ext import commands
 from uuid import uuid4, UUID
 from pathlib import Path
 
-import subprocess
 import aiosqlite
 import aiofiles
 import datetime
 import discord
-import logging
 import json
-import os
 import re
 
 if TYPE_CHECKING:
@@ -29,7 +27,7 @@ if TYPE_CHECKING:
 
 
 class NatsuBot(commands.Bot):
-	def __init__(self, production: bool = False):
+	def __init__(self):
 		super().__init__(
 			command_prefix=BOT_PREFIX,
 			allowed_mentions=discord.AllowedMentions(everyone=False, users=False, roles=False, replied_user=False),
@@ -47,16 +45,7 @@ class NatsuBot(commands.Bot):
 		self.anicord: discord.Guild | None = None
 		self.season_orders: dict[str, list[OrderCategory]] = {}
 
-		self.logger = logging.getLogger("bot")
-		if not self.logger.hasHandlers():
-			file_handler = logging.FileHandler("logs/bot.log", encoding="utf-8")
-			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
-			console_handler = logging.StreamHandler()
-			console_handler.setFormatter(CONSOLE_LOGGING_FORMATTER)
-			self.logger.addHandler(file_handler)
-			self.logger.addHandler(console_handler)
-
-			self.logger.setLevel(logging.INFO)
+		self.logger = setup_logger("bot", file="logs/bot.log")
 
 		for extension in Path("extensions").iterdir():
 			if not extension.is_dir() or extension.stem in DISABLED_EXTENSIONS:
@@ -70,7 +59,7 @@ class NatsuBot(commands.Bot):
 
 	async def on_ready(self):
 		print("server successfully started")
-		subprocess.run("cls" if os.name == "nt" else "clear", shell=True)
+		# subprocess.run("cls" if os.name == "nt" else "clear", shell=True)
 		self.logger.info(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 		await self.database.setup()
 		await self.reminders.setup()

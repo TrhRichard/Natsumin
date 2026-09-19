@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from internal.contracts.rep import get_rep, get_rep_from_member
 from internal.base.context import NatsuAppContext, NatsuContext
-from internal.constants import FILE_LOGGING_FORMATTER
 from internal.exceptions import UnauthorizedUser
 from internal.functions import rep_autocomplete
+from internal.logging import setup_logger
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import discord
-import logging
 
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuBot
@@ -23,13 +22,7 @@ class DatabaseExt(BadgeCog, name="Database"):
 
 	def __init__(self, bot: NatsuBot):
 		super().__init__(bot)
-		self.logger = logging.getLogger("bot.database")
-		if not self.logger.handlers:
-			file_handler = logging.FileHandler("logs/database.log", encoding="utf-8")
-			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
-			self.logger.addHandler(file_handler)
-
-			self.logger.setLevel(logging.INFO)
+		self.logger = setup_logger("bot.database", file="logs/database.log")
 
 	async def cog_before_invoke(self, ctx: NatsuContext | NatsuAppContext):
 		await ctx.bot.ensure_user(ctx.author)

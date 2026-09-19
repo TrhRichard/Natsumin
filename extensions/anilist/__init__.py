@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from .queries import search_media, search_character, search_staff, Media, Character, Staff
 from internal.base.context import NatsuContext, NatsuAppContext
-from internal.constants import FILE_LOGGING_FORMATTER, COLORS
+from internal.logging import setup_logger
 from internal.functions import frmt_iter
 from internal.base.cog import NatsuCog
+from internal.constants import COLORS
 from discord.ext import commands
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuBot
 
-import logging
 import discord
 
 
@@ -24,14 +24,7 @@ class AnilistExt(NatsuCog, name="AniList"):
 
 	def __init__(self, bot: NatsuBot):
 		super().__init__(bot)
-		self.logger = logging.getLogger("bot.anilist")
-		self.is_syncing_enabled = True
-		if not self.logger.handlers:
-			file_handler = logging.FileHandler("logs/anilist.log", encoding="utf-8")
-			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
-			self.logger.addHandler(file_handler)
-
-			self.logger.setLevel(logging.INFO)
+		self.logger = setup_logger("bot.anilist", file="logs/anilist.log")
 
 	def create_embed_from_media(self, media: Media) -> discord.Embed:
 		embed = discord.Embed(

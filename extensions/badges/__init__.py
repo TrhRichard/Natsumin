@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from internal.constants import FILE_LOGGING_FORMATTER, BADGE_RARITIES, BADGE_TYPES
 from internal.base.paginator import CustomPaginator, V2Paginator, V2Page
 from internal.base.context import NatsuContext, NatsuAppContext
+from internal.constants import BADGE_RARITIES, BADGE_TYPES
 from internal.schemas import BadgeDisplayType, BadgeData
 from internal.contracts import usernames_autocomplete
 from internal.checks import whitelist_channel_only
 from internal.functions import get_user_config
 from internal.sql import sanitize, select
 from typing import TYPE_CHECKING, Literal
+from internal.logging import setup_logger
 from internal.base.cog import NatsuCog
 from internal.constants import COLORS
 
@@ -19,7 +20,6 @@ from discord import ui
 if TYPE_CHECKING:
 	from internal.base.bot import NatsuBot
 
-import logging
 import discord
 
 
@@ -138,14 +138,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 
 	def __init__(self, bot: NatsuBot):
 		super().__init__(bot)
-		self.logger = logging.getLogger("bot.badges")
-		self.is_syncing_enabled = True
-		if not self.logger.handlers:
-			file_handler = logging.FileHandler("logs/badges.log", encoding="utf-8")
-			file_handler.setFormatter(FILE_LOGGING_FORMATTER)
-			self.logger.addHandler(file_handler)
-
-			self.logger.setLevel(logging.INFO)
+		self.logger = setup_logger("bot.badges", file="logs/badges.log")
 
 	async def cog_before_invoke(self, ctx: NatsuContext | NatsuAppContext):
 		await ctx.bot.ensure_user(ctx.author)
