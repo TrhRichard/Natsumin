@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from internal.base.context import NatsuAppContext, NatsuContext
 from internal.functions import frmt_iter, get_legacy_rank
 from internal.contracts.rep import get_rep_from_member
@@ -16,6 +15,8 @@ import contextlib
 import traceback
 import aiosqlite
 import textwrap
+import hashlib
+import secrets
 import sqlite3
 import discord
 import json
@@ -592,6 +593,30 @@ class OwnerExt(NatsuCog, name="Owner", command_attrs={"hidden": True}):
 			await msg.reply(msg_content)
 		except discord.HTTPException:
 			await ctx.reply(msg_content)
+
+	@commands.command()
+	async def create_api_token(self, ctx: NatsuContext, username_or_uuid: str, *, name: str):
+		token = secrets.token_urlsafe(32)
+		token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+		async with self.database.connect() as conn:
+			async with conn.execute(
+				"SELECT id, username FROM user WHERE id = ? OR username = ?", (username_or_uuid, username_or_uuid.lower())
+			) as cursor:
+				user_row = await cursor.fetchone()
+				if not user_row:
+					return await ctx.reply("User does not exist.")
+
+			await conn.execute("INSERT INTO api_token (id, user_id, name, hash) VALUES (?, ?, ?, ?)", (uuid4(), user_row["id"], name, token_hash))
+			await conn.commit()
+
+		try:
+			await ctx.author.send(f"Token {name} here:\n```\n{token}\n```\nAuto deleting message in 1 minute.", delete_after=60)
+			await ctx.reply(f"Created token named {name} for user {user_row['username']}. Check DMs for the token.")
+		except (discord.Forbidden, discord.NotFound):
+			await ctx.reply(
+				f"Created token named {name} for user {user_row['username']}. Could not send the token in the DMs, instead check the database."
+			)
 
 
 def setup(bot: NatsuBot):

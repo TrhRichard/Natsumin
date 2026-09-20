@@ -1,6 +1,19 @@
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
+CREATE TABLE IF NOT EXISTS api_token (
+	id			UUID NOT NULL,
+	user_id		UUID NOT NULL,
+	name		TEXT NOT NULL,
+	hash		TEXT NOT NULL,
+	created_at	DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	removed_at	DATETIME,
+
+	PRIMARY KEY (id),
+	UNIQUE (hash),
+	FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS bot_config (
 	key 		TEXT NOT NULL,
 	value 		TEXT NOT NULL,

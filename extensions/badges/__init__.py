@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from internal.base.paginator import CustomPaginator, V2Paginator, V2Page
+from internal.constants import BADGE_RARITIES, BADGE_TYPES, BADGE_ORDER
 from internal.base.context import NatsuContext, NatsuAppContext
-from internal.constants import BADGE_RARITIES, BADGE_TYPES
 from internal.schemas import BadgeDisplayType, BadgeData
 from internal.contracts import usernames_autocomplete
 from internal.checks import whitelist_channel_only
@@ -192,32 +192,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 				query.where("ub.badge_id IS NOT NULL" if owned else "ub.badge_id IS NULL")
 
 			query.column("(SELECT COUNT(*) FROM user_badge ubc WHERE ubc.badge_id = b.id) AS badge_count")
-			query.order_by(
-				"""
-			CASE
-				WHEN b.type = 'contracts' THEN 0 
-				WHEN b.type = 'aria' THEN 1
-				WHEN b.type = 'blitz' THEN 2
-				WHEN b.type = 'event' THEN 3 
-				WHEN b.type = 'misc' THEN 4
-				ELSE 99
-			END
-			""",
-				"""
-			CASE
-				WHEN b.rarity = 'limited' THEN 0 
-				WHEN b.rarity = 'legendary' THEN 1
-				WHEN b.rarity = 'epic' THEN 2 
-				WHEN b.rarity = 'rare' THEN 3 
-				WHEN b.rarity = 'uncommon' THEN 4 
-				WHEN b.rarity = 'common' THEN 5 
-				ELSE 99
-			END
-			""",
-				"b.created_at",
-				"CASE WHEN b.url = '' THEN 1 ELSE 0 END",
-				"b.name",
-			)
+			query.order_by(*BADGE_ORDER)
 
 			async with conn.execute(*query.build()) as cursor:
 				badges: list[BadgeData] = [dict(row) for row in await cursor.fetchall()]
@@ -268,32 +243,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 			query.where("rarity = ?", rarity, cond=rarity is not None)
 
 			query.column("(SELECT COUNT(*) FROM user_badge ubc WHERE ubc.badge_id = b.id) AS badge_count")
-			query.order_by(
-				"""
-			CASE
-				WHEN b.type = 'contracts' THEN 0 
-				WHEN b.type = 'aria' THEN 1
-				WHEN b.type = 'blitz' THEN 2
-				WHEN b.type = 'event' THEN 3 
-				WHEN b.type = 'misc' THEN 4
-				ELSE 99
-			END
-			""",
-				"""
-			CASE
-				WHEN b.rarity = 'limited' THEN 0 
-				WHEN b.rarity = 'legendary' THEN 1
-				WHEN b.rarity = 'epic' THEN 2 
-				WHEN b.rarity = 'rare' THEN 3 
-				WHEN b.rarity = 'uncommon' THEN 4 
-				WHEN b.rarity = 'common' THEN 5 
-				ELSE 99
-			END
-			""",
-				"b.created_at",
-				"CASE WHEN b.url = '' THEN 1 ELSE 0 END",
-				"b.name",
-			)
+			query.order_by(*BADGE_ORDER)
 
 			async with conn.execute(*query.build()) as cursor:
 				badges: list[BadgeData] = [dict(row) for row in await cursor.fetchall()]
