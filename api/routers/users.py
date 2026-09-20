@@ -36,12 +36,12 @@ async def get_self(current_user: CurrentUserDep) -> User:
 	return current_user
 
 
-@router.get("/@me/badges", summary="Get badges that you own", tags=["users", "badges"])
+@router.get("/@me/badges", summary="Get badges that you own", tags=["badges"])
 async def get_self_badges(bot: BotDep, current_user: CurrentUserDep) -> list[Badge]:
 	return await fetch_user_badges(bot, current_user.id)
 
 
-@router.get("/{user_id}", summary="Fetch one user", responses={404: {"description": "User not found"}})
+@router.get("/{user_id}", summary="Get one user", responses={404: {"description": "User not found"}})
 async def get_user(bot: BotDep, user_id: UUID) -> User:
 	async with bot.database.connect() as conn:
 		query = (
@@ -67,7 +67,7 @@ async def get_user(bot: BotDep, user_id: UUID) -> User:
 		)
 
 
-@router.get("/{user_id}/badges", summary="Get badges that a user owns", tags=["users", "badges"], responses={404: {"description": "User not found"}})
+@router.get("/{user_id}/badges", summary="Get badges that a user owns", tags=["badges"], responses={404: {"description": "User not found"}})
 async def get_user_badges(bot: BotDep, user_id: UUID) -> list[Badge]:
 	async with bot.database.connect() as conn:
 		if not await user_exists(bot, user_id, db_conn=conn):

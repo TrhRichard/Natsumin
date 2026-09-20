@@ -1,4 +1,4 @@
-from pydantic import BaseModel, PlainSerializer, WithJsonSchema
+from pydantic import BaseModel, Field, PlainSerializer, WithJsonSchema
 from internal.schemas import BadgeType, BadgeRarity
 from internal.contracts.rep import RepName
 from typing import Annotated
@@ -16,6 +16,11 @@ type Date = Annotated[
 	PlainSerializer(lambda d: d.isoformat(), return_type=str),
 	WithJsonSchema({"type": "string", "format": "date", "examples": ["2026-01-15"]}),
 ]
+
+
+class PaginationParams(BaseModel):
+	limit: int = Field(100, gt=0, le=250)
+	offset: int = Field(0, ge=0)
 
 
 class Badge(BaseModel):
