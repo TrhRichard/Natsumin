@@ -595,7 +595,7 @@ class OwnerExt(NatsuCog, name="Owner", command_attrs={"hidden": True}):
 			await ctx.reply(msg_content)
 
 	@commands.command()
-	async def create_api_token(self, ctx: NatsuContext, username_or_uuid: str, *, name: str):
+	async def create_token(self, ctx: NatsuContext, username_or_uuid: str, *, name: str):
 		token = secrets.token_urlsafe(32)
 		token_hash = hashlib.sha256(token.encode()).hexdigest()
 
@@ -611,12 +611,25 @@ class OwnerExt(NatsuCog, name="Owner", command_attrs={"hidden": True}):
 			await conn.commit()
 
 		try:
-			await ctx.author.send(f"Token {name} here:\n```\n{token}\n```\nAuto deleting message in 1 minute.", delete_after=60)
-			await ctx.reply(f"Created token named {name} for user {user_row['username']}. Check DMs for the token.")
+			await ctx.author.send(f"Token `{name}` here:\n```\n{token}\n```\nAuto deleting message in 1 minute.", delete_after=60)
+			await ctx.reply(f"Created token named `{name}` for user {user_row['username']}. Check DMs for the token.")
 		except (discord.Forbidden, discord.NotFound):
 			await ctx.reply(
-				f"Created token named {name} for user {user_row['username']}. Could not send the token in the DMs, instead check the database."
+				f"Created token named `{name}` for user {user_row['username']}. Could not send the token in the DMs, instead check the database."
 			)
+
+	@commands.command()
+	async def revoke_token(self, ctx: NatsuContext, token_id: UUID):
+		async with self.database.connect() as conn:
+			async with conn.execute(
+				"UPDATE api_token SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? RETURNING name", (token_id,)
+			) as cursor:
+				row = await cursor.fetchone()
+				if row is None:
+					return await ctx.reply("Could not find any api key with that id.")
+
+				await conn.commit()
+				await ctx.reply(f"Revoked key `{row['name']}`.")
 
 
 def setup(bot: NatsuBot):
