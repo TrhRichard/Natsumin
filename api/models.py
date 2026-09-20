@@ -1,12 +1,20 @@
-from pydantic import BaseModel, Field, PlainSerializer
+from pydantic import BaseModel, PlainSerializer, WithJsonSchema
 from internal.schemas import BadgeType, BadgeRarity
 from typing import Annotated
 from uuid import UUID
 
 import datetime as datetim
 
-type DateTime = Annotated[datetim.datetime, PlainSerializer(lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z", return_type=str)]
-type Date = Annotated[datetim.date, PlainSerializer(lambda d: d.isoformat(), return_type=str)]
+type DateTime = Annotated[
+	datetim.datetime,
+	PlainSerializer(lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z", return_type=str),
+	WithJsonSchema({"type": "string", "format": "date-time", "examples": ["2026-01-15T00:00:00.000Z"]}),
+]
+type Date = Annotated[
+	datetim.date,
+	PlainSerializer(lambda d: d.isoformat(), return_type=str),
+	WithJsonSchema({"type": "string", "format": "date", "examples": ["2026-01-15"]}),
+]
 
 
 class Badge(BaseModel):
@@ -42,5 +50,4 @@ class PartialUser(BaseModel):
 
 
 class User(PartialUser):
-	leaderboard: UserLeaderboards = Field(title="leaderboard")
-	badges: list[Badge]
+	leaderboard: UserLeaderboards
