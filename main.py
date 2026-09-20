@@ -6,6 +6,8 @@ from pathlib import Path
 
 import asyncio
 import uvicorn
+import psutil
+import time
 
 
 async def main():
@@ -18,15 +20,24 @@ async def main():
 
 	@app.get("/health", summary="Check the health of the Bot & API", tags=["bot"])
 	async def health():
-		return {
-			"ok": True,
-			"production": IS_PRODUCTION,
-			"bot": {
-				"ready": bot.is_ready() if bot else False,
-				"guilds": len(bot.guilds) if bot else -1,
+		bot_details = (
+			{
+				"ready": bot.is_ready(),
+				"guilds": len(bot.guilds) if bot.is_ready() else -1,
 				"user": {"id": bot.user.id, "username": bot.user.name, "discriminator": bot.user.discriminator} if bot and bot.user else None,
-			},
+			}
+			if bot
+			else None
+		)
+
+		proc = psutil.Process()
+		mem = proc.memory_info()
+		process_details = {
+			"memory_usage_mb": round(mem.rss / 1024**2, 2),
+			"cpu_percent": proc.cpu_percent(),
+			"uptime_seconds": round(time.time() - proc.create_time()),
 		}
+		return {"ok": True, "production": IS_PRODUCTION, "bot": bot_details, "process": process_details}
 
 	config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
 	server = uvicorn.Server(config)
