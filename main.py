@@ -18,7 +18,7 @@ async def main():
 	app = create_app()
 	app.state.bot = bot
 
-	@app.get("/health", summary="Check the health of the Bot & API", tags=["bot"])
+	@app.get("/health", summary="Check the health of the Bot & API", tags=["system"])
 	async def health():
 		bot_details = (
 			{
@@ -53,4 +53,7 @@ async def main():
 
 
 if __name__ == "__main__":
-	asyncio.run(main())
+	try:
+		asyncio.run(main())
+	except KeyboardInterrupt:
+		pass

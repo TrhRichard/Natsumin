@@ -13,7 +13,9 @@ def get_bot(request: Request) -> NatsuBot:
 	return request.app.state.bot
 
 
-bearer_scheme = HTTPBearer()
+bearer_scheme = HTTPBearer(
+	scheme_name="API Key", description="The token cannot be received from any endpoint and can only come from asking the owner"
+)
 
 type BotDep = Annotated[NatsuBot, Depends(get_bot)]
 

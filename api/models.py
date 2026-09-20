@@ -1,5 +1,6 @@
 from pydantic import BaseModel, PlainSerializer, WithJsonSchema
 from internal.schemas import BadgeType, BadgeRarity
+from internal.contracts.rep import RepName
 from typing import Annotated
 from uuid import UUID
 
@@ -43,7 +44,7 @@ class PartialUser(BaseModel):
 	id: UUID
 	discord_id: int | None
 	username: str
-	rep: str | None
+	rep: RepName | None
 	gen: int | None
 	created_at: DateTime
 	updated_at: DateTime | None
