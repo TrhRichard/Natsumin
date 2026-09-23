@@ -19,7 +19,7 @@ async def main():
 	app.state.bot = bot
 
 	@app.get("/health", summary="Check the health of the Bot & API", tags=["system"])
-	async def health():
+	async def health() -> dict:
 		bot_details = (
 			{
 				"ready": bot.is_ready(),

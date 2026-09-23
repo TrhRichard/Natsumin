@@ -45,15 +45,15 @@ class UserLeaderboards(BaseModel):
 	legacy: UserLegacyLeaderboard | None
 
 
-class PartialUser(BaseModel):
+class UserPartial(BaseModel):
 	id: UUID
-	discord_id: int | None
 	username: str
+
+
+class User(UserPartial):
+	discord_id: int | None
 	rep: RepName | None
 	gen: int | None
 	created_at: DateTime
 	updated_at: DateTime | None
-
-
-class User(PartialUser):
 	leaderboard: UserLeaderboards

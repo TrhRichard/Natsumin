@@ -3,9 +3,9 @@ from api.deps import BotDep, PaginationDep, is_authenticated
 from internal.schemas import BadgeType, BadgeRarity
 from internal.sql import select, insert, update
 from internal.constants import BADGE_ORDER
+from api.models import Badge, UserPartial
 from internal.base.bot import NatsuBot
 from pydantic import Field, BaseModel
-from api.models import Badge
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -62,6 +62,24 @@ async def get_badge(bot: BotDep, badge_id: UUID) -> Badge:
 
 		async with conn.execute(*query.build()) as cursor:
 			return dict(await cursor.fetchone())
+
+
+@router.get("/{badge_id}/owners", summary="Get all owners of the badge", responses={404: {"description": "Badge not found"}})
+async def get_badge_owners(bot: BotDep, badge_id: UUID) -> list[UserPartial]:
+	async with bot.database.connect() as conn:
+		if not await badge_exists(bot, badge_id, db_conn=conn):
+			raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Badge not found")
+
+		query = (
+			select("user_badge", "ub")
+			.join("user u ON u.id = ub.user_id")
+			.columns("u.id", "u.username")
+			.where("ub.badge_id = ?", badge_id)
+			.order_by("ub.added_at", "u.username")
+		)
+
+		async with conn.execute(*query.build()) as cursor:
+			return [UserPartial(**dict(row)) async for row in cursor]
 
 
 class BadgeModifyRequest(BaseModel):
