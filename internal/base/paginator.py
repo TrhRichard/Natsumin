@@ -15,9 +15,11 @@ class CustomPaginator(extpages.Paginator):
 			loop_pages=True,
 			use_default_buttons=False,
 			custom_buttons=[
-				CustomPaginatorButton("prev", label="←", loop_label="↩", style=discord.ButtonStyle.blurple),
-				CustomPaginatorButton("page_indicator", style=discord.ButtonStyle.secondary),
-				CustomPaginatorButton("next", label="→", loop_label="↪", style=discord.ButtonStyle.blurple),
+				CustomPaginatorButton("first", label="⟵", style=discord.ButtonStyle.secondary),
+				CustomPaginatorButton("prev", label="←", loop_label="↩", style=discord.ButtonStyle.secondary),
+				CustomPaginatorButton("page_indicator", style=discord.ButtonStyle.blurple),
+				CustomPaginatorButton("next", label="→", loop_label="↪", style=discord.ButtonStyle.secondary),
+				CustomPaginatorButton("last", label="⟶", style=discord.ButtonStyle.secondary),
 			],
 		)
 
@@ -167,7 +169,7 @@ class PageModal(ui.Modal):
 		await self.paginator.goto_page(page_number, interaction=interaction)
 
 
-type V2PaginatorButtonType = Literal["previous_page", "page_indicator", "next_page"]
+type V2PaginatorButtonType = Literal["previous_page", "page_indicator", "next_page", "first_page", "last_page"]
 
 
 class V2PaginatorButton(ui.Button):
@@ -193,6 +195,14 @@ class V2PaginatorButton(ui.Button):
 				self.label = f"{self.paginator.current_page + 1}/{len(self.paginator.pages)}"
 				self.disabled = len(self.paginator.pages) == 1
 				self.style = discord.ButtonStyle.primary
+			case "first_page":
+				self.label = "⟵"
+				self.disabled = self.paginator.current_page == 0
+				self.style = discord.ButtonStyle.secondary
+			case "last_page":
+				self.label = "⟶"
+				self.disabled = self.paginator.current_page == self.paginator.last_page
+				self.style = discord.ButtonStyle.secondary
 
 	async def callback(self, interaction):
 		if self.paginator.author_check and interaction.user != self.paginator.user:
@@ -213,6 +223,10 @@ class V2PaginatorButton(ui.Button):
 			case "page_indicator":
 				await interaction.response.send_modal(ChangePageModal(self.paginator))
 				return
+			case "first_page":
+				new_page = 0
+			case "last_page":
+				new_page = self.paginator.last_page
 
 		await self.paginator.goto_page(new_page, interaction=interaction)
 
@@ -235,6 +249,7 @@ class V2Paginator:
 		disable_on_timeout: bool = True,
 		store: bool = True,
 		add_default_buttons: bool = True,
+		add_first_and_last_buttons: bool = True,
 		author_check: bool = True,
 	):
 		self.current_page = 0
@@ -242,6 +257,8 @@ class V2Paginator:
 		self.user: discord.abc.User | None = None
 		self.message: discord.Message | discord.WebhookMessage | None = None
 		self.author_check = author_check
+		self.add_default_buttons = add_default_buttons
+		self.add_first_and_last_buttons = add_first_and_last_buttons
 
 		self._view = ui.DesignerView(timeout=timeout, disable_on_timeout=disable_on_timeout, store=store)
 		self._button_row = ui.ActionRow()
@@ -346,7 +363,8 @@ class V2Paginator:
 		for item in page.items:
 			self._view.add_item(item)
 
-		self._add_default_buttons()
+		if self.add_default_buttons:
+			self._add_default_buttons()
 		if page.extra_buttons is not None:
 			for button in page.extra_buttons:
 				self._button_row.add_item(button)
@@ -360,7 +378,11 @@ class V2Paginator:
 	def _add_default_buttons(self):
 		self._button_row = ui.ActionRow()
 
-		default_buttons = (V2PaginatorButton("previous_page"), V2PaginatorButton("page_indicator"), V2PaginatorButton("next_page"))
+		default_buttons = [V2PaginatorButton("previous_page"), V2PaginatorButton("page_indicator"), V2PaginatorButton("next_page")]
+		if self.add_first_and_last_buttons:
+			default_buttons.insert(0, V2PaginatorButton("first_page"))
+			default_buttons.append(V2PaginatorButton("last_page"))
+
 		for button in default_buttons:
 			self.add_button(button)
 

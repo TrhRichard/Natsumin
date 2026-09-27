@@ -65,20 +65,21 @@ async def get_badge_members_callback(badge_data: BadgeData, interaction: discord
 	await paginator.respond(interaction, ephemeral=True)
 
 
-def get_badge_page(badge: BadgeData) -> V2Page:
+def get_badge_page(badge: BadgeData, is_hidden: bool) -> V2Page:
 	if badge["url"]:
 		badge_art = ui.MediaGallery()
 		badge_art.add_item(badge["url"], description=badge["artist"])
 	else:
 		badge_art = ui.TextDisplay("No image available.")
 
-	badge_details: tuple[str, ...] = (
+	badge_details: list[str] = [
 		f"Artist: {badge['artist'] if badge['artist'] else 'None'}",
 		f"Rarity: {badge['rarity'].upper()}",
 		f"Type: {badge['type'].upper()}",
 		# f"Value: {badge['value']}",
-		("Owned" if badge.get("author_owns_badge", False) else "Not Owned"),
-	)
+	]
+	if is_hidden:
+		badge_details.append("Owned" if badge.get("author_owns_badge", False) else "Not Owned")
 
 	badge_members_button = ui.Button(
 		style=discord.ButtonStyle.secondary,
@@ -96,25 +97,26 @@ def get_badge_page(badge: BadgeData) -> V2Page:
 	return V2Page(
 		[
 			ui.Container(
-				ui.TextDisplay(f"## {badge['name']}\n{badge['description']}"),
+				ui.Section(ui.TextDisplay(f"## {badge['name']}\n{badge['description']}"), accessory=badge_members_button),
 				ui.TextDisplay("\n".join(badge_details)),
 				ui.Separator(),
 				badge_art,
 				color=COLORS.DEFAULT,
 			)
-		],
-		extra_buttons=(badge_members_button,),
+		]
 	)
 
 
-def get_badge_pages_list(badges: list[BadgeData], badges_per_page: int = 10) -> list[V2Page]:
+def get_badge_pages_list(badges: list[BadgeData], badges_per_page: int = 10, is_hidden: bool = False) -> list[V2Page]:
 	pages: list[V2Page] = []
 
 	for start in range(0, len(badges), badges_per_page):
 		lines = []
 		for i, badge_data in enumerate(badges[start : start + badges_per_page], start=start):
 			user_owns_badge: str = "Yes" if badge_data["author_owns_badge"] else "No"
-			line_to_add = f"{i + 1}. **{badge_data['name']}**\n  - Rarity: `{badge_data['rarity'].upper()}` | Type: `{badge_data['type'].upper()}` | Owned: `{user_owns_badge}`"
+			line_to_add = f"{i + 1}. **{badge_data['name']}**\n  - Rarity: `{badge_data['rarity'].upper()}` | Type: `{badge_data['type'].upper()}`"
+			if is_hidden:
+				line_to_add += f" | Owned: `{user_owns_badge}`"
 
 			lines.append(line_to_add)
 
@@ -204,11 +206,11 @@ class BadgesExt(NatsuCog, name="Badges"):
 			return "No badges found with specified filters.", True
 
 		if force_display_badge_type == "one" or len(badges) == 1:
-			pages = [get_badge_page(badge_data) for badge_data in badges]
+			pages = [get_badge_page(badge_data, is_hidden=hidden) for badge_data in badges]
 		else:
-			pages = get_badge_pages_list(badges)
+			pages = get_badge_pages_list(badges, is_hidden=hidden)
 
-		return V2Paginator(pages), hidden
+		return V2Paginator(pages, timeout=300), hidden
 
 	async def badge_inventory_handler(
 		self,
@@ -255,11 +257,11 @@ class BadgesExt(NatsuCog, name="Badges"):
 			return f"{"You don't" if discord_user and invoker.id == discord_user.id else "This user doesn't"} have any badges.", True
 
 		if force_display_badge_type == "one" or len(badges) == 1:
-			pages = [get_badge_page(badge_data) for badge_data in badges]
+			pages = [get_badge_page(badge_data, is_hidden=hidden) for badge_data in badges]
 		else:
-			pages = get_badge_pages_list(badges)
+			pages = get_badge_pages_list(badges, is_hidden=hidden)
 
-		return V2Paginator(pages), hidden
+		return V2Paginator(pages, timeout=300), hidden
 
 	async def badge_leaderboard_handler(
 		self, invoker: discord.abc.User, leaderboard_type: Literal["badges", "users"], user_badge_type: str | None = None, hidden: bool = False
