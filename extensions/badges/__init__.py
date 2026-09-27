@@ -183,10 +183,13 @@ class BadgesExt(NatsuCog, name="Badges"):
 			if owned_user is not None:
 				if owned is None:
 					owned = True
-				owned_user_id, _ = await self.bot.fetch_user_from_database(owned_user, db_conn=conn)
+				owned_user_id, owned_user_discord = await self.bot.fetch_user_from_database(owned_user, db_conn=conn)
 
 				if owned_user_id is None:
-					return "No badges found due to owned_user not being in the database.", True
+					return (
+						f"No badges found due to {owned_user_discord.mention if owned_user_discord else owned_user} not being in the database.",
+						True,
+					)
 
 				query.join("user_badge ub ON ub.badge_id = b.id AND ub.user_id = ?", owned_user_id)
 				query.where("ub.badge_id IS NOT NULL" if owned else "ub.badge_id IS NULL")

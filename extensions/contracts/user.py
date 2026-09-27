@@ -795,7 +795,7 @@ class UserCog(NatsuCog):
 					ephemeral=True,
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			user_id, user_discord = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.respond("User not found!", ephemeral=True)
 
@@ -810,7 +810,9 @@ class UserCog(NatsuCog):
 				is_user_in_season = await cursor.fetchone()
 
 			if not is_user_in_season:
-				return await ctx.respond(f"{username} has not participated in {season_name}!", ephemeral=True)
+				return await ctx.respond(
+					f"{user_discord.mention if user_discord else username} has not participated in {season_name}!", ephemeral=True
+				)
 
 		await ctx.respond(view=await SeasonUserProfile.create(self.bot, ctx.author, season_id, user_id), ephemeral=hidden)
 
@@ -843,7 +845,7 @@ class UserCog(NatsuCog):
 					ephemeral=True,
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			user_id, user_discord = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.respond("User not found!", ephemeral=True)
 
@@ -861,7 +863,9 @@ class UserCog(NatsuCog):
 				does_user_have_fantasy = await cursor.fetchone()
 
 			if not does_user_have_fantasy:
-				return await ctx.respond(f"{username} doesn't have a fantasy team for {season_name}!", ephemeral=True)
+				return await ctx.respond(
+					f"{user_discord.mention if user_discord else username} doesn't have a fantasy team for {season_name}!", ephemeral=True
+				)
 
 		await ctx.respond(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, user_id, is_user_in_season), ephemeral=hidden)
 
@@ -894,7 +898,7 @@ class UserCog(NatsuCog):
 					ephemeral=True,
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			user_id, user_discord = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.respond("User not found!", ephemeral=True)
 
@@ -909,7 +913,9 @@ class UserCog(NatsuCog):
 				is_user_in_season = await cursor.fetchone()
 
 			if not is_user_in_season:
-				return await ctx.respond(f"{username} has not participated in {season_name}!", ephemeral=True)
+				return await ctx.respond(
+					f"{user_discord.mention if user_discord else username} has not participated in {season_name}!", ephemeral=True
+				)
 
 		await ctx.respond(view=await SeasonUserContracts.create(self.bot, ctx.author, season_id, user_id), ephemeral=hidden)
 
@@ -949,7 +955,7 @@ class UserCog(NatsuCog):
 					ephemeral=True,
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			user_id, user_discord = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.respond("User not found!", ephemeral=True)
 
@@ -964,7 +970,9 @@ class UserCog(NatsuCog):
 				is_user_in_season = await cursor.fetchone()
 
 			if not is_user_in_season:
-				return await ctx.respond(f"{username} has not participated in {season_name}!", ephemeral=True)
+				return await ctx.respond(
+					f"{user_discord.mention if user_discord else username} has not participated in {season_name}!", ephemeral=True
+				)
 
 			async with conn.execute(
 				"SELECT id FROM season_contract WHERE season_id = ? AND contractee_id = ? AND (type LIKE ?3 OR type_label LIKE ?3)",
@@ -974,7 +982,10 @@ class UserCog(NatsuCog):
 				contract_id: str = c_id_row["id"] if c_id_row is not None else None
 
 			if not contract_id:
-				return await ctx.respond(f"{username} does not have a contract of type {contract_type} in {season_name}!", ephemeral=True)
+				return await ctx.respond(
+					f"{user_discord.mention if user_discord else username} does not have a contract of type {contract_type} in {season_name}!",
+					ephemeral=True,
+				)
 
 		await ctx.respond(view=await SeasonContractInfo.create(self.bot, ctx.author, season_id, contract_id), ephemeral=hidden)
 
@@ -1011,7 +1022,7 @@ class UserCog(NatsuCog):
 					ephemeral=True,
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			user_id, user_discord = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.respond("User not found!", ephemeral=True)
 
@@ -1026,7 +1037,9 @@ class UserCog(NatsuCog):
 				is_user_in_season = await cursor.fetchone()
 
 			if not is_user_in_season:
-				return await ctx.respond(f"{username} has not participated in {season_name}!", ephemeral=True)
+				return await ctx.respond(
+					f"{user_discord.mention if user_discord else username} has not participated in {season_name}!", ephemeral=True
+				)
 
 		await ctx.respond(view=await SeasonUserRandomContract.create(self.bot, season_id, user_id, amount, status), ephemeral=hidden)
 
@@ -1060,7 +1073,7 @@ class UserCog(NatsuCog):
 					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it."
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			user_id, user_discord = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.reply("User not found!")
 
@@ -1075,7 +1088,7 @@ class UserCog(NatsuCog):
 				is_user_in_season = await cursor.fetchone()
 
 			if not is_user_in_season:
-				return await ctx.reply(f"{username} has not participated in {season_name}!")
+				return await ctx.reply(f"{user_discord.mention if user_discord else username} has not participated in {season_name}!")
 
 		await ctx.reply(view=await SeasonUserProfile.create(self.bot, ctx.author, season_id, user_id))
 
@@ -1097,7 +1110,7 @@ class UserCog(NatsuCog):
 					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it."
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			user_id, user_discord = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.reply("User not found!")
 
@@ -1112,7 +1125,7 @@ class UserCog(NatsuCog):
 				is_user_in_season = await cursor.fetchone()
 
 			if not is_user_in_season:
-				return await ctx.reply(f"{username} has not participated in {season_name}!")
+				return await ctx.reply(f"{user_discord.mention if user_discord else username} has not participated in {season_name}!")
 
 		await ctx.reply(view=await SeasonUserContracts.create(self.bot, ctx.author, season_id, user_id))
 
@@ -1134,7 +1147,7 @@ class UserCog(NatsuCog):
 					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it."
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			user_id, user_discord = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.reply("User not found!")
 
@@ -1149,7 +1162,7 @@ class UserCog(NatsuCog):
 				is_user_in_season = await cursor.fetchone()
 
 			if not is_user_in_season:
-				return await ctx.reply(f"{username} has not participated in {season_name}!")
+				return await ctx.reply(f"{user_discord.mention if user_discord else username} has not participated in {season_name}!")
 
 			async with conn.execute(
 				"SELECT id FROM season_contract WHERE season_id = ? AND contractee_id = ? AND (type LIKE ?3 OR type_label LIKE ?3)",
@@ -1181,7 +1194,7 @@ class UserCog(NatsuCog):
 					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it."
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			user_id, user_discord = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.reply("User not found!")
 
@@ -1196,7 +1209,7 @@ class UserCog(NatsuCog):
 				is_user_in_season = await cursor.fetchone()
 
 			if not is_user_in_season:
-				return await ctx.reply(f"{username} has not participated in {season_name}!")
+				return await ctx.reply(f"{user_discord.mention if user_discord else username} has not participated in {season_name}!")
 
 		await ctx.reply(view=await SeasonUserRandomContract.create(self.bot, season_id, user_id, flags.amount))
 
@@ -1229,7 +1242,7 @@ class UserCog(NatsuCog):
 					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it."
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			user_id, user_discord = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.reply("User not found!")
 
@@ -1251,7 +1264,7 @@ class UserCog(NatsuCog):
 			) as cursor:
 				row = await cursor.fetchone()
 				if not row:
-					return await ctx.reply(f"{username} is not in any fantasy team for {season_name}!")
+					return await ctx.reply(f"{user_discord.mention if user_discord else username} is not in any fantasy team for {season_name}!")
 				leader_id = row["user_id"]
 
 			async with conn.execute("SELECT 1 FROM season_user WHERE season_id = ? AND user_id = ?", (season_id, leader_id)) as cursor:
@@ -1277,7 +1290,7 @@ class UserCog(NatsuCog):
 					f"Could not find season with the id **{season_id}**. If this is a real season it's likely the bot does not have any data about it."
 				)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
+			user_id, user_discord = await self.bot.fetch_user_from_database(user, invoker=ctx.author, season_id=season_id, db_conn=conn)
 			if not user_id:
 				return await ctx.reply("User not found!")
 
@@ -1295,6 +1308,6 @@ class UserCog(NatsuCog):
 				does_user_have_fantasy = await cursor.fetchone()
 
 			if not does_user_have_fantasy:
-				return await ctx.reply(f"{username} doesn't have a fantasy team for {season_name}!")
+				return await ctx.reply(f"{user_discord.mention if user_discord else username} doesn't have a fantasy team for {season_name}!")
 
 		await ctx.reply(view=await FantasyUserProfile.create(self.bot, ctx.author, season_id, user_id, is_user_in_season))

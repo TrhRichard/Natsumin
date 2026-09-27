@@ -275,15 +275,15 @@ class BadgeCog(NatsuCog):
 				if not badge_row:
 					return await ctx.respond("Badge not found.", ephemeral=True)
 
-			user_id, _ = await self.bot.fetch_user_from_database(user, db_conn=conn)
+			user_id, user_discord = await self.bot.fetch_user_from_database(user, db_conn=conn)
 			async with conn.execute("SELECT username FROM user WHERE id = ?", (user_id,)) as cursor:
 				username: str = (await cursor.fetchone())["username"]
 
 			async with conn.execute("SELECT 1 FROM user_badge WHERE user_id = ? AND badge_id = ?", (user_id, id)) as cursor:
 				if (await cursor.fetchone()) is None:
-					return await ctx.respond(f"{username} doesn't have the badge!", ephemeral=True)
+					return await ctx.respond(f"{user_discord.mention if user_discord else username} doesn't have the badge!", ephemeral=True)
 
 			await conn.execute("DELETE FROM user_badge WHERE user_id = ? AND badge_id = ?", (user_id, id))
 			await conn.commit()
 
-		await ctx.respond(f"Removed **{badge_row['name']}** from {username}!", ephemeral=True)
+		await ctx.respond(f"Removed **{badge_row['name']}** from {user_discord.mention if user_discord else username}!", ephemeral=True)
