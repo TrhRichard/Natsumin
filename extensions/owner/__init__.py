@@ -622,7 +622,7 @@ class OwnerExt(NatsuCog, name="Owner", command_attrs={"hidden": True}):
 	async def revoke_token(self, ctx: NatsuContext, token_id: UUID):
 		async with self.database.connect() as conn:
 			async with conn.execute(
-				"UPDATE api_token SET removed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? RETURNING name", (token_id,)
+				"UPDATE api_token SET revoked_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? RETURNING name", (token_id,)
 			) as cursor:
 				row = await cursor.fetchone()
 				if row is None:

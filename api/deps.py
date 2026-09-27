@@ -29,7 +29,7 @@ async def get_current_user(bot: BotDep, credentials: Annotated[HTTPAuthorization
 		.columns("u.id", "u.discord_id", "u.username", "u.rep", "u.gen", "u.created_at", "u.updated_at", "ll.exp AS legacy_exp")
 		.join("user u ON u.id = t.user_id")
 		.join("leaderboard_legacy ll ON ll.user_id = u.id")
-		.where("t.hash = ? AND t.removed_at IS NULL", token_hash)
+		.where("t.hash = ? AND t.revoked_at IS NULL", token_hash)
 	)
 
 	async with bot.database.connect() as conn:
@@ -51,7 +51,7 @@ async def get_current_user(bot: BotDep, credentials: Annotated[HTTPAuthorization
 async def is_authenticated(bot: BotDep, credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)]) -> None:
 	token_hash = hashlib.sha256(credentials.credentials.encode()).hexdigest()
 
-	query = select("api_token", "t").columns("1").join("user u ON u.id = t.user_id").where("t.hash = ? AND t.removed_at IS NULL", token_hash)
+	query = select("api_token", "t").columns("1").join("user u ON u.id = t.user_id").where("t.hash = ? AND t.revoked_at IS NULL", token_hash)
 
 	async with bot.database.connect() as conn:
 		async with conn.execute(*query.build()) as cursor:

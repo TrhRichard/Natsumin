@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS api_token (
 	name		TEXT NOT NULL,
 	hash		TEXT NOT NULL,
 	created_at	DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-	removed_at	DATETIME,
+	revoked_at	DATETIME,
 
 	PRIMARY KEY (id),
 	UNIQUE (hash),
