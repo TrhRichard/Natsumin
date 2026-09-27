@@ -15,12 +15,14 @@ from discord.ext import commands
 from uuid import uuid4, UUID
 from pathlib import Path
 
+import subprocess
 import aiosqlite
 import aiofiles
 import datetime
 import discord
 import json
 import re
+import os
 
 if TYPE_CHECKING:
 	from collections.abc import Mapping
@@ -59,7 +61,7 @@ class NatsuBot(commands.Bot):
 
 	async def on_ready(self):
 		print("server successfully started")
-		# subprocess.run("cls" if os.name == "nt" else "clear", shell=True)
+		subprocess.run("cls" if os.name == "nt" else "clear", shell=True)
 		self.logger.info(f"Logged in as {self.user.name}#{self.user.discriminator}!")
 		await self.database.setup()
 		await self.reminders.setup()
