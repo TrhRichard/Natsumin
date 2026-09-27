@@ -183,7 +183,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 			if owned_user is not None:
 				if owned is None:
 					owned = True
-				owned_user_id, owned_user_discord = await self.bot.fetch_user_from_database(owned_user, db_conn=conn)
+				owned_user_id, owned_user_discord = await self.bot.fetch_user_from_database(owned_user, invoker=invoker, db_conn=conn)
 
 				if owned_user_id is None:
 					return (
@@ -221,7 +221,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 		hidden: bool = False,
 	) -> tuple[str | V2Paginator, bool]:
 		async with self.bot.database.connect() as conn:
-			user_id, discord_user = await self.bot.fetch_user_from_database(user, db_conn=conn)
+			user_id, discord_user = await self.bot.fetch_user_from_database(user, invoker=invoker, db_conn=conn)
 			if not user_id:
 				return "User not found!", True
 
@@ -405,7 +405,7 @@ class BadgesExt(NatsuCog, name="Badges"):
 	@badge_group.command(name="toggle-view", description="Toggle the viewing of badges to either list or one-by-one")
 	async def toggle_view(self, ctx: NatsuAppContext):
 		async with self.bot.database.connect() as conn:
-			user_id, _ = await self.bot.fetch_user_from_database(ctx.author, db_conn=conn)
+			user_id, _ = await self.bot.fetch_user_from_database(ctx.author, invoker=ctx.author, db_conn=conn)
 			if user_id is None:
 				return await ctx.respond("User not found!", ephemeral=True)
 

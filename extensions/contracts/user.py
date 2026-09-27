@@ -83,7 +83,7 @@ class MasterUserProfile(ui.DesignerView):
 
 				return self
 
-			_, discord_user = await bot.fetch_user_from_database(user_id, db_conn=conn)
+			_, discord_user = await bot.fetch_user_from_database(user_id, invoker=invoker, db_conn=conn)
 
 			legacy_rank = get_legacy_rank(user_row["exp"])
 			username = f"<@{discord_user.id}>" if discord_user else user_row["username"]
@@ -154,7 +154,7 @@ class SeasonUserProfile(ui.DesignerView):
 					row = await cursor.fetchone()
 					contractor_username: str | None = row["username"]
 
-			_, discord_user = await bot.fetch_user_from_database(user_id, db_conn=conn)
+			_, discord_user = await bot.fetch_user_from_database(user_id, invoker=invoker, db_conn=conn)
 
 			username = f"<@{discord_user.id}>" if discord_user else user_row["username"]
 			user_description = f"- **Status**: {get_status_name(UserStatus(user_row['status']))} {get_status_emote(UserStatus(user_row['status']))}\n"
@@ -324,7 +324,7 @@ class FantasyUserProfile(ui.DesignerView):
 
 			fantasy_row = dict(fantasy_row)
 
-			_, discord_user = await bot.fetch_user_from_database(user_id, db_conn=conn)
+			_, discord_user = await bot.fetch_user_from_database(user_id, invoker=invoker, db_conn=conn)
 			user_data_query = "SELECT u.username, u.discord_id, su.status FROM season_user su JOIN user u ON su.user_id = u.id WHERE su.season_id = ? AND su.user_id = ?"
 
 			if is_user_in_season:
@@ -590,7 +590,7 @@ class SeasonUserContracts(ui.DesignerView):
 					row = await cursor.fetchone()
 					contractor_username: str | None = row["username"]
 
-			_, discord_user = await bot.fetch_user_from_database(user_id, db_conn=conn)
+			_, discord_user = await bot.fetch_user_from_database(user_id, invoker=invoker, db_conn=conn)
 
 			username = f"<@{discord_user.id}>" if discord_user else user_row["username"]
 			user_description = f"- **Status**: {get_status_name(UserStatus(user_row['status']))} {get_status_emote(UserStatus(user_row['status']))}\n"

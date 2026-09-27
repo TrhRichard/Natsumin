@@ -227,6 +227,9 @@ class NatsuBot(commands.Bot):
 			if discord_user:
 				user = discord_user.name
 		elif isinstance(user, discord.abc.User):
+			if invoker is None:
+				invoker = user
+
 			discord_user = user
 			user = discord_user.name
 
@@ -271,11 +274,15 @@ class NatsuBot(commands.Bot):
 					row = await cursor.fetchone()
 					user_discord_id: int | None = row["discord_id"] if row is not None else None
 
-				if user_discord_id is not None and self.anicord:
-					discord_user = await self.anicord.get_or_fetch(discord.Member, user_discord_id)
+				if user_discord_id is not None:
+					if invoker is not None and isinstance(invoker, discord.Member):
+						discord_user = await invoker.guild.get_or_fetch(discord.Member, user_discord_id)
 
-				if discord_user is None and user_discord_id:
-					discord_user = await self.get_or_fetch(discord.User, user_discord_id)
+					if discord_user is None and self.anicord:
+						discord_user = await self.anicord.get_or_fetch(discord.Member, user_discord_id)
+
+					if discord_user is None:
+						discord_user = await self.get_or_fetch(discord.User, user_discord_id)
 
 		return user_id, discord_user
 
