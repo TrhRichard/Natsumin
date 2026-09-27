@@ -6,6 +6,7 @@ from internal.base.context import NatsuAutoContext, NatsuContext, NatsuAppContex
 from internal.enums import UserKind, UserStatus, ContractStatus, ContractKind
 from internal.contracts.order import OrderContractData, sort_contract_types
 from internal.checks import whitelist_channel_only
+from config import IS_PRODUCTION, GUILD_IDS
 from typing import TYPE_CHECKING, Literal
 from internal.base.cog import NatsuCog
 from internal.constants import COLORS
@@ -742,12 +743,16 @@ class FantasyUserFlags(commands.FlagConverter, delimiter="=", prefix="--"):
 
 
 class UserCog(NatsuCog):
-	user_group = discord.commands.SlashCommandGroup(
-		"user",
-		description="Various user related commands",
-		contexts={discord.InteractionContextType.guild, discord.InteractionContextType.bot_dm, discord.InteractionContextType.private_channel},
-		integration_types={discord.IntegrationType.user_install, discord.IntegrationType.guild_install},
-	)
+	if IS_PRODUCTION:
+		user_group = discord.commands.SlashCommandGroup(
+			"user",
+			description="Various user related commands",
+			contexts={discord.InteractionContextType.guild, discord.InteractionContextType.bot_dm, discord.InteractionContextType.private_channel},
+			integration_types={discord.IntegrationType.user_install, discord.IntegrationType.guild_install},
+		)
+	else:
+		user_group = discord.commands.SlashCommandGroup("user", description="Various user related commands", guild_ids=GUILD_IDS)
+
 	contracts_subgroup = user_group.create_subgroup("contracts", description="Various user contracts related commands")
 
 	@user_group.command(name="profile", description="Fetch the global profile of a user")

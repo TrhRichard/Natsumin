@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+
 from internal.base.context import NatsuAppContext, NatsuContext, NatsuAutoContext
 from internal.functions import shorten, diff_to_str
+from config import GUILD_IDS, IS_PRODUCTION
 from internal.logging import setup_logger
 from discord.ext import commands, tasks
 from internal.base.cog import NatsuCog
@@ -185,7 +187,15 @@ class ReminderExt(NatsuCog, name="Reminder"):
 	async def on_ready(self):
 		await self.db.setup()
 
-	reminder_group = discord.SlashCommandGroup("reminder", "Reminder commands")
+	if IS_PRODUCTION:
+		reminder_group = discord.SlashCommandGroup(
+			"reminder",
+			"Reminder commands",
+			contexts={discord.InteractionContextType.guild, discord.InteractionContextType.bot_dm, discord.InteractionContextType.private_channel},
+			integration_types={discord.IntegrationType.user_install, discord.IntegrationType.guild_install},
+		)
+	else:
+		reminder_group = discord.SlashCommandGroup("reminder", "Reminder commands", guild_ids=GUILD_IDS)
 
 	@reminder_group.command(description="Create a new reminder")
 	@discord.option("when", str, required=True, parameter_name="remind_in", description="Example: 1d24h60m or 1 day 24 hours 60 minutes")

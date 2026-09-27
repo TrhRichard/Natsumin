@@ -7,14 +7,13 @@ from internal.schemas import BadgeDisplayType, BadgeData
 from internal.contracts import usernames_autocomplete
 from internal.checks import whitelist_channel_only
 from internal.functions import get_user_config
+from config import GUILD_IDS, IS_PRODUCTION
 from internal.sql import sanitize, select
 from typing import TYPE_CHECKING, Literal
 from internal.logging import setup_logger
 from internal.base.cog import NatsuCog
 from internal.constants import COLORS
-
 from discord.ext import commands
-from config import GUILD_IDS
 from discord import ui
 
 if TYPE_CHECKING:
@@ -145,7 +144,15 @@ class BadgesExt(NatsuCog, name="Badges"):
 	async def cog_before_invoke(self, ctx: NatsuContext | NatsuAppContext):
 		await ctx.bot.ensure_user(ctx.author)
 
-	badge_group = discord.commands.SlashCommandGroup("badge", description="Various badge related commands", guild_ids=GUILD_IDS)
+	if IS_PRODUCTION:
+		badge_group = discord.commands.SlashCommandGroup(
+			"badge",
+			description="Various badge related commands",
+			contexts={discord.InteractionContextType.guild, discord.InteractionContextType.bot_dm, discord.InteractionContextType.private_channel},
+			integration_types={discord.IntegrationType.user_install, discord.IntegrationType.guild_install},
+		)
+	else:
+		badge_group = discord.commands.SlashCommandGroup("badge", description="Various badge related commands", guild_ids=GUILD_IDS)
 
 	async def badge_find_handler(
 		self,

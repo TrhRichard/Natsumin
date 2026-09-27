@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .queries import search_media, search_character, search_staff, Media, Character, Staff
 from internal.base.context import NatsuContext, NatsuAppContext
+from config import IS_PRODUCTION, GUILD_IDS
 from internal.logging import setup_logger
 from internal.functions import frmt_iter
 from internal.base.cog import NatsuCog
@@ -99,11 +100,14 @@ class AnilistExt(NatsuCog, name="AniList"):
 
 		return embed
 
-	anilist_group = discord.commands.SlashCommandGroup(
-		"anilist",
-		contexts={discord.InteractionContextType.guild, discord.InteractionContextType.bot_dm, discord.InteractionContextType.private_channel},
-		integration_types={discord.IntegrationType.user_install, discord.IntegrationType.guild_install},
-	)
+	if IS_PRODUCTION:
+		anilist_group = discord.commands.SlashCommandGroup(
+			"anilist",
+			contexts={discord.InteractionContextType.guild, discord.InteractionContextType.bot_dm, discord.InteractionContextType.private_channel},
+			integration_types={discord.IntegrationType.user_install, discord.IntegrationType.guild_install},
+		)
+	else:
+		anilist_group = discord.commands.SlashCommandGroup("anilist", description="Various AniList related commands", guild_ids=GUILD_IDS)
 
 	@anilist_group.command(name="anime", description="Get information about a anime from AniList")
 	@discord.option("title", str, min_length=1, description="Name of the anime")
