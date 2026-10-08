@@ -107,6 +107,8 @@ class NatsuBot(commands.Bot):
 		return await super().is_owner(user)
 
 	async def is_editor(self, user: discord.abc.User) -> bool:
+		# the shit was i smoking when i wrote this?
+		# gonna leave this like this to show just how weird the code can be in this bot
 		return bool(user.id in EDITOR_IDS or user.id in OWNER_IDS)
 
 	async def get_config(self, key: str, *, db_conn: aiosqlite.Connection | None = None) -> str | None:  # Shortcut

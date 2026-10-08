@@ -29,8 +29,3 @@ class UserConfig:
 	badge_display_type: BadgeDisplayType
 	track_username_history: bool
 	updated_at: datetime | None = None
-
-	# def __post_init__(self):
-	# self.track_username_history = bool(self.track_username_history)
-	# if self.updated_at is not None:
-	# self.updated_at = datetime.fromisoformat(self.updated_at)

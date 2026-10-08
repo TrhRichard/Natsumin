@@ -212,4 +212,4 @@ def update(table: str) -> UpdateQuery:
 
 
 def sanitize(query: str) -> str:
-	return query.replace("%", "\\%").replace("_", "\\_")
+	return query.replace("%", "")  # fix this eventually since it wasnt doing what it was supposed to do
