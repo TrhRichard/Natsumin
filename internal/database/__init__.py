@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import UUID
 
+import importlib
 import aiosqlite
-import aiofiles
 import asyncio
 import logging
 import sqlite3
@@ -19,7 +19,6 @@ sqlite3.register_adapter(UUID, lambda u: str(u))
 sqlite3.register_adapter(dict, lambda d: json.dumps(d, indent=None))
 sqlite3.register_adapter(list, lambda ls: json.dumps(ls, indent=None))
 
-# converters currently unused due to strict mode for the database
 sqlite3.register_converter("DATETIME", lambda b: datetime.fromisoformat(b.decode("utf-8")))
 sqlite3.register_converter("DATE", lambda b: date.fromisoformat(b.decode("utf-8")))
 sqlite3.register_converter("BOOLEAN", lambda b: b == b"1")
@@ -27,7 +26,7 @@ sqlite3.register_converter("UUID", lambda b: UUID(b.decode("utf-8")))
 sqlite3.register_converter("JSON", lambda b: json.loads(b.decode("utf-8")))
 
 
-# not exactly database related however it causes issues with json encoding
+# not exactly database related however it fixes issues with json encoding
 class NatsuJSONEncoder(json.JSONEncoder):
 	def default(self, obj):
 		if isinstance(obj, datetime):
@@ -48,6 +47,9 @@ class SeasonDetails:
 	name: str
 
 
+MIGRATIONS_PATH = Path("assets", "migrations")
+
+
 class NatsuDatabase:
 	def __init__(self):
 		self.logger = logging.getLogger("bot.database")
@@ -55,7 +57,6 @@ class NatsuDatabase:
 		self.available_seasons: dict[str, SeasonDetails] = {}
 
 		self._db_path = Path("data", f"database-{'prod' if IS_PRODUCTION else 'dev'}.sqlite")
-		self._schema_path = Path("assets", "schemas", "Database.sql")
 		self._setup_complete = asyncio.Event()
 
 	async def open(self, *, enable_foreign: bool = True) -> aiosqlite.Connection:
@@ -63,19 +64,18 @@ class NatsuDatabase:
 		conn.row_factory = aiosqlite.Row
 		if enable_foreign:
 			await conn.executescript("""
-				PRAGMA journal_mode = WAL;
 				PRAGMA foreign_keys = ON;
 			""")
 		return conn
 
 	@asynccontextmanager
-	async def connect(self, existing_connection: aiosqlite.Connection | None = None):
+	async def connect(self, existing_connection: aiosqlite.Connection | None = None, enable_foreign: bool = True):
 		"""
 		Connect to the database with a context manager.
 
 		Optionally takes in a existing connection that won't close when the context ends.
 		"""
-		conn = await self.open() if existing_connection is None else existing_connection
+		conn = await self.open(enable_foreign=enable_foreign) if existing_connection is None else existing_connection
 		try:
 			yield conn
 		except (aiosqlite.Error, sqlite3.Error) as err:
@@ -86,12 +86,62 @@ class NatsuDatabase:
 				await conn.close()
 
 	async def setup(self):
-		async with aiofiles.open(self._schema_path) as f:
-			schema = await f.read()
+		async with self.connect(enable_foreign=False) as conn:
+			await conn.executescript("""--sql
+				PRAGMA journal_mode = WAL;
 
-		async with self.connect() as conn:
-			await conn.executescript(schema)
+				CREATE TABLE IF NOT EXISTS migrations (
+					id			TEXT NOT NULL PRIMARY KEY,
+					created_at	DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+				);
+			""")
 			await conn.commit()
+
+			async with conn.execute("SELECT id FROM migrations") as cursor:
+				existing_migration_ids = {row["id"] for row in await cursor.fetchall()}
+
+			pending_migrations: list[Path] = []
+			for migration_file in sorted(
+				(p for p in MIGRATIONS_PATH.glob("[0-9][0-9][0-9][0-9]_*") if p.suffix in (".py", ".sql")), key=lambda p: p.stem
+			):
+				migration_id = migration_file.stem
+
+				if migration_id not in existing_migration_ids:
+					pending_migrations.append(migration_file)
+
+			for i, migration_file in enumerate(pending_migrations, start=1):
+				migration_id = migration_file.stem
+				migration_number = migration_id.split("_", 1)[0]
+				migration_name = migration_id.split("_", 1)[1]
+
+				full_migration_name = f"{migration_number} '{migration_name}'"
+
+				self.logger.info(f"Running migration {full_migration_name} ({i}/{len(pending_migrations)})")
+
+				try:
+					if migration_file.suffix == ".sql":
+						with open(migration_file, "r", encoding="utf-8") as f:
+							file_content = f.read()
+						await conn.executescript(f"BEGIN;\n{file_content}\n;\nINSERT INTO migrations (id) VALUES ('{migration_id}');\nCOMMIT;\n")
+					else:
+						migration_module = importlib.import_module(f"assets.migrations.{migration_id}")
+						await migration_module.migrate(conn)
+						await conn.execute("INSERT INTO migrations (id) VALUES (?)", (migration_id,))
+						await conn.commit()
+				except Exception as err:
+					if conn.in_transaction:
+						await conn.rollback()
+					self.logger.error(
+						f"Migration {full_migration_name} failed, stopping migration process at {i}/{len(pending_migrations)}", exc_info=err
+					)
+					raise
+
+				self.logger.info(f"Migration {full_migration_name} finished successfully")
+
+			if pending_migrations:
+				self.logger.info(
+					f"Migrating database finished successfully ({len(pending_migrations)} migration{'s' if len(pending_migrations) > 1 else ''} applied)"
+				)
 
 			async with conn.execute("SELECT id, name FROM season") as cursor:
 				for row in await cursor.fetchall():

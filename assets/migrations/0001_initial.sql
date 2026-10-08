@@ -1,6 +1,3 @@
-PRAGMA journal_mode = WAL;
-PRAGMA foreign_keys = ON;
-
 CREATE TABLE IF NOT EXISTS bot_config (
 	key 		TEXT NOT NULL,
 	value 		TEXT NOT NULL,
